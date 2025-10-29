@@ -48,9 +48,22 @@ IB_USERNAME=your_ib_username
 IB_PASSWORD=your_ib_password
 TRADING_MODE=paper
 PAPER_TRADING=true
+IB_TOTP_SECRET=your_totp_secret_here
 ```
 
 CRITICAL: Ensure `TRADING_MODE=paper` and `PAPER_TRADING=true` for safety.
+
+### Step 2.5: Setup TOTP Authentication
+
+Since this is a headless deployment, you need to setup TOTP (Time-based One-Time Password) authentication:
+
+1. Log into your Interactive Brokers account portal
+2. Navigate to Settings > User Settings > Security > Secure Login System
+3. Enable IBKR Mobile Authentication or IB Key
+4. When setting up, IB will provide a secret key (usually 20 characters)
+5. Copy this secret key to your `.env` file as `IB_TOTP_SECRET`
+
+The IB Gateway container will automatically generate TOTP codes using this secret.
 
 ### Step 3: Deploy
 
@@ -166,10 +179,6 @@ docker-compose restart ibgateway
 docker-compose stop bot
 ```
 
-### View IB Gateway GUI (via VNC)
-
-Connect to `droplet_ip:5900` with VNC client using password from `.env`
-
 ### Backup Database
 
 ```bash
@@ -190,6 +199,31 @@ docker-compose restart ibgateway
 # Wait 30 seconds, then restart bot
 docker-compose restart bot
 ```
+
+### TOTP Authentication Issues
+
+If IB Gateway fails to authenticate:
+
+```bash
+# Check if TOTP secret is set
+docker-compose exec ibgateway env | grep TOTP
+
+# Verify TOTP secret format (should be 20 characters, alphanumeric)
+# Common issues:
+# - Secret contains spaces (remove them)
+# - Wrong secret copied from IB portal
+# - Secret expired (regenerate in IB portal)
+
+# Test connection manually
+docker-compose logs ibgateway | grep -i "auth\|login\|totp"
+```
+
+To regenerate TOTP secret:
+1. Log into IB Account Management
+2. Disable current 2FA method
+3. Re-enable with new secret
+4. Update `.env` with new `IB_TOTP_SECRET`
+5. Restart: `docker-compose restart ibgateway`
 
 ### Database Locked
 
