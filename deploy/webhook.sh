@@ -3,6 +3,10 @@
 # Skim Trading Bot - GitOps Deployment Script
 # Run this on your DigitalOcean droplet to deploy/update the bot
 #
+# Usage:
+#   ./deploy/webhook.sh                    # Deploy from main branch
+#   DEPLOY_BRANCH=develop ./deploy/webhook.sh  # Deploy from specific branch
+#
 
 set -e  # Exit on error
 
@@ -15,8 +19,10 @@ cd /opt/skim
 
 # Pull latest changes from git
 echo "Pulling latest changes from git..."
+DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+echo "Deploying branch: $DEPLOY_BRANCH"
 git fetch origin
-git reset --hard origin/claude/asx-trading-bot-setup-011CUaapBZE3mo2kEGwriSKK
+git reset --hard origin/$DEPLOY_BRANCH
 
 # Stop existing containers
 echo "Stopping existing containers..."
