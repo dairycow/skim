@@ -14,14 +14,14 @@ services:
       - TWS_ACCEPT_INCOMING=accept
       - TWOFA_TIMEOUT_ACTION=restart
     ports:
-      - "4001:4001"  # IB Gateway API port
+      - "4001:4000"  # IB Gateway API port (paper trading)
       - "4002:4002"  # IB Gateway API port (backup)
     volumes:
       - ./ibgateway:/root/Jts
     networks:
       - skim-network
     healthcheck:
-      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/4001' || exit 1"]
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/4000' || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 12
@@ -37,7 +37,7 @@ services:
         condition: service_healthy
     environment:
       - IB_HOST=ibgateway
-      - IB_PORT=4001
+      - IB_PORT=4000
       - IB_CLIENT_ID=1
       - PAPER_TRADING=${PAPER_TRADING:-true}
       - GAP_THRESHOLD=${GAP_THRESHOLD:-3.0}
