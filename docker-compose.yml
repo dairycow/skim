@@ -11,11 +11,9 @@ services:
       - TWS_PASSWORD=${IB_PASSWORD}
       - TRADING_MODE=${TRADING_MODE:-paper}
       - READ_ONLY_API=no
-      - VNC_SERVER_PASSWORD=${VNC_PASSWORD:-password}
     ports:
       - "4001:4001"  # IB Gateway API port
       - "4002:4002"  # IB Gateway API port (backup)
-      - "5900:5900"  # VNC port for remote access
     volumes:
       - ./ibgateway:/root/Jts
     networks:
