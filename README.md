@@ -48,22 +48,20 @@ IB_USERNAME=your_ib_username
 IB_PASSWORD=your_ib_password
 TRADING_MODE=paper
 PAPER_TRADING=true
-IB_TOTP_SECRET=your_totp_secret_here
 ```
 
 CRITICAL: Ensure `TRADING_MODE=paper` and `PAPER_TRADING=true` for safety.
 
-### Step 2.5: Setup TOTP Authentication
+### Step 2.5: Authentication Setup
 
-Since this is a headless deployment, you need to setup TOTP (Time-based One-Time Password) authentication:
+This bot uses IBKR Mobile push notifications for 2FA authentication in headless mode.
 
-1. Log into your Interactive Brokers account portal
-2. Navigate to Settings > User Settings > Security > Secure Login System
-3. Enable IBKR Mobile Authentication or IB Key
-4. When setting up, IB will provide a secret key (usually 20 characters)
-5. Copy this secret key to your `.env` file as `IB_TOTP_SECRET`
+Ensure you have:
+1. IBKR Mobile app installed on your phone
+2. Mobile authentication enabled in IB Account Management
+3. Your phone ready to approve login requests
 
-The IB Gateway container will automatically generate TOTP codes using this secret.
+When IB Gateway starts, you'll receive a push notification on your phone to approve the login.
 
 ### Step 3: Deploy
 
@@ -200,30 +198,26 @@ docker-compose restart ibgateway
 docker-compose restart bot
 ```
 
-### TOTP Authentication Issues
+### Authentication Issues
 
 If IB Gateway fails to authenticate:
 
 ```bash
-# Check if TOTP secret is set
-docker-compose exec ibgateway env | grep TOTP
+# Check authentication logs
+docker-compose logs ibgateway | grep -i "auth\|login"
 
-# Verify TOTP secret format (should be 20 characters, alphanumeric)
 # Common issues:
-# - Secret contains spaces (remove them)
-# - Wrong secret copied from IB portal
-# - Secret expired (regenerate in IB portal)
-
-# Test connection manually
-docker-compose logs ibgateway | grep -i "auth\|login\|totp"
+# - Push notification not approved on phone
+# - IBKR Mobile app not installed or not logged in
+# - Mobile authentication not enabled in IB portal
 ```
 
-To regenerate TOTP secret:
-1. Log into IB Account Management
-2. Disable current 2FA method
-3. Re-enable with new secret
-4. Update `.env` with new `IB_TOTP_SECRET`
-5. Restart: `docker-compose restart ibgateway`
+To fix authentication:
+1. Ensure IBKR Mobile app is installed and logged in
+2. Check IB Account Management > Security > Secure Login System
+3. Enable "IBKR Mobile Authentication" if not already enabled
+4. Restart IB Gateway: `docker-compose restart ibgateway`
+5. Approve the push notification on your phone when prompted
 
 ### Database Locked
 

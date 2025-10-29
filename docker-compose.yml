@@ -11,7 +11,6 @@ services:
       - TWS_PASSWORD=${IB_PASSWORD}
       - TRADING_MODE=${TRADING_MODE:-paper}
       - READ_ONLY_API=no
-      - TWS_TOTP_SECRET=${IB_TOTP_SECRET}
     ports:
       - "4001:4001"  # IB Gateway API port
       - "4002:4002"  # IB Gateway API port (backup)
