@@ -11,7 +11,7 @@ services:
       - TWS_PASSWORD=${IB_PASSWORD}
       - TRADING_MODE=${TRADING_MODE:-paper}
       - READ_ONLY_API=no
-      - TWS_ACCEPT_INCOMING=accept
+      - ACCEPT_INCOMING_CONNECTION_ACTION=accept
       - TWOFA_TIMEOUT_ACTION=restart
     ports:
       - "4002:4002"  # IB Gateway API port (paper trading uses 4002)
