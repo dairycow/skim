@@ -4,8 +4,8 @@ Production-ready ASX pivot trading bot for paper trading on Interactive Brokers.
 
 ## Strategy Overview
 
-1. Scan ASX for price-sensitive announcements (using yfinance)
-2. Monitor opening auction for gaps >3%
+1. Scan ASX market using TradingView scanner API for momentum stocks
+2. Monitor for gaps >3% at market open
 3. Enter on breakout above opening range high
 4. Stop loss at low of day
 5. Sell half position on day 3
@@ -246,6 +246,20 @@ skim/
 └── deploy/
     └── webhook.sh          # Deployment script
 ```
+
+### Data Sources
+
+**TradingView Scanner API**
+- Used for real-time ASX market scanning
+- Public endpoint: https://scanner.tradingview.com/australia/scan
+- Scans for momentum stocks with gaps (change_from_open)
+- No API key required
+- Returns ticker, close price, and gap percentage
+
+**Interactive Brokers API**
+- Used for order execution and position management
+- Real-time market data for entry/exit decisions
+- Paper trading mode for safe testing
 
 ## Database Schema
 
