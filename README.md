@@ -52,6 +52,17 @@ PAPER_TRADING=true
 
 CRITICAL: Ensure `TRADING_MODE=paper` and `PAPER_TRADING=true` for safety.
 
+### Step 2.5: Authentication Setup
+
+This bot uses IBKR Mobile push notifications for 2FA authentication in headless mode.
+
+Ensure you have:
+1. IBKR Mobile app installed on your phone
+2. Mobile authentication enabled in IB Account Management
+3. Your phone ready to approve login requests
+
+When IB Gateway starts, you'll receive a push notification on your phone to approve the login.
+
 ### Step 3: Deploy
 
 ```bash
@@ -166,10 +177,6 @@ docker-compose restart ibgateway
 docker-compose stop bot
 ```
 
-### View IB Gateway GUI (via VNC)
-
-Connect to `droplet_ip:5900` with VNC client using password from `.env`
-
 ### Backup Database
 
 ```bash
@@ -190,6 +197,27 @@ docker-compose restart ibgateway
 # Wait 30 seconds, then restart bot
 docker-compose restart bot
 ```
+
+### Authentication Issues
+
+If IB Gateway fails to authenticate:
+
+```bash
+# Check authentication logs
+docker-compose logs ibgateway | grep -i "auth\|login"
+
+# Common issues:
+# - Push notification not approved on phone
+# - IBKR Mobile app not installed or not logged in
+# - Mobile authentication not enabled in IB portal
+```
+
+To fix authentication:
+1. Ensure IBKR Mobile app is installed and logged in
+2. Check IB Account Management > Security > Secure Login System
+3. Enable "IBKR Mobile Authentication" if not already enabled
+4. Restart IB Gateway: `docker-compose restart ibgateway`
+5. Approve the push notification on your phone when prompted
 
 ### Database Locked
 
