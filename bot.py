@@ -37,7 +37,7 @@ class TradingBot:
     """ASX Pivot Trading Bot - Mobile-optimized for iPhone deployment"""
 
     def __init__(self):
-        """Initialize the trading bot with database and IB connection"""
+        """Initialize the trading bot with database (lazy IB connection)"""
         logger.info("Initializing Skim Trading Bot...")
 
         # Ensure data directory exists
@@ -48,9 +48,9 @@ class TradingBot:
         self.db.row_factory = sqlite3.Row
         self._init_db()
 
-        # Initialize IB connection
+        # Initialize IB connection object (lazy connection)
         self.ib = IB()
-        self._connect_ib()
+        self._ib_connected = False
 
         # TradingView API endpoint
         self.tv_api_url = "https://scanner.tradingview.com/australia/scan"
@@ -110,15 +110,56 @@ class TradingBot:
         self.db.commit()
         logger.info("Database schema initialized")
 
+    def _test_network_connectivity(self):
+        """Test network connectivity to IB Gateway before attempting connection"""
+        import socket
+
+        try:
+            logger.info(f"Testing network connectivity to {IB_HOST}:{IB_PORT}...")
+
+            # Test DNS resolution
+            ip_address = socket.gethostbyname(IB_HOST)
+            logger.info(f"DNS resolved {IB_HOST} -> {ip_address}")
+
+            # Test TCP connection
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            result = sock.connect_ex((IB_HOST, IB_PORT))
+            sock.close()
+
+            if result == 0:
+                logger.info(f"TCP connection to {IB_HOST}:{IB_PORT} successful")
+                return True
+            else:
+                logger.warning(f"TCP connection to {IB_HOST}:{IB_PORT} failed (error code: {result})")
+                return False
+
+        except socket.gaierror as e:
+            logger.error(f"DNS resolution failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Network test failed: {e}")
+            return False
+
     def _connect_ib(self):
         """Connect to IB Gateway with safety checks and reconnection logic"""
-        max_retries = 10
+        if self._ib_connected and self.ib.isConnected():
+            return
+
+        max_retries = 20
         retry_delay = 3
 
         for attempt in range(max_retries):
             try:
+                # Test network connectivity first
+                if not self._test_network_connectivity():
+                    logger.warning(f"Network connectivity test failed, waiting before retry...")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay * 2)
+                        continue
+
                 logger.info(f"Connecting to IB Gateway at {IB_HOST}:{IB_PORT} (attempt {attempt + 1}/{max_retries})")
-                self.ib.connect(IB_HOST, IB_PORT, clientId=IB_CLIENT_ID, timeout=20)
+                self.ib.connect(IB_HOST, IB_PORT, clientId=IB_CLIENT_ID, timeout=60)
 
                 # Get account info for safety checks
                 account = self.ib.managedAccounts()[0]
@@ -134,6 +175,7 @@ class TradingBot:
                     logger.warning(f"LIVE TRADING MODE - Account: {account}")
 
                 logger.info("IB connection established successfully")
+                self._ib_connected = True
                 return
 
             except Exception as e:
@@ -146,8 +188,8 @@ class TradingBot:
 
     def _ensure_connection(self):
         """Ensure IB connection is alive, reconnect if needed"""
-        if not self.ib.isConnected():
-            logger.warning("IB connection lost, attempting to reconnect...")
+        if not self._ib_connected or not self.ib.isConnected():
+            logger.warning("IB connection not established or lost, connecting...")
             self._connect_ib()
 
     def _query_tradingview(self, min_gap: float) -> List[Tuple[str, float, float]]:

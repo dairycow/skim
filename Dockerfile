@@ -17,6 +17,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy bot code
 COPY bot.py .
 
+# Copy startup script
+COPY startup.sh .
+RUN chmod +x /app/startup.sh
+
 # Copy crontab file
 COPY crontab /etc/cron.d/skim-cron
 
@@ -35,5 +39,5 @@ RUN chmod +x /app/bot.py
 # Create data and logs directories
 RUN mkdir -p /app/data /app/logs
 
-# Start cron in foreground
-CMD cron && tail -f /var/log/cron.log /app/logs/skim_*.log 2>/dev/null || tail -f /var/log/cron.log
+# Use startup script to ensure IB Gateway is ready
+CMD ["/app/startup.sh"]
