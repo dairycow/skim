@@ -10,19 +10,17 @@ services:
       - TWS_USERID=${IB_USERNAME}
       - TWS_PASSWORD=${IB_PASSWORD}
       - TRADING_MODE=${TRADING_MODE:-paper}
-      - TWS_API_PORT=4000
       - READ_ONLY_API=no
       - TWS_ACCEPT_INCOMING=accept
       - TWOFA_TIMEOUT_ACTION=restart
     ports:
-      - "4001:4000"  # IB Gateway API port (paper trading)
-      - "4002:4002"  # IB Gateway API port (backup)
+      - "4002:4002"  # IB Gateway API port (paper trading uses 4002)
     volumes:
       - ./ibgateway:/root/Jts
     networks:
       - skim-network
     healthcheck:
-      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/4000' || exit 1"]
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/4002' || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 12
@@ -38,7 +36,7 @@ services:
         condition: service_healthy
     environment:
       - IB_HOST=ibgateway
-      - IB_PORT=4000
+      - IB_PORT=4002
       - IB_CLIENT_ID=1
       - PAPER_TRADING=${PAPER_TRADING:-true}
       - GAP_THRESHOLD=${GAP_THRESHOLD:-3.0}
