@@ -17,6 +17,7 @@ services:
       - "${IB_PORT:-4002}:4002"  # IB Gateway API port (paper trading uses 4002)
     volumes:
       - ./ibgateway:/root/Jts
+      - ./configure_jts.sh:/root/configure_jts.sh:ro
     networks:
       - skim-network
     healthcheck:
@@ -26,6 +27,21 @@ services:
       retries: 12
       start_period: 120s
 
+  # JTS Configuration Helper - Runs once to configure trusted IPs
+  jts-configurator:
+    image: ghcr.io/gnzsnz/ib-gateway:latest
+    container_name: jts-configurator
+    depends_on:
+      ibgateway:
+        condition: service_healthy
+    volumes:
+      - ./ibgateway:/root/Jts
+      - ./configure_jts.sh:/configure_jts.sh:ro
+    networks:
+      - skim-network
+    command: /bin/bash /configure_jts.sh
+    restart: "no"
+
   # Skim Trading Bot
   bot:
     build: .
@@ -34,6 +50,8 @@ services:
     depends_on:
       ibgateway:
         condition: service_healthy
+      jts-configurator:
+        condition: service_completed_successfully
     environment:
       - IB_HOST=${IB_HOST:-ibgateway}
       - IB_PORT=${IB_PORT:-4002}
