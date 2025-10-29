@@ -19,11 +19,11 @@ services:
     networks:
       - skim-network
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "4001"]
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/4001' || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 6
-      start_period: 60s
+      retries: 10
+      start_period: 90s
 
   # Skim Trading Bot
   bot:
