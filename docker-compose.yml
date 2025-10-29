@@ -10,6 +10,7 @@ services:
       - TWS_USERID=${IB_USERNAME}
       - TWS_PASSWORD=${IB_PASSWORD}
       - TRADING_MODE=${TRADING_MODE:-paper}
+      - TWS_API_PORT=4000
       - READ_ONLY_API=no
       - TWS_ACCEPT_INCOMING=accept
       - TWOFA_TIMEOUT_ACTION=restart
