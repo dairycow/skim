@@ -112,8 +112,8 @@ class TradingBot:
 
     def _connect_ib(self):
         """Connect to IB Gateway with safety checks and reconnection logic"""
-        max_retries = 5
-        retry_delay = 2
+        max_retries = 10
+        retry_delay = 3
 
         for attempt in range(max_retries):
             try:
