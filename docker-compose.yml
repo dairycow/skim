@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Interactive Brokers Gateway
+  ibgateway:
+    image: ghcr.io/gnzsnz/ib-gateway:latest
+    container_name: ibgateway
+    restart: unless-stopped
+    environment:
+      - TWS_USERID=${IB_USERNAME}
+      - TWS_PASSWORD=${IB_PASSWORD}
+      - TRADING_MODE=${TRADING_MODE:-paper}
+      - READ_ONLY_API=no
+      - VNC_SERVER_PASSWORD=${VNC_PASSWORD:-password}
+    ports:
+      - "4001:4001"  # IB Gateway API port
+      - "4002:4002"  # IB Gateway API port (backup)
+      - "5900:5900"  # VNC port for remote access
+    volumes:
+      - ./ibgateway:/root/Jts
+    networks:
+      - skim-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Skim Trading Bot
+  bot:
+    build: .
+    container_name: skim-bot
+    restart: unless-stopped
+    depends_on:
+      - ibgateway
+    environment:
+      - IB_HOST=ibgateway
+      - IB_PORT=4001
+      - IB_CLIENT_ID=1
+      - PAPER_TRADING=${PAPER_TRADING:-true}
+      - GAP_THRESHOLD=${GAP_THRESHOLD:-3.0}
+      - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-1000}
+      - MAX_POSITIONS=${MAX_POSITIONS:-5}
+      - DB_PATH=/app/data/skim.db
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./bot.py:/app/bot.py  # Mount for live editing
+    networks:
+      - skim-network
+
+networks:
+  skim-network:
+    driver: bridge
