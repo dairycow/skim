@@ -20,23 +20,23 @@ git reset --hard origin/claude/asx-trading-bot-setup-011CUaapBZE3mo2kEGwriSKK
 
 # Stop existing containers
 echo "Stopping existing containers..."
-docker compose down || true
+docker-compose down || true
 
 # Build and start containers
 echo "Building and starting containers..."
-docker compose up -d --build
+docker-compose up -d --build
 
 # Show status
 echo
 echo "Deployment complete!"
 echo
 echo "Container status:"
-docker compose ps
+docker-compose ps
 
 echo
 echo "View logs with:"
-echo "  docker compose logs -f bot"
-echo "  docker compose logs -f ibgateway"
+echo "  docker-compose logs -f bot"
+echo "  docker-compose logs -f ibgateway"
 echo
 echo "Check bot status:"
-echo "  docker compose exec bot python /app/bot.py status"
+echo "  docker-compose exec bot python /app/bot.py status"
