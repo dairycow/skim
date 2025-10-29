@@ -15,11 +15,11 @@ Strategy:
 import os
 import sqlite3
 import time
+import json
+import requests
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from ib_insync import IB, Stock, MarketOrder, LimitOrder, util
-import yfinance as yf
-import pandas as pd
 from loguru import logger
 
 # Configuration from environment variables
@@ -52,14 +52,8 @@ class TradingBot:
         self.ib = IB()
         self._connect_ib()
 
-        # ASX top 200 tickers (simplified list - you can expand this)
-        self.asx_universe = [
-            'BHP.AX', 'CBA.AX', 'CSL.AX', 'NAB.AX', 'WBC.AX',
-            'ANZ.AX', 'WES.AX', 'MQG.AX', 'WOW.AX', 'FMG.AX',
-            'RIO.AX', 'WDS.AX', 'GMG.AX', 'TCL.AX', 'TLS.AX',
-            'ALL.AX', 'WTC.AX', 'COL.AX', 'STO.AX', 'QBE.AX'
-            # Add more ASX200 tickers as needed
-        ]
+        # TradingView API endpoint
+        self.tv_api_url = "https://scanner.tradingview.com/australia/scan"
 
         logger.info("Bot initialized successfully")
 
@@ -156,94 +150,152 @@ class TradingBot:
             logger.warning("IB connection lost, attempting to reconnect...")
             self._connect_ib()
 
+    def _query_tradingview(self, min_gap: float) -> List[Tuple[str, float, float]]:
+        """
+        Query TradingView scanner API for ASX stocks with gaps
+
+        Args:
+            min_gap: Minimum gap percentage (change_from_open)
+
+        Returns:
+            List of tuples: (ticker, gap_percent, close_price)
+        """
+        try:
+            # TradingView API payload
+            payload = {
+                "markets": ["australia"],
+                "symbols": {"query": {"types": []}, "tickers": []},
+                "options": {"lang": "en"},
+                "columns": ["name", "close", "change_from_open"],
+                "sort": {"sortBy": "change_from_open", "sortOrder": "desc"},
+                "range": [0, 100],
+                "filter": [{"left": "change_from_open", "operation": "greater", "right": min_gap}]
+            }
+
+            # Headers to mimic browser request
+            headers = {
+                "content-type": "application/json",
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "origin": "https://www.tradingview.com",
+                "referer": "https://www.tradingview.com/",
+                "accept": "text/plain, */*; q=0.01",
+                "sec-fetch-site": "same-site",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-dest": "empty"
+            }
+
+            logger.info(f"Querying TradingView for gaps > {min_gap}%")
+
+            response = requests.post(self.tv_api_url, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+
+            data = response.json()
+
+            results = []
+            for item in data.get('data', []):
+                ticker = item.get('s', '')  # Symbol like "ASX:BHP"
+                values = item.get('d', [])
+
+                if len(values) >= 3:
+                    # Extract ticker name (remove ASX: prefix)
+                    ticker_name = ticker.replace('ASX:', '')
+                    close_price = float(values[1]) if values[1] else 0.0
+                    gap_percent = float(values[2]) if values[2] else 0.0
+
+                    results.append((ticker_name, gap_percent, close_price))
+
+            logger.info(f"TradingView returned {len(results)} stocks with gaps > {min_gap}%")
+            return results
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error querying TradingView API: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error querying TradingView: {e}")
+            return []
+
     def scan(self):
-        """Scan ASX universe for potential candidates"""
-        logger.info("Starting market scan for candidates...")
+        """Scan ASX market for stocks showing momentum (gaps > 2%)"""
+        logger.info("Starting TradingView market scan for candidates...")
+
+        # Query TradingView for stocks with gaps > 2% (lower threshold for scanning)
+        scan_threshold = 2.0
+        stocks = self._query_tradingview(min_gap=scan_threshold)
+
+        if not stocks:
+            logger.info("No stocks found in scan")
+            return 0
 
         candidates_found = 0
+        cursor = self.db.cursor()
 
-        for ticker in self.asx_universe:
+        for ticker, gap_percent, close_price in stocks:
             try:
-                # Download recent data
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period='5d')
+                logger.info(f"{ticker}: Gap {gap_percent:.2f}% @ ${close_price:.2f}")
 
-                if hist.empty or len(hist) < 2:
-                    continue
+                # Check if already in candidates
+                cursor.execute("SELECT ticker FROM candidates WHERE ticker = ? AND status = 'watching'", (ticker,))
 
-                # Get latest close
-                prev_close = hist['Close'].iloc[-1]
-
-                # Check for volume spikes or price movement
-                avg_volume = hist['Volume'].mean()
-                latest_volume = hist['Volume'].iloc[-1]
-
-                # Simple heuristic: volume spike or price movement
-                if latest_volume > avg_volume * 1.5:
-                    logger.info(f"{ticker}: Volume spike detected ({latest_volume:.0f} vs avg {avg_volume:.0f})")
-
-                    # Check if already in candidates
-                    cursor = self.db.cursor()
-                    cursor.execute("SELECT ticker FROM candidates WHERE ticker = ? AND status = 'watching'", (ticker,))
-
-                    if not cursor.fetchone():
-                        # Add to candidates
-                        cursor.execute("""
-                            INSERT OR REPLACE INTO candidates (ticker, headline, scan_date, status, prev_close)
-                            VALUES (?, ?, ?, 'watching', ?)
-                        """, (ticker, "Volume spike detected", datetime.now().isoformat(), prev_close))
-                        self.db.commit()
-                        candidates_found += 1
-                        logger.info(f"Added {ticker} to candidates")
+                if not cursor.fetchone():
+                    # Add to candidates
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO candidates (ticker, headline, scan_date, status, gap_percent, prev_close)
+                        VALUES (?, ?, ?, 'watching', ?, ?)
+                    """, (ticker, f"Gap detected: {gap_percent:.2f}%", datetime.now().isoformat(), gap_percent, close_price))
+                    self.db.commit()
+                    candidates_found += 1
+                    logger.info(f"Added {ticker} to candidates (gap: {gap_percent:.2f}%)")
 
             except Exception as e:
-                logger.error(f"Error scanning {ticker}: {e}")
+                logger.error(f"Error adding candidate {ticker}: {e}")
                 continue
 
         logger.info(f"Scan complete. Found {candidates_found} new candidates")
         return candidates_found
 
     def monitor(self):
-        """Monitor candidates for gap at market open"""
-        logger.info("Monitoring candidates for gaps at market open...")
+        """Monitor candidates and trigger on gap threshold"""
+        logger.info("Monitoring for gaps at market open...")
+
+        # Query TradingView for stocks with gaps >= threshold
+        stocks = self._query_tradingview(min_gap=GAP_THRESHOLD)
+
+        if not stocks:
+            logger.info("No stocks meeting gap threshold")
+            return 0
 
         cursor = self.db.cursor()
-        cursor.execute("SELECT * FROM candidates WHERE status = 'watching'")
-        candidates = cursor.fetchall()
-
-        if not candidates:
-            logger.info("No candidates to monitor")
-            return
-
         gaps_found = 0
 
-        for candidate in candidates:
-            ticker = candidate['ticker']
-            prev_close = candidate['prev_close']
+        # Get existing candidates
+        cursor.execute("SELECT * FROM candidates WHERE status = 'watching'")
+        candidates = cursor.fetchall()
+        candidate_tickers = {c['ticker'] for c in candidates}
 
+        for ticker, gap_percent, close_price in stocks:
             try:
-                # Get current price
-                stock = yf.Ticker(ticker)
-                current_data = stock.history(period='1d', interval='1m')
+                logger.info(f"{ticker}: Gap {gap_percent:.2f}% @ ${close_price:.2f}")
 
-                if current_data.empty:
-                    continue
+                # Check if this ticker is in our candidates
+                if ticker in candidate_tickers:
+                    # Trigger existing candidate
+                    logger.warning(f"{ticker}: CANDIDATE TRIGGERED! Gap: {gap_percent:.2f}%")
 
-                current_price = current_data['Close'].iloc[-1]
-                gap_percent = ((current_price - prev_close) / prev_close) * 100
-
-                logger.info(f"{ticker}: Current price ${current_price:.2f}, Gap: {gap_percent:.2f}%")
-
-                # Check for gap threshold
-                if abs(gap_percent) >= GAP_THRESHOLD:
-                    logger.warning(f"{ticker}: GAP DETECTED! {gap_percent:.2f}%")
-
-                    # Update candidate status
                     cursor.execute("""
                         UPDATE candidates
                         SET status = 'triggered', gap_percent = ?
-                        WHERE ticker = ?
+                        WHERE ticker = ? AND status = 'watching'
                     """, (gap_percent, ticker))
+                    self.db.commit()
+                    gaps_found += 1
+                else:
+                    # New stock meeting threshold - add directly as triggered
+                    logger.warning(f"{ticker}: NEW STOCK TRIGGERED! Gap: {gap_percent:.2f}%")
+
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO candidates (ticker, headline, scan_date, status, gap_percent, prev_close)
+                        VALUES (?, ?, ?, 'triggered', ?, ?)
+                    """, (ticker, f"Gap triggered: {gap_percent:.2f}%", datetime.now().isoformat(), gap_percent, close_price))
                     self.db.commit()
                     gaps_found += 1
 
@@ -251,7 +303,7 @@ class TradingBot:
                 logger.error(f"Error monitoring {ticker}: {e}")
                 continue
 
-        logger.info(f"Monitoring complete. Found {gaps_found} gaps")
+        logger.info(f"Monitoring complete. Found {gaps_found} triggered stocks")
         return gaps_found
 
     def execute(self):
@@ -284,9 +336,9 @@ class TradingBot:
             ticker = candidate['ticker']
 
             try:
-                # Convert ticker format (ASX uses different format in IB)
-                # Remove .AX suffix for IB
-                ib_ticker = ticker.replace('.AX', '')
+                # TradingView returns ticker without suffix (e.g., "BHP")
+                # IB uses same format for ASX stocks
+                ib_ticker = ticker
 
                 # Create stock contract
                 contract = Stock(ib_ticker, 'ASX', 'AUD')
@@ -380,8 +432,8 @@ class TradingBot:
             days_held = (datetime.now() - entry_date).days
 
             try:
-                # Get current price
-                ib_ticker = ticker.replace('.AX', '')
+                # Get current price (ticker already in IB format from TradingView)
+                ib_ticker = ticker
                 contract = Stock(ib_ticker, 'ASX', 'AUD')
                 self.ib.qualifyContracts(contract)
 
