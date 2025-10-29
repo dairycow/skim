@@ -67,23 +67,23 @@ When IB Gateway starts, you'll receive a push notification on your phone to appr
 
 ```bash
 # Start the services
-docker-compose up -d
+docker compose up -d
 
 # Check status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f bot
+docker compose logs -f bot
 ```
 
 ### Step 4: Verify Paper Trading
 
 ```bash
 # Check bot status
-docker-compose exec bot python /app/bot.py status
+docker compose exec bot python /app/bot.py status
 
 # Verify paper account (should see DU prefix)
-docker-compose logs bot | grep "Connected to account"
+docker compose logs bot | grep "Connected to account"
 ```
 
 ## Daily Operations (via Termius)
@@ -92,17 +92,17 @@ docker-compose logs bot | grep "Connected to account"
 
 ```bash
 cd /opt/skim
-docker-compose exec bot python /app/bot.py status
+docker compose exec bot python /app/bot.py status
 ```
 
 ### View Logs
 
 ```bash
 # Real-time logs
-docker-compose logs -f bot
+docker compose logs -f bot
 
 # Last 100 lines
-docker-compose logs --tail=100 bot
+docker compose logs --tail=100 bot
 
 # View log files
 tail -f logs/skim_*.log
@@ -112,29 +112,29 @@ tail -f logs/skim_*.log
 
 ```bash
 # Run scan manually
-docker-compose exec bot python /app/bot.py scan
+docker compose exec bot python /app/bot.py scan
 
 # Monitor for gaps
-docker-compose exec bot python /app/bot.py monitor
+docker compose exec bot python /app/bot.py monitor
 
 # Execute orders
-docker-compose exec bot python /app/bot.py execute
+docker compose exec bot python /app/bot.py execute
 
 # Manage positions
-docker-compose exec bot python /app/bot.py manage_positions
+docker compose exec bot python /app/bot.py manage_positions
 ```
 
 ### Check Database
 
 ```bash
 # View candidates
-docker-compose exec bot sqlite3 /app/data/skim.db "SELECT * FROM candidates;"
+docker compose exec bot sqlite3 /app/data/skim.db "SELECT * FROM candidates;"
 
 # View open positions
-docker-compose exec bot sqlite3 /app/data/skim.db "SELECT * FROM positions WHERE status IN ('open', 'half_exited');"
+docker compose exec bot sqlite3 /app/data/skim.db "SELECT * FROM positions WHERE status IN ('open', 'half_exited');"
 
 # View recent trades
-docker-compose exec bot sqlite3 /app/data/skim.db "SELECT * FROM trades ORDER BY timestamp DESC LIMIT 10;"
+docker compose exec bot sqlite3 /app/data/skim.db "SELECT * FROM trades ORDER BY timestamp DESC LIMIT 10;"
 ```
 
 ## Cron Schedule
@@ -154,7 +154,7 @@ The bot runs automatically on this schedule (UTC times):
 ```bash
 cd /opt/skim
 git pull
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 Or use the deployment script:
@@ -167,14 +167,14 @@ cd /opt/skim
 ### Restart Services
 
 ```bash
-docker-compose restart bot
-docker-compose restart ibgateway
+docker compose restart bot
+docker compose restart ibgateway
 ```
 
 ### Stop Trading
 
 ```bash
-docker-compose stop bot
+docker compose stop bot
 ```
 
 ### Backup Database
@@ -189,13 +189,13 @@ cp data/skim.db data/skim_backup_$(date +%Y%m%d).db
 
 ```bash
 # Check IB Gateway status
-docker-compose logs ibgateway
+docker compose logs ibgateway
 
 # Restart IB Gateway
-docker-compose restart ibgateway
+docker compose restart ibgateway
 
 # Wait 30 seconds, then restart bot
-docker-compose restart bot
+docker compose restart bot
 ```
 
 ### Authentication Issues
@@ -204,7 +204,7 @@ If IB Gateway fails to authenticate:
 
 ```bash
 # Check authentication logs
-docker-compose logs ibgateway | grep -i "auth\|login"
+docker compose logs ibgateway | grep -i "auth\|login"
 
 # Common issues:
 # - Push notification not approved on phone
@@ -216,23 +216,23 @@ To fix authentication:
 1. Ensure IBKR Mobile app is installed and logged in
 2. Check IB Account Management > Security > Secure Login System
 3. Enable "IBKR Mobile Authentication" if not already enabled
-4. Restart IB Gateway: `docker-compose restart ibgateway`
+4. Restart IB Gateway: `docker compose restart ibgateway`
 5. Approve the push notification on your phone when prompted
 
 ### Database Locked
 
 ```bash
 # Stop bot, backup database, restart
-docker-compose stop bot
+docker compose stop bot
 cp data/skim.db data/skim_backup.db
-docker-compose start bot
+docker compose start bot
 ```
 
 ### Check Cron Jobs
 
 ```bash
 # Enter container
-docker-compose exec bot bash
+docker compose exec bot bash
 
 # View crontab
 crontab -l
@@ -321,18 +321,18 @@ nano bot.py
 # Save changes (Ctrl+O, Enter, Ctrl+X)
 
 # Rebuild and restart
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 ### Test Individual Methods
 
 ```bash
 # Each method can be called independently
-docker-compose exec bot python /app/bot.py scan
-docker-compose exec bot python /app/bot.py monitor
-docker-compose exec bot python /app/bot.py execute
-docker-compose exec bot python /app/bot.py manage_positions
-docker-compose exec bot python /app/bot.py status
+docker compose exec bot python /app/bot.py scan
+docker compose exec bot python /app/bot.py monitor
+docker compose exec bot python /app/bot.py execute
+docker compose exec bot python /app/bot.py manage_positions
+docker compose exec bot python /app/bot.py status
 ```
 
 ## Configuration
@@ -348,9 +348,9 @@ Key environment variables in `.env`:
 ## Support
 
 For issues or questions:
-- Check logs: `docker-compose logs bot`
+- Check logs: `docker compose logs bot`
 - Review database: `sqlite3 data/skim.db`
-- Verify IB connection: `docker-compose logs ibgateway`
+- Verify IB connection: `docker compose logs ibgateway`
 
 ## License
 
