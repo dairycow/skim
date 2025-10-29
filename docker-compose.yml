@@ -11,18 +11,20 @@ services:
       - TWS_PASSWORD=${IB_PASSWORD}
       - TRADING_MODE=${TRADING_MODE:-paper}
       - READ_ONLY_API=no
+      - ACCEPT_INCOMING_CONNECTION_ACTION=accept
+      - TWOFA_TIMEOUT_ACTION=restart
     ports:
-      - "4001:4001"  # IB Gateway API port
-      - "4002:4002"  # IB Gateway API port (backup)
+      - "${IB_PORT:-4002}:4002"  # IB Gateway API port (paper trading uses 4002)
     volumes:
       - ./ibgateway:/root/Jts
     networks:
       - skim-network
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "4001"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/4002' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 120s
 
   # Skim Trading Bot
   bot:
@@ -30,16 +32,17 @@ services:
     container_name: skim-bot
     restart: unless-stopped
     depends_on:
-      - ibgateway
+      ibgateway:
+        condition: service_healthy
     environment:
-      - IB_HOST=ibgateway
-      - IB_PORT=4001
-      - IB_CLIENT_ID=1
+      - IB_HOST=${IB_HOST:-ibgateway}
+      - IB_PORT=${IB_PORT:-4002}
+      - IB_CLIENT_ID=${IB_CLIENT_ID:-1}
       - PAPER_TRADING=${PAPER_TRADING:-true}
       - GAP_THRESHOLD=${GAP_THRESHOLD:-3.0}
       - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-1000}
       - MAX_POSITIONS=${MAX_POSITIONS:-5}
-      - DB_PATH=/app/data/skim.db
+      - DB_PATH=${DB_PATH:-/app/data/skim.db}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
