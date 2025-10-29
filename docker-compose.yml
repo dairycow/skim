@@ -14,7 +14,7 @@ services:
       - ACCEPT_INCOMING_CONNECTION_ACTION=accept
       - TWOFA_TIMEOUT_ACTION=restart
     ports:
-      - "4002:4002"  # IB Gateway API port (paper trading uses 4002)
+      - "${IB_PORT:-4002}:4002"  # IB Gateway API port (paper trading uses 4002)
     volumes:
       - ./ibgateway:/root/Jts
     networks:
@@ -35,14 +35,14 @@ services:
       ibgateway:
         condition: service_healthy
     environment:
-      - IB_HOST=ibgateway
-      - IB_PORT=4002
-      - IB_CLIENT_ID=1
+      - IB_HOST=${IB_HOST:-ibgateway}
+      - IB_PORT=${IB_PORT:-4002}
+      - IB_CLIENT_ID=${IB_CLIENT_ID:-1}
       - PAPER_TRADING=${PAPER_TRADING:-true}
       - GAP_THRESHOLD=${GAP_THRESHOLD:-3.0}
       - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-1000}
       - MAX_POSITIONS=${MAX_POSITIONS:-5}
-      - DB_PATH=/app/data/skim.db
+      - DB_PATH=${DB_PATH:-/app/data/skim.db}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
