@@ -24,12 +24,12 @@ from loguru import logger
 
 # Configuration from environment variables
 IB_HOST = os.getenv('IB_HOST', 'ibgateway')
-IB_PORT = int(os.getenv('IB_PORT', 4002))
-IB_CLIENT_ID = int(os.getenv('IB_CLIENT_ID', 1))
+IB_PORT = int(os.getenv('IB_PORT', '4002'))
+IB_CLIENT_ID = int(os.getenv('IB_CLIENT_ID', '1'))
 PAPER_TRADING = os.getenv('PAPER_TRADING', 'true').lower() == 'true'
-GAP_THRESHOLD = float(os.getenv('GAP_THRESHOLD', 3.0))  # 3% gap
-MAX_POSITION_SIZE = int(os.getenv('MAX_POSITION_SIZE', 1000))  # Max shares per position
-MAX_POSITIONS = int(os.getenv('MAX_POSITIONS', 5))  # Max concurrent positions
+GAP_THRESHOLD = float(os.getenv('GAP_THRESHOLD', '3.0'))  # 3% gap
+MAX_POSITION_SIZE = int(os.getenv('MAX_POSITION_SIZE', '1000'))  # Max shares per position
+MAX_POSITIONS = int(os.getenv('MAX_POSITIONS', '5'))  # Max concurrent positions
 DB_PATH = os.getenv('DB_PATH', 'data/skim.db')
 
 
