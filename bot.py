@@ -146,8 +146,9 @@ class TradingBot:
         if self._ib_connected and self.ib.isConnected():
             return
 
-        max_retries = 20
-        retry_delay = 3
+        max_retries = 10
+        retry_delay = 5
+        connection_timeout = 20  # Reduced from 60 to fail faster
 
         for attempt in range(max_retries):
             try:
@@ -155,11 +156,13 @@ class TradingBot:
                 if not self._test_network_connectivity():
                     logger.warning(f"Network connectivity test failed, waiting before retry...")
                     if attempt < max_retries - 1:
-                        time.sleep(retry_delay * 2)
+                        time.sleep(retry_delay)
                         continue
 
                 logger.info(f"Connecting to IB Gateway at {IB_HOST}:{IB_PORT} (attempt {attempt + 1}/{max_retries})")
-                self.ib.connect(IB_HOST, IB_PORT, clientId=IB_CLIENT_ID, timeout=60)
+                logger.info(f"Using clientId={IB_CLIENT_ID}, timeout={connection_timeout}s")
+
+                self.ib.connect(IB_HOST, IB_PORT, clientId=IB_CLIENT_ID, timeout=connection_timeout)
 
                 # Get account info for safety checks
                 account = self.ib.managedAccounts()[0]
@@ -179,11 +182,27 @@ class TradingBot:
                 return
 
             except Exception as e:
-                logger.error(f"Connection attempt {attempt + 1} failed: {e}")
+                error_msg = str(e)
+                logger.error(f"Connection attempt {attempt + 1} failed: {error_msg}")
+
+                # Check for specific error conditions that won't resolve with retries
+                if "clientid already in use" in error_msg.lower():
+                    logger.error("Client ID already in use. Try changing IB_CLIENT_ID environment variable.")
+                    raise
+                elif "not connected" in error_msg.lower():
+                    logger.warning("IB Gateway may not be accepting connections yet")
+
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay * (attempt + 1))
+                    wait_time = retry_delay * (attempt + 1)
+                    logger.info(f"Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
                 else:
-                    logger.error("Failed to connect to IB Gateway after all retries")
+                    logger.error(f"Failed to connect to IB Gateway after {max_retries} retries")
+                    logger.error("Possible issues:")
+                    logger.error("1. IB Gateway may not be fully started (check: docker logs ibgateway)")
+                    logger.error("2. Trusted IPs not configured in jts.ini")
+                    logger.error("3. Wrong credentials or 2FA timeout")
+                    logger.error("4. Client ID already in use")
                     raise
 
     def _ensure_connection(self):
