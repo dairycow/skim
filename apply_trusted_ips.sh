@@ -17,8 +17,8 @@ fi
 echo "Checking for jts.ini inside ibgateway container..."
 
 # Check if jts.ini exists in container
-if ! docker exec ibgateway test -f /root/Jts/jts.ini 2>/dev/null; then
-    echo "ERROR: /root/Jts/jts.ini not found inside container"
+if ! docker exec ibgateway test -f /home/ibgateway/Jts/jts.ini 2>/dev/null; then
+    echo "ERROR: /home/ibgateway/Jts/jts.ini not found inside container"
     echo "IB Gateway needs to complete first login before this script can run"
     echo ""
     echo "Steps:"
@@ -35,7 +35,7 @@ echo ""
 
 # Copy jts.ini from container to local for editing
 echo "Copying jts.ini from container..."
-docker cp ibgateway:/root/Jts/jts.ini /tmp/jts.ini.temp
+docker cp ibgateway:/home/ibgateway/Jts/jts.ini /tmp/jts.ini.temp
 
 # Backup
 cp /tmp/jts.ini.temp /tmp/jts.ini.backup.$(date +%Y%m%d_%H%M%S)
@@ -88,13 +88,13 @@ fi
 
 echo ""
 echo "Copying updated jts.ini back to container..."
-docker cp /tmp/jts.ini.temp ibgateway:/root/Jts/jts.ini
+docker cp /tmp/jts.ini.temp ibgateway:/home/ibgateway/Jts/jts.ini
 
 echo ""
 echo "Configuration updated successfully!"
 echo ""
 echo "Current trustedIPs in container:"
-docker exec ibgateway grep "trustedIPs" /root/Jts/jts.ini
+docker exec ibgateway grep "trustedIPs" /home/ibgateway/Jts/jts.ini
 echo ""
 echo "Next steps:"
 echo "1. Restart IB Gateway: docker-compose restart ibgateway"

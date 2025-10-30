@@ -3,7 +3,7 @@
 
 set -e
 
-JTS_INI_PATH="${JTS_INI_PATH:-/root/Jts/jts.ini}"
+JTS_INI_PATH="${JTS_INI_PATH:-/home/ibgateway/Jts/jts.ini}"
 # Detect actual Docker network subnet or use default
 if [ -z "$DOCKER_SUBNET" ]; then
     DOCKER_SUBNET=$(docker network inspect skim_skim-network -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || echo "172.18.0.0/16")
