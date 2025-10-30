@@ -20,9 +20,9 @@ while [ $elapsed -lt $MAX_WAIT ]; do
         echo "IB Gateway TCP port is available at $elapsed seconds"
 
         # Additional delay to ensure API is fully initialized
-        # IB Gateway can take 30-60 seconds after TCP port opens to be API-ready
-        echo "Waiting additional 60 seconds for IB Gateway API initialization..."
-        sleep 60
+        # IB Gateway can take 2-3 minutes after TCP port opens to be API-ready
+        echo "Waiting additional 180 seconds for IB Gateway API initialization..."
+        sleep 180
 
         echo "IB Gateway should be ready now!"
         break
