@@ -24,7 +24,7 @@ from loguru import logger
 
 # Configuration from environment variables
 IB_HOST = os.getenv('IB_HOST', 'ibgateway')
-IB_PORT = 4004  # Force port 4004 for API connection
+IB_PORT = int(os.getenv('IB_PORT', '4002'))
 IB_CLIENT_ID = int(os.getenv('IB_CLIENT_ID', '1'))
 PAPER_TRADING = os.getenv('PAPER_TRADING', 'true').lower() == 'true'
 GAP_THRESHOLD = float(os.getenv('GAP_THRESHOLD', '3.0'))  # 3% gap
