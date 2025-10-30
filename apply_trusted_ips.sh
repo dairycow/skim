@@ -55,7 +55,7 @@ fi
 if grep -q "TrustedIPs=" /tmp/jts.ini.temp; then
     echo "TrustedIPs setting found"
 
-    CURRENT_IPS=$(grep "TrustedIPs=" /tmp/jts.ini.temp | cut -d'=' -f2)
+    CURRENT_IPS=$(grep "TrustedIPs=" /tmp/jts.ini.temp | cut -d'=' -f2 | sed 's/ *; */;/g')
 
     if echo "$CURRENT_IPS" | grep -q "$DOCKER_SUBNET"; then
         echo "Docker subnet $DOCKER_SUBNET already configured"
