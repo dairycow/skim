@@ -16,7 +16,7 @@ services:
     ports:
       - "${IB_PORT:-4002}:4002"  # IB Gateway API port (paper trading uses 4002)
     volumes:
-      - ./ibgateway:/home/ibgateway/Jts
+      - ibgateway-settings:/home/ibgateway/Jts
     networks:
       - skim-network
     healthcheck:
@@ -53,3 +53,6 @@ services:
 networks:
   skim-network:
     driver: bridge
+
+volumes:
+  ibgateway-settings:
