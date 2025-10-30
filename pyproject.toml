@@ -19,25 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "black>=24.0.0",
     "ruff>=0.8.0",
 ]
-
-[tool.black]
-line-length = 80
-target-version = ["py311"]
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.venv
-  | \.eggs
-  | \.tox
-  | build
-  | dist
-  | __pycache__
-)/
-'''
 
 [tool.ruff]
 line-length = 80
@@ -67,7 +50,7 @@ select = [
 ]
 
 ignore = [
-    "E501",  # Line too long (handled by Black)
+    "E501",  # Line too long (handled by Ruff formatter)
 ]
 
 [tool.ruff.lint.isort]
