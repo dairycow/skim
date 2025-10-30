@@ -8,7 +8,7 @@ echo "Waiting for IB Gateway to be ready..."
 
 # Configuration
 IB_HOST="${IB_HOST:-ibgateway}"
-IB_PORT="${IB_PORT:-4002}"
+IB_PORT="${IB_PORT:-4004}"
 MAX_WAIT=300  # 5 minutes max wait
 WAIT_INTERVAL=5
 
