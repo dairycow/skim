@@ -51,11 +51,11 @@ else
     echo "Detected Docker network subnet: $DOCKER_SUBNET"
 fi
 
-# Check if trustedIPs already exists
-if grep -q "trustedIPs=" /tmp/jts.ini.temp; then
-    echo "trustedIPs setting found"
+# Check if TrustedIPs already exists
+if grep -q "TrustedIPs=" /tmp/jts.ini.temp; then
+    echo "TrustedIPs setting found"
 
-    CURRENT_IPS=$(grep "trustedIPs=" /tmp/jts.ini.temp | cut -d'=' -f2)
+    CURRENT_IPS=$(grep "TrustedIPs=" /tmp/jts.ini.temp | cut -d'=' -f2)
 
     if echo "$CURRENT_IPS" | grep -q "$DOCKER_SUBNET"; then
         echo "Docker subnet $DOCKER_SUBNET already configured"
@@ -65,25 +65,25 @@ if grep -q "trustedIPs=" /tmp/jts.ini.temp; then
         rm /tmp/jts.ini.temp
         exit 0
     else
-        echo "Adding Docker subnet to existing trustedIPs"
+        echo "Adding Docker subnet to existing TrustedIPs"
         NEW_IPS="${CURRENT_IPS};${DOCKER_SUBNET}"
-        sed -i.bak "s|trustedIPs=.*|trustedIPs=${NEW_IPS}|" /tmp/jts.ini.temp
-        echo "Updated trustedIPs: $NEW_IPS"
+        sed -i.bak "s|TrustedIPs=.*|TrustedIPs=${NEW_IPS}|" /tmp/jts.ini.temp
+        echo "Updated TrustedIPs: $NEW_IPS"
     fi
 else
-    echo "No trustedIPs setting found, adding new entry"
+    echo "No TrustedIPs setting found, adding new entry"
 
     if grep -q "\[IBGateway\]" /tmp/jts.ini.temp; then
         # Add under [IBGateway] section
-        sed -i.bak "/\[IBGateway\]/a trustedIPs=${DOCKER_SUBNET}" /tmp/jts.ini.temp
+        sed -i.bak "/\[IBGateway\]/a TrustedIPs=${DOCKER_SUBNET}" /tmp/jts.ini.temp
     else
         # Create [IBGateway] section
         echo "" >> /tmp/jts.ini.temp
         echo "[IBGateway]" >> /tmp/jts.ini.temp
-        echo "trustedIPs=${DOCKER_SUBNET}" >> /tmp/jts.ini.temp
+        echo "TrustedIPs=${DOCKER_SUBNET}" >> /tmp/jts.ini.temp
     fi
 
-    echo "Added trustedIPs: $DOCKER_SUBNET"
+    echo "Added TrustedIPs: $DOCKER_SUBNET"
 fi
 
 echo ""
@@ -93,8 +93,8 @@ docker cp /tmp/jts.ini.temp ibgateway:/home/ibgateway/Jts/jts.ini
 echo ""
 echo "Configuration updated successfully!"
 echo ""
-echo "Current trustedIPs in container:"
-docker exec ibgateway grep "trustedIPs" /home/ibgateway/Jts/jts.ini
+echo "Current TrustedIPs in container:"
+docker exec ibgateway grep "TrustedIPs" /home/ibgateway/Jts/jts.ini
 echo ""
 echo "Next steps:"
 echo "1. Restart IB Gateway: docker-compose restart ibgateway"
