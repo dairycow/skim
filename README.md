@@ -420,7 +420,7 @@ skim/
 ├── bot.py                  # Main trading bot (single file)
 ├── docker-compose.yml      # Service orchestration
 ├── Dockerfile              # Bot container definition
-├── requirements.txt        # Python dependencies
+├── pyproject.toml          # Python dependencies and tool config
 ├── crontab                 # Scheduled tasks
 ├── .env                    # Environment variables (not in git)
 ├── .env.example            # Template for .env
