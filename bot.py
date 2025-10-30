@@ -630,8 +630,12 @@ class TradingBot:
         try:
             self.scan()
             self.monitor()
-            self.execute()
-            self.manage_positions()
+            # Only execute if we can connect to IB
+            try:
+                self.execute()
+                self.manage_positions()
+            except Exception as e:
+                logger.error(f"Skipping trading operations due to IB connection issue: {e}")
             self.status()
 
             logger.info("Workflow complete")
