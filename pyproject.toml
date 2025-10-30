@@ -43,6 +43,17 @@ exclude = '''
 line-length = 80
 target-version = "py311"
 
+# Exclude common directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
 # Enable pycodestyle (E), Pyflakes (F), and isort (I) by default
 select = [
     "E",     # pycodestyle errors
@@ -57,16 +68,6 @@ select = [
 
 ignore = [
     "E501",  # Line too long (handled by Black)
-]
-
-# Exclude common directories
-exclude = [
-    ".git",
-    ".venv",
-    "__pycache__",
-    "build",
-    "dist",
-    "*.egg-info",
 ]
 
 [tool.ruff.lint.isort]
