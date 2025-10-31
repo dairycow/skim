@@ -143,6 +143,49 @@ if command -v mypy &> /dev/null; then
         fi
 
         HAS_TYPE_ERRORS=1
+
+        # Try to auto-install missing type stub packages
+        MISSING_STUBS=$(echo "$OUTPUT" | grep -oP 'pip install \K[a-zA-Z0-9_-]+' | sort -u)
+
+        if [ -n "$MISSING_STUBS" ]; then
+            echo ""
+            echo "🔧 Attempting to install missing type stubs..."
+
+            INSTALLED_ANY=0
+            while IFS= read -r package; do
+                if [ -n "$package" ]; then
+                    echo "   Installing: $package"
+                    if pip install "$package" > /dev/null 2>&1; then
+                        echo "   ✅ Installed $package"
+                        INSTALLED_ANY=1
+                    else
+                        echo "   ⚠️  Failed to install $package"
+                    fi
+                fi
+            done <<< "$MISSING_STUBS"
+
+            # Re-run mypy if we installed anything
+            if [ "$INSTALLED_ANY" -eq 1 ]; then
+                echo ""
+                echo "🔬 Re-checking types after installing stubs..."
+
+                # Clear mypy cache to pick up new stubs
+                rm -rf "$CLAUDE_PROJECT_DIR/.mypy_cache" > /dev/null 2>&1 || true
+
+                if OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && mypy . 2>&1); then
+                    echo "   ✅ All type errors resolved!"
+                    HAS_TYPE_ERRORS=0
+                else
+                    echo "   ⚠️  Some type errors remain:"
+                    echo "$OUTPUT" | head -10  # Show fewer lines on recheck
+
+                    REMAINING_COUNT=$(echo "$OUTPUT" | wc -l)
+                    if [ "$REMAINING_COUNT" -gt 10 ]; then
+                        echo "   ... and $((REMAINING_COUNT - 10)) more issues"
+                    fi
+                fi
+            fi
+        fi
     fi
     echo ""
 else

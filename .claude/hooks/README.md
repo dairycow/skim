@@ -164,13 +164,16 @@ chmod +x your-project/.claude/hooks/stop-python-check.sh
 **Features:**
 - ✅ Auto-formats code with ruff
 - ✅ Auto-fixes many linting issues
+- ✅ Type checks with mypy
+- ✅ Auto-installs missing type stubs (e.g., types-requests)
 - ✅ Reports remaining issues clearly
 - ✅ Non-blocking (won't prevent stopping)
 - ✅ Only runs if Python files were edited
 
 **Requirements:**
 - `ruff` must be installed and available in PATH
-- Run `pip install ruff` if not already installed
+- `mypy` must be installed for type checking (optional)
+- Run `pip install ruff mypy` if not already installed
 
 **Customization:** See CONFIG.md for advanced configuration options.
 
