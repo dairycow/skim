@@ -1,6 +1,6 @@
 # Hooks
 
-Claude Code hooks that enable skill auto-activation, file tracking, and validation.
+Claude Code hooks that enable skill auto-activation and file tracking for Python projects.
 
 ---
 
@@ -8,7 +8,7 @@ Claude Code hooks that enable skill auto-activation, file tracking, and validati
 
 Hooks are scripts that run at specific points in Claude's workflow:
 - **UserPromptSubmit**: When user submits a prompt
-- **PreToolUse**: Before a tool executes  
+- **PreToolUse**: Before a tool executes
 - **PostToolUse**: After a tool completes
 - **Stop**: When user requests to stop
 
@@ -67,15 +67,15 @@ chmod +x your-project/.claude/hooks/skill-activation-prompt.py
 
 ### post-tool-use-tracker (PostToolUse)
 
-**Purpose:** Tracks file changes to maintain context across sessions
+**Purpose:** Tracks file changes to maintain context across sessions (Python-specific)
 
 **How it works:**
 1. Monitors Edit/Write/MultiEdit tool calls
-2. Records which files were modified
+2. Records which Python files were modified
 3. Creates cache for context management
-4. Auto-detects project structure (frontend, backend, packages, etc.)
+4. Auto-detects project structure and Python tooling (ruff, pytest, etc.)
 
-**Why it's essential:** Helps Claude understand what parts of your codebase are active.
+**Why it's essential:** Helps Claude understand what parts of your Python codebase are active.
 
 **Integration:**
 ```bash
@@ -109,58 +109,96 @@ chmod +x your-project/.claude/hooks/post-tool-use-tracker.py
 }
 ```
 
-**Customization:** ✅ None needed - auto-detects structure
+**Python-specific features:**
+- Detects `pyproject.toml` configuration
+- Auto-discovers ruff, flake8, pylint, black
+- Identifies pytest, unittest test suites
+- Supports Python monorepo structures
+
+**Customization:** ✅ None needed - auto-detects Python tooling
 
 ---
 
-## Optional Hooks (Require Customization)
+## Optional Hooks
 
-### tsc-check (Stop)
+### stop-python-check (Stop)
 
-**Purpose:** TypeScript compilation check when user stops
+**Purpose:** Automatically lint and format Python code when you stop working
 
-**⚠️ WARNING:** Configured for multi-service monorepo structure
+**How it works:**
+1. Reads the cache created by `post-tool-use-tracker.py`
+2. Runs `ruff format` to auto-format modified files
+3. Runs `ruff check` to find linting issues
+4. Attempts auto-fix with `ruff check --fix`
+5. Reports any remaining issues that need manual fixing
+
+**Why it's useful:** Ensures code quality and consistent formatting without manual intervention.
 
 **Integration:**
+```bash
+# Copy the file
+cp stop-python-check.sh your-project/.claude/hooks/
 
-**First, determine if this is right for you:**
-- ✅ Use if: Multi-service TypeScript monorepo
-- ❌ Skip if: Single-service project or different build setup
+# Make executable
+chmod +x your-project/.claude/hooks/stop-python-check.sh
+```
 
-**If using:**
-1. Copy tsc-check.sh
-2. **EDIT the service detection (line ~28):**
-   ```bash
-   # Replace example services with YOUR services:
-   case "$repo" in
-       api|web|auth|payments|...)  # ← Your actual services
-   ```
-3. Test manually before adding to settings.json
+**Add to settings.json:**
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-python-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-**Customization:** ⚠️⚠️⚠️ Heavy
+**Features:**
+- ✅ Auto-formats code with ruff
+- ✅ Auto-fixes many linting issues
+- ✅ Type checks with mypy
+- ✅ Auto-installs missing type stubs (e.g., types-requests)
+- ✅ Reports remaining issues clearly
+- ✅ Non-blocking (won't prevent stopping)
+- ✅ Only runs if Python files were edited
 
----
+**Requirements:**
+- `ruff` must be installed and available in PATH
+- `mypy` must be installed for type checking (optional)
+- Run `pip install ruff mypy` if not already installed
 
-### trigger-build-resolver (Stop)
-
-**Purpose:** Auto-launches build-error-resolver agent when compilation fails
-
-**Depends on:** tsc-check hook working correctly
-
-**Customization:** ✅ None (but tsc-check must work first)
+**Customization:** See CONFIG.md for advanced configuration options.
 
 ---
 
 ## For Claude Code
 
-**When setting up hooks for a user:**
+**When setting up hooks for a Python project:**
 
-1. **Read [CLAUDE_INTEGRATION_GUIDE.md](../../CLAUDE_INTEGRATION_GUIDE.md)** first
-2. **Always start with the two essential hooks**
-3. **Ask before adding Stop hooks** - they can block if misconfigured  
+1. **Start with the two essential hooks** (skill-activation-prompt and post-tool-use-tracker)
+2. **Verify Python environment:**
+   ```bash
+   python3 --version  # Should be 3.6+
+   which ruff        # Check if ruff is available
+   ```
+3. **Test hooks manually** before relying on them
 4. **Verify after setup:**
    ```bash
    ls -la .claude/hooks/*.sh | grep rwx
    ```
 
-**Questions?** See [CLAUDE_INTEGRATION_GUIDE.md](../../CLAUDE_INTEGRATION_GUIDE.md)
+**Python-specific notes:**
+- The hooks use only Python standard library (no pip dependencies)
+- Compatible with pyproject.toml, setup.py, and setup.cfg projects
+- Auto-detects common Python tools (ruff, black, flake8, pylint, pytest)
+- Cache directory is `.claude/python-cache/` (not `tsc-cache`)
+
+**Questions?** See CONFIG.md for detailed configuration options.
