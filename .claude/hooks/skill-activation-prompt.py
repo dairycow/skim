@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 import json
-import sys
 import os
 import re
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional, TypedDict
+from typing import TypedDict
 
 
 class PromptTriggers(TypedDict, total=False):
-    keywords: List[str]
-    intentPatterns: List[str]
+    keywords: list[str]
+    intentPatterns: list[str]
 
 
 class SkillRule(TypedDict):
     type: str  # 'guardrail' | 'domain'
     enforcement: str  # 'block' | 'suggest' | 'warn'
     priority: str  # 'critical' | 'high' | 'medium' | 'low'
-    promptTriggers: Optional[PromptTriggers]
+    promptTriggers: PromptTriggers | None
 
 
 class SkillRules(TypedDict):
     version: str
-    skills: Dict[str, SkillRule]
+    skills: dict[str, SkillRule]
 
 
 class HookInput(TypedDict):
@@ -43,96 +43,113 @@ def main():
         # Read input from stdin
         input_data = sys.stdin.read()
         data: HookInput = json.loads(input_data)
-        prompt = data['prompt'].lower()
+        prompt = data["prompt"].lower()
 
         # Load skill rules
-        project_dir = os.environ.get('CLAUDE_PROJECT_DIR', os.path.expanduser('~/project'))
-        rules_path = Path(project_dir) / '.claude' / 'skills' / 'skill-rules.json'
+        project_dir = os.environ.get(
+            "CLAUDE_PROJECT_DIR", os.path.expanduser("~/project")
+        )
+        rules_path = (
+            Path(project_dir) / ".claude" / "skills" / "skill-rules.json"
+        )
 
-        with open(rules_path, 'r') as f:
+        with open(rules_path) as f:
             rules: SkillRules = json.load(f)
 
-        matched_skills: List[MatchedSkill] = []
+        matched_skills: list[MatchedSkill] = []
 
         # Check each skill for matches
-        for skill_name, config in rules['skills'].items():
-            triggers = config.get('promptTriggers')
+        for skill_name, config in rules["skills"].items():
+            triggers = config.get("promptTriggers")
             if not triggers:
                 continue
 
             # Keyword matching
-            if 'keywords' in triggers:
+            if "keywords" in triggers:
                 keyword_match = any(
-                    kw.lower() in prompt
-                    for kw in triggers['keywords']
+                    kw.lower() in prompt for kw in triggers["keywords"]
                 )
                 if keyword_match:
-                    matched_skills.append({
-                        'name': skill_name,
-                        'matchType': 'keyword',
-                        'config': config
-                    })
+                    matched_skills.append(
+                        {
+                            "name": skill_name,
+                            "matchType": "keyword",
+                            "config": config,
+                        }
+                    )
                     continue
 
             # Intent pattern matching
-            if 'intentPatterns' in triggers:
+            if "intentPatterns" in triggers:
                 intent_match = any(
                     re.search(pattern, prompt, re.IGNORECASE)
-                    for pattern in triggers['intentPatterns']
+                    for pattern in triggers["intentPatterns"]
                 )
                 if intent_match:
-                    matched_skills.append({
-                        'name': skill_name,
-                        'matchType': 'intent',
-                        'config': config
-                    })
+                    matched_skills.append(
+                        {
+                            "name": skill_name,
+                            "matchType": "intent",
+                            "config": config,
+                        }
+                    )
 
         # Generate output if matches found
         if matched_skills:
-            output = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-            output += '🎯 SKILL ACTIVATION CHECK\n'
-            output += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+            output = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            output += "🎯 SKILL ACTIVATION CHECK\n"
+            output += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
             # Group by priority
-            critical = [s for s in matched_skills if s['config']['priority'] == 'critical']
-            high = [s for s in matched_skills if s['config']['priority'] == 'high']
-            medium = [s for s in matched_skills if s['config']['priority'] == 'medium']
-            low = [s for s in matched_skills if s['config']['priority'] == 'low']
+            critical = [
+                s
+                for s in matched_skills
+                if s["config"]["priority"] == "critical"
+            ]
+            high = [
+                s for s in matched_skills if s["config"]["priority"] == "high"
+            ]
+            medium = [
+                s for s in matched_skills if s["config"]["priority"] == "medium"
+            ]
+            low = [
+                s for s in matched_skills if s["config"]["priority"] == "low"
+            ]
 
             if critical:
-                output += '⚠️ CRITICAL SKILLS (REQUIRED):\n'
+                output += "⚠️ CRITICAL SKILLS (REQUIRED):\n"
                 for s in critical:
                     output += f"  → {s['name']}\n"
-                output += '\n'
+                output += "\n"
 
             if high:
-                output += '📚 RECOMMENDED SKILLS:\n'
+                output += "📚 RECOMMENDED SKILLS:\n"
                 for s in high:
                     output += f"  → {s['name']}\n"
-                output += '\n'
+                output += "\n"
 
             if medium:
-                output += '💡 SUGGESTED SKILLS:\n'
+                output += "💡 SUGGESTED SKILLS:\n"
                 for s in medium:
                     output += f"  → {s['name']}\n"
-                output += '\n'
+                output += "\n"
 
             if low:
-                output += '📌 OPTIONAL SKILLS:\n'
+                output += "📌 OPTIONAL SKILLS:\n"
                 for s in low:
                     output += f"  → {s['name']}\n"
-                output += '\n'
+                output += "\n"
 
-            output += 'ACTION: Use Skill tool BEFORE responding\n'
-            output += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+            output += "ACTION: Use Skill tool BEFORE responding\n"
+            output += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
-            print(output, end='')
+            print(output, end="")
 
         sys.exit(0)
     except Exception as err:
-        print(f'Error in skill-activation-prompt hook: {err}', file=sys.stderr)
+        print(f"Error in skill-activation-prompt hook: {err}", file=sys.stderr)
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
