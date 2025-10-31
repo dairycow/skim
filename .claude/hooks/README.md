@@ -119,37 +119,60 @@ chmod +x your-project/.claude/hooks/post-tool-use-tracker.py
 
 ---
 
-## Optional Hooks (Require Customization)
+## Optional Hooks
 
-### Python Linting/Formatting Hooks (Stop)
+### stop-python-check (Stop)
 
-**Purpose:** Run linting and formatting checks when user stops
+**Purpose:** Automatically lint and format Python code when you stop working
 
-**⚠️ WARNING:** Not included in this repository yet. You can create custom Stop hooks to:
-- Run `ruff check` on modified files
-- Run `ruff format` or `black` to auto-format
-- Run `pytest` on affected test files
-- Check for type errors with `mypy`
+**How it works:**
+1. Reads the cache created by `post-tool-use-tracker.py`
+2. Runs `ruff format` to auto-format modified files
+3. Runs `ruff check` to find linting issues
+4. Attempts auto-fix with `ruff check --fix`
+5. Reports any remaining issues that need manual fixing
 
-**If creating custom Stop hooks:**
-1. Create a new shell script (e.g., `python-check.sh`)
-2. Read from the cache created by `post-tool-use-tracker.py`
-3. Execute appropriate Python tooling commands
-4. Test manually before adding to settings.json
+**Why it's useful:** Ensures code quality and consistent formatting without manual intervention.
 
-**Example Stop hook structure:**
+**Integration:**
 ```bash
-#!/bin/bash
-# Read affected files from cache
-CACHE_DIR="$CLAUDE_PROJECT_DIR/.claude/python-cache/$SESSION_ID"
+# Copy the file
+cp stop-python-check.sh your-project/.claude/hooks/
 
-# Run ruff check
-if [ -f "$CACHE_DIR/commands.txt" ]; then
-    grep "lint:" "$CACHE_DIR/commands.txt" | cut -d: -f3- | while read cmd; do
-        eval "$cmd"
-    done
-fi
+# Make executable
+chmod +x your-project/.claude/hooks/stop-python-check.sh
 ```
+
+**Add to settings.json:**
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-python-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Features:**
+- ✅ Auto-formats code with ruff
+- ✅ Auto-fixes many linting issues
+- ✅ Reports remaining issues clearly
+- ✅ Non-blocking (won't prevent stopping)
+- ✅ Only runs if Python files were edited
+
+**Requirements:**
+- `ruff` must be installed and available in PATH
+- Run `pip install ruff` if not already installed
+
+**Customization:** See CONFIG.md for advanced configuration options.
 
 ---
 

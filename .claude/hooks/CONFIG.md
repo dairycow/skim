@@ -31,6 +31,16 @@ Create or update `.claude/settings.json` in your project root:
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-python-check.sh"
+          }
+        ]
+      }
     ]
   }
 }
@@ -145,6 +155,54 @@ if not re.search(r'\.py$', file_path):
     sys.exit(0)
 ```
 
+### Stop Hook Customization
+
+The `stop-python-check.sh` hook automatically runs when you stop working. You can customize its behavior:
+
+#### Disable Auto-Fix
+
+Edit `.claude/hooks/stop-python-check.sh` to skip the auto-fix step:
+
+```bash
+# Comment out or remove the auto-fix section (lines ~70-90)
+# if [ "$HAS_ERRORS" -eq 1 ]; then
+#     echo "🔧 Attempting auto-fix with ruff --fix..."
+#     ...
+# fi
+```
+
+#### Change Error Display Limit
+
+By default, the hook shows the first 20 lines of errors. To change this:
+
+```bash
+# Find this line in stop-python-check.sh
+echo "$OUTPUT" | head -20  # Change 20 to your preferred limit
+```
+
+#### Run Additional Checks
+
+Add custom checks after the linting step:
+
+```bash
+# Add at the end of stop-python-check.sh before the summary
+echo "🔬 Running type checks with mypy..."
+if command -v mypy &> /dev/null; then
+    cd "$CLAUDE_PROJECT_DIR" && mypy .
+fi
+```
+
+#### Skip Formatting
+
+To only run linting without formatting, comment out the formatting section:
+
+```bash
+# Comment out lines ~35-50 in stop-python-check.sh
+# echo "🎨 Auto-formatting with ruff..."
+# FORMAT_COMMANDS=$(grep ":format:" "$CACHE_DIR/commands.txt" | cut -d: -f3- | sort -u)
+# ...
+```
+
 ## Environment Variables
 
 ### Global Environment Variables
@@ -230,6 +288,16 @@ You don't need all hooks. Choose what works for your project:
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use-tracker.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-python-check.sh"
           }
         ]
       }
