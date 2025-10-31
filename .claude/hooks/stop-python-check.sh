@@ -23,6 +23,7 @@ echo ""
 # Track if any errors occurred
 HAS_ERRORS=0
 HAS_FORMAT_CHANGES=0
+HAS_TYPE_ERRORS=0
 
 # Extract unique repos that were modified
 REPOS=$(grep -E "^[^:]+:lint:" "$CACHE_DIR/commands.txt" | cut -d: -f1 | sort -u)
@@ -124,17 +125,48 @@ if [ "$HAS_ERRORS" -eq 1 ]; then
     echo ""
 fi
 
+# Run type checking with mypy (if available)
+if command -v mypy &> /dev/null; then
+    echo "🔬 Type checking with mypy..."
+
+    # Run mypy on the project root
+    if OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && mypy . 2>&1); then
+        echo "   ✅ No type errors"
+    else
+        echo "   ❌ Type errors found:"
+        echo "$OUTPUT" | head -20  # Show first 20 lines
+
+        # Check if there are more lines
+        LINE_COUNT=$(echo "$OUTPUT" | wc -l)
+        if [ "$LINE_COUNT" -gt 20 ]; then
+            echo "   ... and $((LINE_COUNT - 20)) more issues"
+        fi
+
+        HAS_TYPE_ERRORS=1
+    fi
+    echo ""
+else
+    echo "💡 Tip: Install mypy for type checking (pip install mypy)"
+    echo ""
+fi
+
 # Summary
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if [ "$HAS_ERRORS" -eq 0 ]; then
+if [ "$HAS_ERRORS" -eq 0 ] && [ "$HAS_TYPE_ERRORS" -eq 0 ]; then
     if [ "$HAS_FORMAT_CHANGES" -eq 1 ]; then
-        echo "✅ Code formatted and linting passed"
+        echo "✅ Code formatted and all checks passed"
         echo "💡 Formatted files were auto-fixed"
     else
         echo "✅ All checks passed"
     fi
+elif [ "$HAS_TYPE_ERRORS" -eq 1 ] && [ "$HAS_ERRORS" -eq 0 ]; then
+    echo "⚠️  Type errors found (linting passed)"
+    echo "💡 Review type errors above and fix manually"
+elif [ "$HAS_ERRORS" -eq 1 ] && [ "$HAS_TYPE_ERRORS" -eq 0 ]; then
+    echo "⚠️  Linting issues remain (type checking passed)"
+    echo "💡 Review linting issues above and fix manually"
 else
-    echo "⚠️  Linting issues remain"
+    echo "⚠️  Both linting and type errors found"
     echo "💡 Review the issues above and fix manually"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
