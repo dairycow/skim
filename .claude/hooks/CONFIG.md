@@ -1,6 +1,6 @@
-# Hooks Configuration Guide
+# Hooks Configuration Guide (Python Projects)
 
-This guide explains how to configure and customize the hooks system for your project.
+This guide explains how to configure and customize the hooks system for Python projects.
 
 ## Quick Start Configuration
 
@@ -31,41 +31,25 @@ Create or update `.claude/settings.json` in your project root:
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-prettier-formatter.sh"
-          },
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-build-check-enhanced.sh"
-          },
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/error-handling-reminder.sh"
-          }
-        ]
-      }
     ]
   }
 }
 ```
 
-### 2. Install Dependencies
-
-```bash
-cd .claude/hooks
-npm install
-```
-
-### 3. Set Execute Permissions
+### 2. Set Execute Permissions
 
 ```bash
 chmod +x .claude/hooks/*.sh
+chmod +x .claude/hooks/*.py
 ```
+
+### 3. Verify Python Environment
+
+```bash
+python3 --version  # Should be 3.6+
+```
+
+No additional Python packages are required - the hooks use only the standard library.
 
 ## Customization Options
 
@@ -73,106 +57,92 @@ chmod +x .claude/hooks/*.sh
 
 By default, hooks detect these directory patterns:
 
-**Frontend:** `frontend/`, `client/`, `web/`, `app/`, `ui/`
-**Backend:** `backend/`, `server/`, `api/`, `src/`, `services/`
-**Database:** `database/`, `prisma/`, `migrations/`
-**Monorepo:** `packages/*`, `examples/*`
+**Python Source:** `src/`, `lib/`, `app/`, `api/`, `services/`
+**Tests:** `tests/`, `test/`, `pytest/`
+**Documentation:** `docs/`, `documentation/`
+**Scripts:** `scripts/`, `bin/`, `tools/`
+**Monorepo:** `packages/*`
 
 #### Adding Custom Directory Patterns
 
-Edit `.claude/hooks/post-tool-use-tracker.sh`, function `detect_repo()`:
+Edit `.claude/hooks/post-tool-use-tracker.py`, function `detect_repo()`:
 
-```bash
-case "$repo" in
-    # Add your custom directories here
-    my-custom-service)
-        echo "$repo"
-        ;;
-    admin-panel)
-        echo "$repo"
-        ;;
-    # ... existing patterns
-esac
+```python
+# Add your custom directories
+python_src_patterns = ['src', 'lib', 'app', 'api', 'services', 'my_module']
 ```
 
-### Build Command Detection
+### Lint Command Detection
 
-The hooks auto-detect build commands based on:
-1. Presence of `package.json` with "build" script
-2. Package manager (pnpm > npm > yarn)
-3. Special cases (Prisma schemas)
+The hooks auto-detect linting commands based on:
+1. Presence of `pyproject.toml` with `[tool.ruff]`, `[tool.flake8]`, or `[tool.pylint]`
+2. Presence of `.flake8`, `setup.cfg`, or `tox.ini`
+3. Defaults to `ruff check .` if no config found
 
-#### Customizing Build Commands
+#### Supported Linters
+- **ruff** (default and recommended)
+- **flake8**
+- **pylint**
 
-Edit `.claude/hooks/post-tool-use-tracker.sh`, function `get_build_command()`:
+#### Customizing Lint Commands
 
-```bash
-# Add custom build logic
-if [[ "$repo" == "my-service" ]]; then
-    echo "cd $repo_path && make build"
-    return
-fi
+Edit `.claude/hooks/post-tool-use-tracker.py`, function `get_lint_command()`:
+
+```python
+# Add custom lint logic
+if repo == 'my-service':
+    return f"cd {repo_path} && mypy ."
 ```
 
-### TypeScript Configuration
+### Format Command Detection
+
+The hooks auto-detect formatting commands based on:
+1. Presence of `pyproject.toml` with `[tool.ruff.format]` or `[tool.black]`
+2. Defaults to `ruff format .` if no config found
+
+#### Supported Formatters
+- **ruff format** (default and recommended)
+- **black**
+
+#### Customizing Format Commands
+
+Edit `.claude/hooks/post-tool-use-tracker.py`, function `get_format_command()`:
+
+```python
+# Add custom format logic
+if repo == 'my-service':
+    return f"cd {repo_path} && autopep8 --in-place --recursive ."
+```
+
+### Test Command Detection
 
 Hooks automatically detect:
-- `tsconfig.json` for standard TypeScript projects
-- `tsconfig.app.json` for Vite/React projects
+- `pytest` (if `pytest.ini` exists or `tests/` directory found)
+- `unittest` (fallback for `tests/` directory)
+- `pyproject.toml` with `[tool.pytest]` configuration
 
-#### Custom TypeScript Configs
+#### Custom Test Configs
 
-Edit `.claude/hooks/post-tool-use-tracker.sh`, function `get_tsc_command()`:
+Edit `.claude/hooks/post-tool-use-tracker.py`, function `get_test_command()`:
 
-```bash
-if [[ "$repo" == "my-service" ]]; then
-    echo "cd $repo_path && npx tsc --project tsconfig.build.json --noEmit"
-    return
-fi
+```python
+# Add custom test logic
+if repo == 'my-service':
+    return f"cd {repo_path} && nose2"
 ```
 
-### Prettier Configuration
+### Python-Specific File Detection
 
-The prettier hook searches for configs in this order:
-1. Current file directory (walking upward)
-2. Project root
-3. Falls back to Prettier defaults
+The hook only tracks Python files (`.py`) and skips:
+- Markdown files (`.md`, `.markdown`, `.rst`)
+- Text files (`.txt`)
 
-#### Custom Prettier Config Search
+To modify file detection, edit the `main()` function in `post-tool-use-tracker.py`:
 
-Edit `.claude/hooks/stop-prettier-formatter.sh`, function `get_prettier_config()`:
-
-```bash
-# Add custom config locations
-if [[ -f "$project_root/config/.prettierrc" ]]; then
-    echo "$project_root/config/.prettierrc"
-    return
-fi
-```
-
-### Error Handling Reminders
-
-Configure file category detection in `.claude/hooks/error-handling-reminder.ts`:
-
-```typescript
-function getFileCategory(filePath: string): 'backend' | 'frontend' | 'database' | 'other' {
-    // Add custom patterns
-    if (filePath.includes('/my-custom-dir/')) return 'backend';
-    // ... existing patterns
-}
-```
-
-### Error Threshold Configuration
-
-Change when to recommend the auto-error-resolver agent.
-
-Edit `.claude/hooks/stop-build-check-enhanced.sh`:
-
-```bash
-# Default is 5 errors - change to your preference
-if [[ $total_errors -ge 10 ]]; then  # Now requires 10+ errors
-    # Recommend agent
-fi
+```python
+# Skip if not a Python file
+if not re.search(r'\.py$', file_path):
+    sys.exit(0)
 ```
 
 ## Environment Variables
@@ -182,9 +152,6 @@ fi
 Set in your shell profile (`.bashrc`, `.zshrc`, etc.):
 
 ```bash
-# Disable error handling reminders
-export SKIP_ERROR_REMINDER=1
-
 # Custom project directory (if not using default)
 export CLAUDE_PROJECT_DIR=/path/to/your/project
 ```
@@ -194,29 +161,29 @@ export CLAUDE_PROJECT_DIR=/path/to/your/project
 Set before starting Claude Code:
 
 ```bash
-SKIP_ERROR_REMINDER=1 claude-code
+CLAUDE_PROJECT_DIR=/custom/path claude-code
 ```
 
 ## Hook Execution Order
 
-Stop hooks run in the order specified in `settings.json`:
+Hooks run in the order specified in `settings.json`:
 
 ```json
-"Stop": [
+"UserPromptSubmit": [
   {
     "hooks": [
-      { "command": "...formatter.sh" },    // Runs FIRST
-      { "command": "...build-check.sh" },  // Runs SECOND
-      { "command": "...reminder.sh" }      // Runs THIRD
+      { "command": "...skill-activation-prompt.sh" }  // Runs when prompt submitted
+    ]
+  }
+],
+"PostToolUse": [
+  {
+    "hooks": [
+      { "command": "...post-tool-use-tracker.sh" }  // Runs after Edit/Write/MultiEdit
     ]
   }
 ]
 ```
-
-**Why this order matters:**
-1. Format files first (clean code)
-2. Then check for errors
-3. Finally show reminders
 
 ## Selective Hook Enabling
 
@@ -241,11 +208,21 @@ You don't need all hooks. Choose what works for your project:
 }
 ```
 
-### Build Checking Only (No Formatting)
+### With File Tracking
 
 ```json
 {
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/skill-activation-prompt.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|MultiEdit|Write",
@@ -253,46 +230,6 @@ You don't need all hooks. Choose what works for your project:
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use-tracker.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-build-check-enhanced.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Formatting Only (No Build Checking)
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|MultiEdit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use-tracker.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-prettier-formatter.sh"
           }
         ]
       }
@@ -306,43 +243,43 @@ You don't need all hooks. Choose what works for your project:
 ### Cache Location
 
 ```
-$CLAUDE_PROJECT_DIR/.claude/tsc-cache/[session_id]/
+$CLAUDE_PROJECT_DIR/.claude/python-cache/[session_id]/
 ```
+
+Files stored in cache:
+- `edited-files.log` - Timestamped log of all edited files
+- `affected-repos.txt` - List of affected repositories/directories
+- `commands.txt` - Detected lint, format, and test commands
 
 ### Manual Cache Cleanup
 
 ```bash
 # Remove all cached data
-rm -rf $CLAUDE_PROJECT_DIR/.claude/tsc-cache/*
+rm -rf $CLAUDE_PROJECT_DIR/.claude/python-cache/*
 
 # Remove specific session
-rm -rf $CLAUDE_PROJECT_DIR/.claude/tsc-cache/[session-id]
+rm -rf $CLAUDE_PROJECT_DIR/.claude/python-cache/[session-id]
 ```
-
-### Automatic Cleanup
-
-The build-check hook automatically cleans up session cache on successful builds.
 
 ## Troubleshooting Configuration
 
 ### Hook Not Executing
 
 1. **Check registration:** Verify hook is in `.claude/settings.json`
-2. **Check permissions:** Run `chmod +x .claude/hooks/*.sh`
+2. **Check permissions:** Run `chmod +x .claude/hooks/*.sh .claude/hooks/*.py`
 3. **Check path:** Ensure `$CLAUDE_PROJECT_DIR` is set correctly
-4. **Check TypeScript:** Run `cd .claude/hooks && npx tsc` to check for errors
+4. **Check Python:** Run `python3 --version` to verify Python 3.6+
 
 ### False Positive Detections
 
 **Issue:** Hook triggers for files it shouldn't
 
-**Solution:** Add skip conditions in the relevant hook:
+**Solution:** Add skip conditions in `post-tool-use-tracker.py`:
 
-```bash
-# In post-tool-use-tracker.sh
-if [[ "$file_path" =~ /generated/ ]]; then
-    exit 0  # Skip generated files
-fi
+```python
+# Skip generated files
+if '/generated/' in file_path or '/__pycache__/' in file_path:
+    sys.exit(0)
 ```
 
 ### Performance Issues
@@ -350,30 +287,31 @@ fi
 **Issue:** Hooks are slow
 
 **Solutions:**
-1. Limit TypeScript checks to changed files only
-2. Use faster package managers (pnpm > npm)
-3. Add more skip conditions
-4. Disable Prettier for large files
-
-```bash
-# Skip large files in stop-prettier-formatter.sh
-file_size=$(wc -c < "$file" 2>/dev/null || echo 0)
-if [[ $file_size -gt 100000 ]]; then  # Skip files > 100KB
-    continue
-fi
+1. Skip large files:
+```python
+# In main() function
+file_size = os.path.getsize(file_path)
+if file_size > 100000:  # Skip files > 100KB
+    sys.exit(0)
 ```
+
+2. Limit scope of linting/formatting to specific directories
+3. Add more skip conditions for non-critical files
 
 ### Debugging Hooks
 
 Add debug output to any hook:
 
 ```bash
-# At the top of the hook script
+# In shell script (.sh files)
 set -x  # Enable debug mode
+```
 
-# Or add specific debug lines
-echo "DEBUG: file_path=$file_path" >&2
-echo "DEBUG: repo=$repo" >&2
+```python
+# In Python script (.py files)
+import sys
+print(f"DEBUG: file_path={file_path}", file=sys.stderr)
+print(f"DEBUG: repo={repo}", file=sys.stderr)
 ```
 
 View hook execution in Claude Code's logs.
@@ -404,45 +342,105 @@ You can create your own hooks for other events:
 
 ### Monorepo Configuration
 
-For monorepos with multiple packages:
+For monorepos with multiple Python packages:
 
-```bash
-# In post-tool-use-tracker.sh, detect_repo()
-case "$repo" in
-    packages)
-        # Get the package name
-        local package=$(echo "$relative_path" | cut -d'/' -f2)
-        if [[ -n "$package" ]]; then
-            echo "packages/$package"
-        else
-            echo "$repo"
-        fi
-        ;;
-esac
+```python
+# In detect_repo() function
+if repo == 'packages':
+    if len(parts) >= 2:
+        return f"packages/{parts[1]}"
+    return repo
+```
+
+### Virtual Environment Support
+
+If your build commands need to run in a virtualenv:
+
+```python
+# In get_lint_command() or get_format_command()
+venv_path = repo_path / 'venv'
+if venv_path.exists():
+    return f"cd {repo_path} && source venv/bin/activate && ruff check ."
 ```
 
 ### Docker/Container Projects
 
-If your build commands need to run in containers:
+If your commands need to run in containers:
 
-```bash
-# In post-tool-use-tracker.sh, get_build_command()
-if [[ "$repo" == "api" ]]; then
-    echo "docker-compose exec api npm run build"
-    return
-fi
+```python
+# In get_lint_command()
+if repo == 'api':
+    return "docker-compose exec api ruff check ."
+```
+
+## Python Tool Integration
+
+### Ruff (Recommended)
+
+Ruff is fast and combines linting + formatting:
+
+```toml
+# pyproject.toml
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+```
+
+### Black
+
+Traditional Python formatter:
+
+```toml
+# pyproject.toml
+[tool.black]
+line-length = 88
+target-version = ['py311']
+```
+
+### Pytest
+
+Modern Python testing framework:
+
+```toml
+# pyproject.toml
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+```
+
+### Mypy
+
+Static type checking:
+
+```toml
+# pyproject.toml
+[tool.mypy]
+python_version = "3.11"
+strict = true
 ```
 
 ## Best Practices
 
 1. **Start minimal** - Enable hooks one at a time
 2. **Test thoroughly** - Make changes and verify hooks work
-3. **Document customizations** - Add comments to explain custom logic
-4. **Version control** - Commit `.claude/` directory to git
-5. **Team consistency** - Share configuration across team
+3. **Use pyproject.toml** - Centralize all tool configuration
+4. **Document customizations** - Add comments to explain custom logic
+5. **Version control** - Commit `.claude/` directory to git
+6. **Team consistency** - Share configuration across team
+
+## Python-Specific Notes
+
+- Hooks use only Python standard library (no pip install needed)
+- Compatible with pyproject.toml, setup.py, and setup.cfg
+- Auto-detects common Python tools (ruff, black, flake8, pylint, pytest)
+- Cache directory is `.claude/python-cache/` (not `tsc-cache`)
+- Only tracks `.py` files (ignores other file types)
 
 ## See Also
 
 - [README.md](./README.md) - Hooks overview
-- [../../docs/HOOKS_SYSTEM.md](../../docs/HOOKS_SYSTEM.md) - Complete hooks reference
-- [../../docs/SKILLS_SYSTEM.md](../../docs/SKILLS_SYSTEM.md) - Skills integration
