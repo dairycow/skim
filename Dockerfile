@@ -9,12 +9,14 @@ RUN apt-get update && apt-get install -y \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml and install Python dependencies
+# Copy pyproject.toml first for dependency installation
 COPY pyproject.toml .
-RUN pip install --no-cache-dir .
 
-# Copy bot code
-COPY bot.py .
+# Copy source code
+COPY src/ ./src/
+
+# Install package in editable mode
+RUN pip install --no-cache-dir -e .
 
 # Copy startup script
 COPY scripts/startup.sh .
@@ -31,9 +33,6 @@ RUN crontab /etc/cron.d/skim-cron
 
 # Create log file to be able to run tail
 RUN touch /var/log/cron.log
-
-# Make bot.py executable
-RUN chmod +x /app/bot.py
 
 # Create data and logs directories
 RUN mkdir -p /app/data /app/logs

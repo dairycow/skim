@@ -19,6 +19,9 @@ dependencies = [
     "pytz==2024.1",
 ]
 
+[project.scripts]
+skim = "skim.core.bot:main"
+
 [project.optional-dependencies]
 dev = [
     "ruff>=0.8.0",

@@ -3,21 +3,21 @@
 
 # Pre-market scan for candidates
 # 10:30 UTC = 9:30 PM AEDT (evening before trading day)
-30 10 * * 0-4 cd /app && /usr/local/bin/python /app/bot.py scan >> /var/log/cron.log 2>&1
+30 10 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
 
 # Market open monitoring for gaps
 # 23:00 UTC = 10:00 AM AEDT (market open)
-0 23 * * 0-4 cd /app && /usr/local/bin/python /app/bot.py monitor >> /var/log/cron.log 2>&1
+0 23 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot monitor >> /var/log/cron.log 2>&1
 
 # Execute triggered orders (15 min after open)
-15 23 * * 0-4 cd /app && /usr/local/bin/python /app/bot.py execute >> /var/log/cron.log 2>&1
+15 23 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot execute >> /var/log/cron.log 2>&1
 
 # Intraday position management (every 5 minutes during market hours)
 # Market hours: 23:00 - 05:00 UTC (10:00 AM - 4:00 PM AEDT)
-*/5 23,0,1,2,3,4,5 * * 0-4 cd /app && /usr/local/bin/python /app/bot.py manage_positions >> /var/log/cron.log 2>&1
+*/5 23,0,1,2,3,4,5 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot manage_positions >> /var/log/cron.log 2>&1
 
 # End of day status report
 # 05:30 UTC = 4:30 PM AEDT (after market close)
-30 5 * * 1-5 cd /app && /usr/local/bin/python /app/bot.py status >> /var/log/cron.log 2>&1
+30 5 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot status >> /var/log/cron.log 2>&1
 
 # Blank line required at end of cron file

@@ -80,7 +80,7 @@ docker-compose logs -f bot
 
 ```bash
 # Check bot status
-docker-compose exec bot python /app/bot.py status
+docker-compose exec bot python -m skim.core.bot status
 
 # Verify paper account (should see DU prefix)
 docker-compose logs bot | grep "Connected to account"
@@ -247,7 +247,7 @@ docker-compose up -d
 
 ```bash
 cd /opt/skim
-docker-compose exec bot python /app/bot.py status
+docker-compose exec bot python -m skim.core.bot status
 ```
 
 ### View Logs
@@ -267,16 +267,16 @@ tail -f logs/skim_*.log
 
 ```bash
 # Run scan manually
-docker-compose exec bot python /app/bot.py scan
+docker-compose exec bot python -m skim.core.bot scan
 
 # Monitor for gaps
-docker-compose exec bot python /app/bot.py monitor
+docker-compose exec bot python -m skim.core.bot monitor
 
 # Execute orders
-docker-compose exec bot python /app/bot.py execute
+docker-compose exec bot python -m skim.core.bot execute
 
 # Manage positions
-docker-compose exec bot python /app/bot.py manage_positions
+docker-compose exec bot python -m skim.core.bot manage_positions
 ```
 
 ### Check Database
@@ -417,7 +417,27 @@ tail -f /var/log/cron.log
 
 ```
 skim/
-├── bot.py                  # Main trading bot (single file)
+├── src/                    # Source code (refactored package structure)
+│   └── skim/
+│       ├── __init__.py
+│       ├── core/           # Core orchestration layer
+│       │   ├── __init__.py
+│       │   ├── config.py   # Configuration management
+│       │   └── bot.py      # Main trading bot orchestrator
+│       ├── data/           # Data layer (database, models)
+│       │   ├── __init__.py
+│       │   ├── database.py # Database operations
+│       │   └── models.py   # Data models (Candidate, Position, Trade)
+│       ├── scanners/       # Market scanning layer
+│       │   ├── __init__.py
+│       │   ├── tradingview.py     # TradingView API scanner
+│       │   └── asx_announcements.py  # ASX announcements scraper
+│       ├── brokers/        # Broker interface layer
+│       │   ├── __init__.py
+│       │   └── ib_interface.py    # IB Protocol definition
+│       └── strategy/       # Trading strategy layer
+│           ├── __init__.py
+│           └── entry.py    # Entry logic and filters
 ├── docker-compose.yml      # Service orchestration
 ├── Dockerfile              # Bot container definition
 ├── pyproject.toml          # Python dependencies and tool config
@@ -474,12 +494,14 @@ All executed trades:
 
 ## Development
 
-### Edit bot.py from iPhone
+### Edit Code from iPhone
 
 ```bash
 # Use vim editor in Termius
 cd /opt/skim
-vim bot.py
+vim src/skim/core/bot.py  # Edit main bot orchestrator
+vim src/skim/scanners/tradingview.py  # Edit scanner logic
+# etc.
 
 # Save changes (Ctrl+O, Enter, Ctrl+X)
 
@@ -491,12 +513,24 @@ docker-compose up -d --build
 
 ```bash
 # Each method can be called independently
-docker-compose exec bot python /app/bot.py scan
-docker-compose exec bot python /app/bot.py monitor
-docker-compose exec bot python /app/bot.py execute
-docker-compose exec bot python /app/bot.py manage_positions
-docker-compose exec bot python /app/bot.py status
+docker-compose exec bot python -m skim.core.bot scan
+docker-compose exec bot python -m skim.core.bot monitor
+docker-compose exec bot python -m skim.core.bot execute
+docker-compose exec bot python -m skim.core.bot manage_positions
+docker-compose exec bot python -m skim.core.bot status
 ```
+
+### Package Structure
+
+The bot is now organized as a proper Python package:
+
+- `skim.core`: Configuration and orchestration
+- `skim.data`: Database operations and data models
+- `skim.scanners`: Market data scanners (TradingView, ASX)
+- `skim.brokers`: Broker interface (Interactive Brokers)
+- `skim.strategy`: Trading strategy logic
+
+This modular structure makes the code more maintainable and testable while keeping the same CLI interface and deployment workflow.
 
 ## Configuration
 
