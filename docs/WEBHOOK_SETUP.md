@@ -36,7 +36,7 @@ Create the hooks configuration file:
 
 ```bash
 sudo mkdir -p /etc/webhook
-sudo nano /etc/webhook/hooks.json
+sudo vim /etc/webhook/hooks.json
 ```
 
 Add this configuration:
@@ -90,7 +90,7 @@ Save this secret - you'll need it for GitHub configuration.
 Create a service to run webhook automatically:
 
 ```bash
-sudo nano /etc/systemd/system/webhook.service
+sudo vim /etc/systemd/system/webhook.service
 ```
 
 Add this content:
@@ -173,7 +173,7 @@ If you prefer a Python-based solution:
 ### Step 1: Create webhook receiver script
 
 ```bash
-sudo nano /opt/skim/deploy/webhook_receiver.py
+sudo vim /opt/skim/deploy/webhook_receiver.py
 ```
 
 ```python
@@ -248,7 +248,7 @@ sudo chmod +x /opt/skim/deploy/webhook_receiver.py
 ### Step 2: Create systemd service
 
 ```bash
-sudo nano /etc/systemd/system/skim-webhook.service
+sudo vim /etc/systemd/system/skim-webhook.service
 ```
 
 ```ini
@@ -293,7 +293,7 @@ sudo apt-get install -y nginx certbot python3-certbot-nginx
 
 2. Configure nginx:
 ```bash
-sudo nano /etc/nginx/sites-available/webhook
+sudo vim /etc/nginx/sites-available/webhook
 ```
 
 ```nginx
@@ -395,7 +395,7 @@ sudo iptables -L -n | grep 9000
 The webhook script currently deploys from a specific branch. To deploy from main branch instead:
 
 ```bash
-sudo nano /opt/skim/deploy/webhook.sh
+sudo vim /opt/skim/deploy/webhook.sh
 ```
 
 Change line 19 from:
