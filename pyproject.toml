@@ -10,8 +10,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 dependencies = [
+    "beautifulsoup4==4.12.3",
     "ib-insync==0.9.86",
     "loguru==0.7.2",
+    "lxml==5.1.0",
     "python-dotenv==1.0.1",
     "requests==2.31.0",
     "pytz==2024.1",
