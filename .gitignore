@@ -56,3 +56,6 @@ docker-compose.override.yml
 # Claude Code hook cache
 .claude/python-cache/
 .claude/tsc-cache/
+
+# Git worktrees
+.worktrees/
