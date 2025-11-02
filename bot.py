@@ -18,6 +18,7 @@ import time
 from datetime import datetime
 
 import requests
+from bs4 import BeautifulSoup
 from ib_insync import IB, MarketOrder, Stock
 from loguru import logger
 
@@ -326,9 +327,65 @@ class TradingBot:
             logger.error(f"Unexpected error querying TradingView: {e}")
             return []
 
+    def _fetch_price_sensitive_announcements(self) -> set[str]:
+        """
+        Fetch today's price-sensitive announcements from ASX
+
+        Returns:
+            Set of ticker symbols with price-sensitive announcements today
+        """
+        try:
+            asx_url = "https://www.asx.com.au/asx/v2/statistics/todayAnns.do"
+            logger.info("Fetching price-sensitive announcements from ASX...")
+
+            response = requests.get(asx_url, timeout=10)
+            response.raise_for_status()
+
+            # Parse HTML with BeautifulSoup
+            soup = BeautifulSoup(response.text, "lxml")
+
+            # Find all table rows
+            rows = soup.find_all("tr")
+
+            price_sensitive_tickers = set()
+
+            for row in rows:
+                # Check if row contains "pricesens" indicator
+                if "pricesens" in str(row):
+                    # Extract ticker from first <td> element
+                    cells = row.find_all("td")
+                    if cells:
+                        ticker = cells[0].get_text(strip=True)
+                        if ticker:
+                            price_sensitive_tickers.add(ticker)
+
+            logger.info(
+                f"Found {len(price_sensitive_tickers)} price-sensitive announcements today"
+            )
+            return price_sensitive_tickers
+
+        except requests.exceptions.Timeout:
+            logger.warning(
+                "ASX announcement fetch timed out, continuing without filter"
+            )
+            return set()
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"Error fetching ASX announcements: {e}, continuing without filter"
+            )
+            return set()
+        except Exception as e:
+            logger.warning(
+                f"Unexpected error parsing ASX announcements: {e}, continuing without filter"
+            )
+            return set()
+
     def scan(self):
-        """Scan ASX market for stocks showing momentum (gaps > 2%)"""
+        """Scan ASX market for stocks showing momentum (gaps > 2%) and price-sensitive announcements"""
         logger.info("Starting TradingView market scan for candidates...")
+
+        # Fetch price-sensitive announcements first
+        price_sensitive_tickers = self._fetch_price_sensitive_announcements()
 
         # Query TradingView for stocks with gaps > 2% (lower threshold for scanning)
         scan_threshold = 2.0
@@ -342,6 +399,13 @@ class TradingBot:
         cursor = self.db.cursor()
 
         for ticker, gap_percent, close_price in stocks:
+            # Only process if ticker has price-sensitive announcement
+            if ticker not in price_sensitive_tickers:
+                logger.debug(
+                    f"{ticker}: Skipped (no price-sensitive announcement)"
+                )
+                continue
+
             try:
                 logger.info(
                     f"{ticker}: Gap {gap_percent:.2f}% @ ${close_price:.2f}"
@@ -371,14 +435,16 @@ class TradingBot:
                     self.db.commit()
                     candidates_found += 1
                     logger.info(
-                        f"Added {ticker} to candidates (gap: {gap_percent:.2f}%)"
+                        f"Added {ticker} to candidates (gap: {gap_percent:.2f}%, price-sensitive announcement)"
                     )
 
             except Exception as e:
                 logger.error(f"Error adding candidate {ticker}: {e}")
                 continue
 
-        logger.info(f"Scan complete. Found {candidates_found} new candidates")
+        logger.info(
+            f"Scan complete. Found {candidates_found} new candidates with both momentum and announcements"
+        )
         return candidates_found
 
     def monitor(self):
