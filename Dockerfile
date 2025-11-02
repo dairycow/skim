@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir .
 COPY bot.py .
 
 # Copy startup script
-COPY startup.sh .
+COPY scripts/startup.sh .
 RUN chmod +x /app/startup.sh
 
 # Copy crontab file
