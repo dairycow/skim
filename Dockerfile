@@ -7,7 +7,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     cron \
     vim \
-    nano \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy pyproject.toml and install Python dependencies

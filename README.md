@@ -36,7 +36,7 @@ git clone https://github.com/dairycow/skim.git .
 
 # Create .env file from template
 cp .env.example .env
-nano .env  # Edit with your IB credentials
+vim .env  # Edit with your IB credentials
 ```
 
 ### Step 2: Configure Environment Variables
@@ -477,9 +477,9 @@ All executed trades:
 ### Edit bot.py from iPhone
 
 ```bash
-# Use nano editor in Termius
+# Use vim editor in Termius
 cd /opt/skim
-nano bot.py
+vim bot.py
 
 # Save changes (Ctrl+O, Enter, Ctrl+X)
 
