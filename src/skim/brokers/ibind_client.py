@@ -1,5 +1,6 @@
 """Interactive Brokers client using IBind (Client Portal API)"""
 
+import os
 from ibind import IbkrClient, QuestionType, make_order_request
 from loguru import logger
 
@@ -18,7 +19,23 @@ class IBIndClient(IBInterface):
             base_url: Client Portal API base URL
             paper_trading: If True, enforce paper trading safety checks
         """
-        self.client = IbkrClient(url=base_url)
+        # Check if OAuth credentials are available
+        use_oauth = os.getenv("IBIND_USE_OAUTH", "").lower() == "true"
+
+        if use_oauth:
+            logger.info("Initializing IBind client with OAuth 1.0a authentication")
+            # IBind reads OAuth config from environment variables:
+            # IBIND_OAUTH1A_CONSUMER_KEY
+            # IBIND_OAUTH1A_ACCESS_TOKEN
+            # IBIND_OAUTH1A_ACCESS_TOKEN_SECRET
+            # IBIND_OAUTH1A_SIGNATURE_KEY_FP
+            # IBIND_OAUTH1A_ENCRYPTION_KEY_FP
+            # IBIND_OAUTH1A_DH_PRIME
+            self.client = IbkrClient(url=base_url)
+        else:
+            logger.info("Initializing IBind client with session-based authentication")
+            self.client = IbkrClient(url=base_url)
+
         self.paper_trading = paper_trading
         self._connected = False
         self._account_id = None

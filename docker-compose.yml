@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-   # IBeam - Client Portal API Gateway with automated authentication
+   # IBeam - Client Portal Gateway (OAuth handles auth client-side)
    ibeam:
      image: voyz/ibeam:latest
      container_name: ibeam
@@ -9,24 +9,16 @@ services:
      volumes:
        - ibeam-data:/srv/ibeam
      environment:
-       - IBEAM_ACCOUNT=${IB_USERNAME}
-       - IBEAM_PASSWORD=${IB_PASSWORD}
-       - IBEAM_TWO_FA_HANDLER=EXTERNAL_REQUEST  # Manual phone approval
-       - IBEAM_GATEWAY_BASE_URL=https://localhost:5000
-       - IBEAM_PAGE_LOAD_TIMEOUT=300  # 5 minutes for 2FA approval
-       - IBEAM_OAUTH_TIMEOUT=300  # 5 minutes for OAuth/2FA wait
-       - IBEAM_REQUEST_RETRIES=1  # Reduce retry attempts
-       - IBEAM_MAINTENANCE_INTERVAL=60  # Check every minute for session
-       - IBEAM_RESTART_FAILED_SESSIONS=false  # Don't restart Gateway
-       - IBEAM_MAX_FAILED_AUTH=100  # Allow many failed auth attempts (manual login)
+       - IBEAM_START_ACTIVE=false  # Don't auto-login, OAuth handles auth
+       - IBEAM_MAINTENANCE_INTERVAL=300  # Check every 5 minutes
      ports:
        - "5000:5000"  # Client Portal REST API
      healthcheck:
-       test: ["CMD-SHELL", "curl -k -s https://localhost:5000/v1/api/tickle | grep -q authenticated || exit 1"]
+       test: ["CMD-SHELL", "curl -k -s https://localhost:5000/v1/api/tickle || exit 1"]
        interval: 30s
        timeout: 10s
        retries: 10
-       start_period: 300s
+       start_period: 60s
 
   # Skim Trading Bot
    bot:
@@ -44,9 +36,17 @@ services:
       - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-1000}
       - MAX_POSITIONS=${MAX_POSITIONS:-5}
       - DB_PATH=${DB_PATH:-/app/data/skim.db}
+      - IBIND_USE_OAUTH=True
+      - IBIND_OAUTH1A_CONSUMER_KEY=${OAUTH_CONSUMER_KEY}
+      - IBIND_OAUTH1A_ACCESS_TOKEN=${OAUTH_ACCESS_TOKEN}
+      - IBIND_OAUTH1A_ACCESS_TOKEN_SECRET=${OAUTH_ACCESS_TOKEN_SECRET}
+      - IBIND_OAUTH1A_SIGNATURE_KEY_FP=${OAUTH_SIGNATURE_PATH}
+      - IBIND_OAUTH1A_ENCRYPTION_KEY_FP=${OAUTH_ENCRYPTION_PATH}
+      - IBIND_OAUTH1A_DH_PRIME=${OAUTH_DH_PRIME}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./oauth_keys:/opt/skim/oauth_keys:ro
     networks:
       - skim-network
 
