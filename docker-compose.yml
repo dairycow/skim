@@ -16,10 +16,10 @@ services:
       - IBEAM_OAUTH_TIMEOUT=180  # 3 minutes for OAuth/2FA wait
       - IBEAM_REQUEST_RETRIES=1  # Reduce retry attempts
       - IBEAM_MAINTENANCE_INTERVAL=300  # Check every 5 min instead of default
-    ports:
-      - "5000:5000"  # Client Portal REST API
-    volumes:
-      - ibeam-data:/srv/ibeam
+     ports:
+       - "5000:5000"  # Client Portal REST API
+     volumes:
+       - ibeam-data:/srv/ibeam
      healthcheck:
        test: ["CMD-SHELL", "curl -k -s https://localhost:5000/v1/api/tickle | grep -q authenticated || exit 1"]
        interval: 30s
@@ -34,8 +34,8 @@ services:
      restart: unless-stopped
      depends_on:
        - ibeam
-    environment:
-      - IB_HOST=${IB_HOST:-ibeam}
+     environment:
+       - IB_HOST=${IB_HOST:-ibeam}
       - IB_PORT=${IB_PORT:-5000}
       - IB_CLIENT_ID=${IB_CLIENT_ID:-1}
       - PAPER_TRADING=${PAPER_TRADING:-true}
