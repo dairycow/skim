@@ -13,6 +13,7 @@ services:
       - IBEAM_TWO_FA_HANDLER=EXTERNAL_REQUEST  # Manual phone approval
       - IBEAM_GATEWAY_BASE_URL=https://localhost:5000
       - IBEAM_PAGE_LOAD_TIMEOUT=180  # 3 minutes for 2FA approval
+      - IBEAM_OAUTH_TIMEOUT=180  # 3 minutes for OAuth/2FA wait
       - IBEAM_REQUEST_RETRIES=1  # Reduce retry attempts
       - IBEAM_MAINTENANCE_INTERVAL=300  # Check every 5 min instead of default
     ports:
