@@ -86,12 +86,12 @@ def test_position_is_open():
 
 def test_position_days_held():
     """Test Position.days_held calculation"""
-    # Create position from 5 days ago
-    five_days_ago = datetime.now().replace(
-        hour=10, minute=0, second=0, microsecond=0
-    )
+    # Create position from 5 days ago using timedelta
+    from datetime import timedelta
+
+    five_days_ago = datetime.now() - timedelta(days=5)
     five_days_ago = five_days_ago.replace(
-        day=five_days_ago.day - 5
+        hour=10, minute=0, second=0, microsecond=0
     ).isoformat()
 
     position = Position(

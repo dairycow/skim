@@ -26,8 +26,9 @@ wheels/
 .installed.cfg
 *.egg
 
-# Trading data
+# Trading data (but not src/skim/data/ which is code)
 data/
+!src/skim/data/
 *.db
 *.sqlite
 *.sqlite3
