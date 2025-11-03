@@ -6,6 +6,8 @@ services:
      image: voyz/ibeam:latest
      container_name: ibeam
      restart: unless-stopped
+     volumes:
+       - ibeam-data:/srv/ibeam
      environment:
        - IBEAM_ACCOUNT=${IB_USERNAME}
        - IBEAM_PASSWORD=${IB_PASSWORD}
@@ -17,6 +19,7 @@ services:
        - IBEAM_MAINTENANCE_INTERVAL=60  # Check every minute for 2FA
        - IBEAM_RESTART_FAILED_SESSIONS=false  # Don't kill Gateway after failed auth
        - IBEAM_MAX_REAUTHENTICATE_RETRIES=10  # More retries for 2FA approval window
+       - IBEAM_START_ACTIVE=false  # Don't auto-login, wait for manual auth
      ports:
        - "5000:5000"  # Client Portal REST API
      healthcheck:
@@ -51,3 +54,6 @@ services:
 networks:
   skim-network:
     driver: bridge
+
+volumes:
+  ibeam-data:
