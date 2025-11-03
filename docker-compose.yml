@@ -20,21 +20,20 @@ services:
       - "5000:5000"  # Client Portal REST API
     volumes:
       - ibeam-data:/srv/ibeam
-    healthcheck:
-      test: ["CMD-SHELL", "curl -k -f https://localhost:5000/v1/api/tickle || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 180s
+     healthcheck:
+       test: ["CMD-SHELL", "curl -k -s https://localhost:5000/v1/api/tickle | grep -q authenticated || exit 1"]
+       interval: 30s
+       timeout: 10s
+       retries: 10
+       start_period: 300s
 
-  # Skim Trading Bot
-  bot:
-    build: .
-    container_name: skim-bot
-    restart: unless-stopped
-    depends_on:
-      ibeam:
-        condition: service_healthy
+   # Skim Trading Bot
+   bot:
+     build: .
+     container_name: skim-bot
+     restart: unless-stopped
+     depends_on:
+       - ibeam
     environment:
       - IB_HOST=${IB_HOST:-ibeam}
       - IB_PORT=${IB_PORT:-5000}
