@@ -44,8 +44,8 @@ class Config:
             )
 
         config = cls(
-            ib_host=os.getenv("IB_HOST", "ibgateway"),
-            ib_port=int(os.getenv("IB_PORT", "4004")),
+            ib_host=os.getenv("IB_HOST", "ibeam"),
+            ib_port=int(os.getenv("IB_PORT", "5000")),
             ib_client_id=int(os.getenv("IB_CLIENT_ID", "1")),
             paper_trading=paper_trading,
             gap_threshold=float(os.getenv("GAP_THRESHOLD", "3.0")),
