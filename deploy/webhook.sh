@@ -32,39 +32,27 @@ docker-compose down || true
 echo "Building and starting containers..."
 docker-compose up -d --build
 
-# Wait for IB Gateway to be healthy
-echo "Waiting for IB Gateway to be healthy..."
+# Wait for IBeam to be healthy
+echo "Waiting for IBeam to be healthy..."
 timeout=300
 elapsed=0
 while [ $elapsed -lt $timeout ]; do
-    if docker-compose ps ibgateway | grep -q "healthy"; then
-        echo "IB Gateway is healthy"
+    if docker-compose ps ibeam | grep -q "healthy"; then
+        echo "IBeam is healthy"
         break
     fi
-    echo "Waiting for IB Gateway... ($elapsed/$timeout seconds)"
+    echo "Waiting for IBeam... ($elapsed/$timeout seconds)"
     sleep 10
     elapsed=$((elapsed + 10))
 done
 
 if [ $elapsed -ge $timeout ]; then
-    echo "ERROR: IB Gateway did not become healthy within $timeout seconds"
+    echo "ERROR: IBeam did not become healthy within $timeout seconds"
     exit 1
 fi
 
-# Apply trusted IPs configuration
-echo "Applying trusted IPs configuration..."
-if ./apply_trusted_ips.sh; then
-    echo "Trusted IPs applied successfully"
-    # Restart gateway to apply changes
-    echo "Restarting IB Gateway with new configuration..."
-    docker-compose restart ibgateway
-
-    # Wait for gateway to be healthy again
-    echo "Waiting for IB Gateway to restart..."
-    sleep 30
-else
-    echo "WARNING: Failed to apply trusted IPs"
-fi
+# Note: Trusted IPs configuration not needed with IBind + IBeam setup
+echo "IBind handles authentication directly through Client Portal API"
 
 # Show status
 echo

@@ -1,31 +1,28 @@
 version: '3.8'
 
 services:
-  # IBeam - Client Portal API Gateway with automated authentication
-  ibeam:
-    image: voyz/ibeam:latest
-    container_name: ibeam
-    restart: unless-stopped
-    network_mode: bridge  # Required for Client Portal IP whitelist
-    environment:
-      - IBEAM_ACCOUNT=${IB_USERNAME}
-      - IBEAM_PASSWORD=${IB_PASSWORD}
-      - IBEAM_TWO_FA_HANDLER=EXTERNAL_REQUEST  # Manual phone approval
-      - IBEAM_GATEWAY_BASE_URL=https://localhost:5000
-      - IBEAM_PAGE_LOAD_TIMEOUT=180  # 3 minutes for 2FA approval
-      - IBEAM_OAUTH_TIMEOUT=180  # 3 minutes for OAuth/2FA wait
-      - IBEAM_REQUEST_RETRIES=1  # Reduce retry attempts
-      - IBEAM_MAINTENANCE_INTERVAL=300  # Check every 5 min instead of default
-    ports:
-      - "5000:5000"  # Client Portal REST API
-    volumes:
-      - ibeam-data:/srv/ibeam
-    healthcheck:
-      test: ["CMD-SHELL", "curl -k -s https://localhost:5000/v1/api/tickle | grep -q authenticated || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 300s
+   # IBeam - Client Portal API Gateway with automated authentication
+   ibeam:
+     image: voyz/ibeam:latest
+     container_name: ibeam
+     restart: unless-stopped
+     environment:
+       - IBEAM_ACCOUNT=${IB_USERNAME}
+       - IBEAM_PASSWORD=${IB_PASSWORD}
+       - IBEAM_TWO_FA_HANDLER=EXTERNAL_REQUEST  # Manual phone approval
+       - IBEAM_GATEWAY_BASE_URL=https://localhost:5000
+       - IBEAM_PAGE_LOAD_TIMEOUT=300  # 5 minutes for 2FA approval
+       - IBEAM_OAUTH_TIMEOUT=300  # 5 minutes for OAuth/2FA wait
+       - IBEAM_REQUEST_RETRIES=1  # Reduce retry attempts
+       - IBEAM_MAINTENANCE_INTERVAL=300  # Check every 5 min instead of default
+     ports:
+       - "5000:5000"  # Client Portal REST API
+     healthcheck:
+       test: ["CMD-SHELL", "curl -k -s https://localhost:5000/v1/api/tickle | grep -q authenticated || exit 1"]
+       interval: 30s
+       timeout: 10s
+       retries: 10
+       start_period: 300s
 
   # Skim Trading Bot
   bot:
@@ -52,6 +49,3 @@ services:
 networks:
   skim-network:
     driver: bridge
-
-volumes:
-  ibeam-data:
