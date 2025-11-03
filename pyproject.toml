@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = {text = "MIT"}
 dependencies = [
     "beautifulsoup4==4.12.3",
-    "ibind>=0.1.18",
+    "ibind[oauth]>=0.1.18",
     "loguru==0.7.2",
     "lxml==5.1.0",
     "python-dotenv==1.0.1",
