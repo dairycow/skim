@@ -1,32 +1,11 @@
 version: '3.8'
 
 services:
-   # IBeam - Client Portal Gateway (OAuth handles auth client-side)
-   ibeam:
-     image: voyz/ibeam:latest
-     container_name: ibeam
-     restart: unless-stopped
-     volumes:
-       - ibeam-data:/srv/ibeam
-     environment:
-       - IBEAM_START_ACTIVE=false  # Don't auto-login, OAuth handles auth
-       - IBEAM_MAINTENANCE_INTERVAL=300  # Check every 5 minutes
-     ports:
-       - "5000:5000"  # Client Portal REST API
-     healthcheck:
-       test: ["CMD-SHELL", "curl -k -s https://localhost:5000/v1/api/tickle || exit 1"]
-       interval: 30s
-       timeout: 10s
-       retries: 10
-       start_period: 60s
-
-  # Skim Trading Bot
+  # Skim Trading Bot (OAuth connects directly to IBKR - no Gateway needed!)
    bot:
     build: .
     container_name: skim-bot
     restart: unless-stopped
-    depends_on:
-      - ibeam
     environment:
       - IB_HOST=${IB_HOST:-ibeam}
       - IB_PORT=${IB_PORT:-5000}
@@ -53,6 +32,3 @@ services:
 networks:
   skim-network:
     driver: bridge
-
-volumes:
-  ibeam-data:
