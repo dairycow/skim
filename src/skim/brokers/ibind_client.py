@@ -16,7 +16,7 @@ class IBIndClient(IBInterface):
         """Initialize IBind client
 
         Args:
-            base_url: Client Portal API base URL
+            base_url: Client Portal API base URL (ignored if using OAuth)
             paper_trading: If True, enforce paper trading safety checks
         """
         # Check if OAuth credentials are available
@@ -24,14 +24,13 @@ class IBIndClient(IBInterface):
 
         if use_oauth:
             logger.info("Initializing IBind client with OAuth 1.0a authentication")
+            # OAuth connects directly to IBKR API, not through Gateway
             # IBind reads OAuth config from environment variables:
-            # IBIND_OAUTH1A_CONSUMER_KEY
-            # IBIND_OAUTH1A_ACCESS_TOKEN
-            # IBIND_OAUTH1A_ACCESS_TOKEN_SECRET
-            # IBIND_OAUTH1A_SIGNATURE_KEY_FP
-            # IBIND_OAUTH1A_ENCRYPTION_KEY_FP
-            # IBIND_OAUTH1A_DH_PRIME
-            self.client = IbkrClient(url=base_url)
+            # IBIND_OAUTH1A_CONSUMER_KEY, IBIND_OAUTH1A_ACCESS_TOKEN,
+            # IBIND_OAUTH1A_ACCESS_TOKEN_SECRET, IBIND_OAUTH1A_SIGNATURE_KEY_FP,
+            # IBIND_OAUTH1A_ENCRYPTION_KEY_FP, IBIND_OAUTH1A_DH_PRIME
+            # No URL needed - OAuth goes directly to api.ibkr.com
+            self.client = IbkrClient()
         else:
             logger.info("Initializing IBind client with session-based authentication")
             self.client = IbkrClient(url=base_url)
