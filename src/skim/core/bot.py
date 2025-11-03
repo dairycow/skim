@@ -16,9 +16,9 @@ import sys
 import time
 from datetime import datetime
 
-from ib_insync import IB, MarketOrder, Stock
 from loguru import logger
 
+from skim.brokers import IBIndClient
 from skim.core.config import Config
 from skim.data.database import Database
 from skim.data.models import Candidate
@@ -46,136 +46,28 @@ class TradingBot:
         self.tv_scanner = TradingViewScanner()
         self.asx_scanner = ASXAnnouncementScanner()
 
-        # Initialize IB connection object (lazy connection)
-        self.ib = IB()
-        self._ib_connected = False
+        # Initialize IB client (lazy connection)
+        base_url = f"https://{config.ib_host}:{config.ib_port}"
+        self.ib_client = IBIndClient(base_url=base_url, paper_trading=config.paper_trading)
 
         logger.info("Bot initialized successfully")
 
-    def _test_network_connectivity(self) -> bool:
-        """Test network connectivity to IB Gateway before attempting connection"""
-        import socket
-
-        try:
-            logger.info(
-                f"Testing network connectivity to {self.config.ib_host}:{self.config.ib_port}..."
-            )
-
-            # Test DNS resolution
-            ip_address = socket.gethostbyname(self.config.ib_host)
-            logger.info(f"DNS resolved {self.config.ib_host} -> {ip_address}")
-
-            # Test TCP connection
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)
-            result = sock.connect_ex((self.config.ib_host, self.config.ib_port))
-            sock.close()
-
-            if result == 0:
-                logger.info(
-                    f"TCP connection to {self.config.ib_host}:{self.config.ib_port} successful"
-                )
-                return True
-            else:
-                logger.warning(
-                    f"TCP connection to {self.config.ib_host}:{self.config.ib_port} failed (error code: {result})"
-                )
-                return False
-
-        except socket.gaierror as e:
-            logger.error(f"DNS resolution failed: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Network test failed: {e}")
-            return False
-
     def _connect_ib(self):
-        """Connect to IB Gateway with safety checks and reconnection logic"""
-        if self._ib_connected and self.ib.isConnected():
+        """Connect to IB Client Portal with safety checks and reconnection logic"""
+        if self.ib_client.is_connected():
             return
 
-        max_retries = 10
-        retry_delay = 5
-        connection_timeout = 20
-
-        for attempt in range(max_retries):
-            try:
-                # Test network connectivity first
-                if not self._test_network_connectivity():
-                    logger.warning(
-                        "Network connectivity test failed, waiting before retry..."
-                    )
-                    if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
-                        continue
-
-                logger.info(
-                    f"Connecting to IB Gateway at {self.config.ib_host}:{self.config.ib_port} "
-                    f"(attempt {attempt + 1}/{max_retries})"
-                )
-                logger.info(
-                    f"Using clientId={self.config.ib_client_id}, timeout={connection_timeout}s"
-                )
-
-                self.ib.connect(
-                    self.config.ib_host,
-                    self.config.ib_port,
-                    clientId=self.config.ib_client_id,
-                    timeout=connection_timeout,
-                )
-
-                # Get account info for safety checks
-                account = self.ib.managedAccounts()[0]
-                logger.info(f"Connected to account: {account}")
-
-                # CRITICAL: Verify paper trading account
-                if self.config.paper_trading:
-                    if not account.startswith("DU"):
-                        logger.error(
-                            f"SAFETY CHECK FAILED: Expected paper account (DU prefix), got {account}"
-                        )
-                        raise ValueError("Not a paper trading account!")
-                    logger.warning(f"PAPER TRADING MODE - Account: {account}")
-                else:
-                    logger.warning(f"LIVE TRADING MODE - Account: {account}")
-
-                logger.info("IB connection established successfully")
-                self._ib_connected = True
-                return
-
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"Connection attempt {attempt + 1} failed: {error_msg}")
-
-                # Check for specific error conditions
-                if "clientid already in use" in error_msg.lower():
-                    logger.error(
-                        "Client ID already in use. Try changing IB_CLIENT_ID environment variable."
-                    )
-                    raise
-                elif "not connected" in error_msg.lower():
-                    logger.warning("IB Gateway may not be accepting connections yet")
-
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (attempt + 1)
-                    logger.info(f"Waiting {wait_time}s before retry...")
-                    time.sleep(wait_time)
-                else:
-                    logger.error(
-                        f"Failed to connect to IB Gateway after {max_retries} retries"
-                    )
-                    logger.error("Possible issues:")
-                    logger.error(
-                        "1. IB Gateway may not be fully started (check: docker logs ibgateway)"
-                    )
-                    logger.error("2. Trusted IPs not configured in jts.ini")
-                    logger.error("3. Wrong credentials or 2FA timeout")
-                    logger.error("4. Client ID already in use")
-                    raise
+        # IBIndClient handles retries internally
+        self.ib_client.connect(
+            host=self.config.ib_host,
+            port=self.config.ib_port,
+            client_id=self.config.ib_client_id,
+            timeout=20,
+        )
 
     def _ensure_connection(self):
         """Ensure IB connection is alive, reconnect if needed"""
-        if not self._ib_connected or not self.ib.isConnected():
+        if not self.ib_client.is_connected():
             logger.warning("IB connection not established or lost, connecting...")
             self._connect_ib()
 
@@ -337,19 +229,14 @@ class TradingBot:
             ticker = candidate.ticker
 
             try:
-                # Create stock contract (IB uses same format as TradingView)
-                contract = Stock(ticker, "ASX", "AUD")
-                self.ib.qualifyContracts(contract)
-
                 # Get current market price
-                ticker_data = self.ib.reqMktData(contract)
-                time.sleep(2)  # Wait for data
+                market_data = self.ib_client.get_market_data(ticker)
 
-                if not ticker_data.last or ticker_data.last <= 0:
+                if not market_data or not market_data.last_price or market_data.last_price <= 0:
                     logger.warning(f"{ticker}: No valid market data available")
                     continue
 
-                current_price = ticker_data.last
+                current_price = market_data.last_price
 
                 # Calculate position size (simple: fixed dollar amount)
                 position_value = 5000  # $5000 per position
@@ -366,47 +253,43 @@ class TradingBot:
                 stop_loss = current_price * 0.95
 
                 # Place market order
-                order = MarketOrder("BUY", quantity)
-                trade = self.ib.placeOrder(contract, order)
+                order_result = self.ib_client.place_order(ticker, "BUY", quantity)
+
+                if not order_result:
+                    logger.warning(f"Order placement failed for {ticker}")
+                    continue
 
                 logger.info(f"Order placed: BUY {quantity} {ticker} @ market")
 
-                # Wait for fill (with timeout)
-                timeout = 30
-                start_time = time.time()
-                while not trade.isDone() and (time.time() - start_time) < timeout:
-                    self.ib.sleep(1)
+                # Use filled price if available, otherwise use current price as estimate
+                fill_price = order_result.filled_price if order_result.filled_price else current_price
 
-                if trade.isDone():
-                    fill_price = trade.orderStatus.avgFillPrice
-                    logger.info(
-                        f"Order filled: {quantity} {ticker} @ ${fill_price:.2f}"
-                    )
+                logger.info(
+                    f"Order {order_result.status}: {quantity} {ticker} @ ${fill_price:.2f}"
+                )
 
-                    # Record position
-                    position_id = self.db.create_position(
-                        ticker=ticker,
-                        quantity=quantity,
-                        entry_price=fill_price,
-                        stop_loss=stop_loss,
-                        entry_date=datetime.now().isoformat(),
-                    )
+                # Record position
+                position_id = self.db.create_position(
+                    ticker=ticker,
+                    quantity=quantity,
+                    entry_price=fill_price,
+                    stop_loss=stop_loss,
+                    entry_date=datetime.now().isoformat(),
+                )
 
-                    # Record trade
-                    self.db.create_trade(
-                        ticker=ticker,
-                        action="BUY",
-                        quantity=quantity,
-                        price=fill_price,
-                        position_id=position_id,
-                    )
+                # Record trade
+                self.db.create_trade(
+                    ticker=ticker,
+                    action="BUY",
+                    quantity=quantity,
+                    price=fill_price,
+                    position_id=position_id,
+                )
 
-                    # Update candidate status
-                    self.db.update_candidate_status(ticker, "entered")
+                # Update candidate status
+                self.db.update_candidate_status(ticker, "entered")
 
-                    orders_placed += 1
-                else:
-                    logger.warning(f"Order for {ticker} did not fill within timeout")
+                orders_placed += 1
 
             except Exception as e:
                 logger.error(f"Error executing order for {ticker}: {e}")
@@ -439,63 +322,53 @@ class TradingBot:
 
             try:
                 # Get current price
-                contract = Stock(ticker, "ASX", "AUD")
-                self.ib.qualifyContracts(contract)
+                market_data = self.ib_client.get_market_data(ticker)
 
-                ticker_data = self.ib.reqMktData(contract)
-                time.sleep(2)
-
-                if not ticker_data.last or ticker_data.last <= 0:
+                if not market_data or not market_data.last_price or market_data.last_price <= 0:
                     logger.warning(f"{ticker}: No valid market data")
                     continue
 
-                current_price = ticker_data.last
+                current_price = market_data.last_price
 
                 # Rule 1: Sell half on day 3
                 if position.days_held >= 3 and not position.half_sold:
                     quantity_to_sell = position.quantity // 2
 
                     if quantity_to_sell > 0:
-                        order = MarketOrder("SELL", quantity_to_sell)
-                        trade = self.ib.placeOrder(contract, order)
+                        order_result = self.ib_client.place_order(ticker, "SELL", quantity_to_sell)
+
+                        if not order_result:
+                            logger.warning(f"Day 3 sell order failed for {ticker}")
+                            continue
 
                         logger.info(
                             f"Day 3: Selling half position {quantity_to_sell} {ticker}"
                         )
 
-                        # Wait for fill
-                        timeout = 30
-                        start_time = time.time()
-                        while (
-                            not trade.isDone()
-                            and (time.time() - start_time) < timeout
-                        ):
-                            self.ib.sleep(1)
+                        # Use filled price if available, otherwise use current price as estimate
+                        fill_price = order_result.filled_price if order_result.filled_price else current_price
+                        pnl = (fill_price - position.entry_price) * quantity_to_sell
 
-                        if trade.isDone():
-                            fill_price = trade.orderStatus.avgFillPrice
-                            pnl = (fill_price - position.entry_price) * quantity_to_sell
+                        logger.info(
+                            f"Half position sold: {quantity_to_sell} {ticker} @ ${fill_price:.2f}, PnL: ${pnl:.2f}"
+                        )
 
-                            logger.info(
-                                f"Half position sold: {quantity_to_sell} {ticker} @ ${fill_price:.2f}, PnL: ${pnl:.2f}"
-                            )
+                        # Update position
+                        self.db.update_position_half_sold(position_id, True)
+                        self.db.update_candidate_status(ticker, "half_exited")
 
-                            # Update position
-                            self.db.update_position_half_sold(position_id, True)
-                            self.db.update_candidate_status(ticker, "half_exited")
+                        # Record trade
+                        self.db.create_trade(
+                            ticker=ticker,
+                            action="SELL",
+                            quantity=quantity_to_sell,
+                            price=fill_price,
+                            position_id=position_id,
+                            pnl=pnl,
+                            notes="Day 3 half exit",
+                        )
 
-                            # Record trade
-                            self.db.create_trade(
-                                ticker=ticker,
-                                action="SELL",
-                                quantity=quantity_to_sell,
-                                price=fill_price,
-                                position_id=position_id,
-                                pnl=pnl,
-                                notes="Day 3 half exit",
-                            )
-
-                            actions_taken += 1
+                        actions_taken += 1
 
                 # Rule 2: Check stop loss (low of day approximation)
                 if current_price <= position.stop_loss:
@@ -505,47 +378,42 @@ class TradingBot:
                         else position.quantity // 2
                     )
 
-                    order = MarketOrder("SELL", remaining_qty)
-                    trade = self.ib.placeOrder(contract, order)
+                    order_result = self.ib_client.place_order(ticker, "SELL", remaining_qty)
+
+                    if not order_result:
+                        logger.warning(f"Stop loss order failed for {ticker}")
+                        continue
 
                     logger.warning(f"STOP LOSS HIT: Selling {remaining_qty} {ticker}")
 
-                    # Wait for fill
-                    timeout = 30
-                    start_time = time.time()
-                    while (
-                        not trade.isDone() and (time.time() - start_time) < timeout
-                    ):
-                        self.ib.sleep(1)
+                    # Use filled price if available, otherwise use current price as estimate
+                    fill_price = order_result.filled_price if order_result.filled_price else current_price
+                    pnl = (fill_price - position.entry_price) * remaining_qty
 
-                    if trade.isDone():
-                        fill_price = trade.orderStatus.avgFillPrice
-                        pnl = (fill_price - position.entry_price) * remaining_qty
+                    logger.info(
+                        f"Stop loss executed: ${fill_price:.2f}, PnL: ${pnl:.2f}"
+                    )
 
-                        logger.info(
-                            f"Stop loss executed: ${fill_price:.2f}, PnL: ${pnl:.2f}"
-                        )
+                    # Close position
+                    self.db.update_position_exit(
+                        position_id=position_id,
+                        status="closed",
+                        exit_price=fill_price,
+                        exit_date=datetime.now().isoformat(),
+                    )
 
-                        # Close position
-                        self.db.update_position_exit(
-                            position_id=position_id,
-                            status="closed",
-                            exit_price=fill_price,
-                            exit_date=datetime.now().isoformat(),
-                        )
+                    # Record trade
+                    self.db.create_trade(
+                        ticker=ticker,
+                        action="SELL",
+                        quantity=remaining_qty,
+                        price=fill_price,
+                        position_id=position_id,
+                        pnl=pnl,
+                        notes="Stop loss",
+                    )
 
-                        # Record trade
-                        self.db.create_trade(
-                            ticker=ticker,
-                            action="SELL",
-                            quantity=remaining_qty,
-                            price=fill_price,
-                            position_id=position_id,
-                            pnl=pnl,
-                            notes="Stop loss",
-                        )
-
-                        actions_taken += 1
+                    actions_taken += 1
 
                 # Rule 3: Trailing stop with 10-day SMA (simplified for now)
                 # TODO: Implement 10-day SMA trailing stop
@@ -606,8 +474,8 @@ class TradingBot:
             logger.error(f"Error in workflow: {e}")
         finally:
             # Cleanup
-            if self.ib.isConnected():
-                self.ib.disconnect()
+            if self.ib_client.is_connected():
+                self.ib_client.disconnect()
             self.db.close()
 
 

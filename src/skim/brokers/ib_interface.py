@@ -1,17 +1,30 @@
 """Interactive Brokers interface protocol definition"""
 
+from dataclasses import dataclass
 from typing import Protocol
 
-from ib_insync import Contract, Ticker, Trade
 
-
+@dataclass
 class MarketData:
     """Market data for a security"""
 
-    def __init__(self, ticker: str, last_price: float, contract: Contract):
-        self.ticker = ticker
-        self.last_price = last_price
-        self.contract = contract
+    ticker: str
+    last_price: float
+    bid: float
+    ask: float
+    volume: int
+
+
+@dataclass
+class OrderResult:
+    """Result of placing an order"""
+
+    order_id: str
+    ticker: str
+    action: str
+    quantity: int
+    filled_price: float | None = None
+    status: str = "submitted"
 
 
 class IBInterface(Protocol):
@@ -20,11 +33,11 @@ class IBInterface(Protocol):
     def connect(
         self, host: str, port: int, client_id: int, timeout: int = 20
     ) -> None:
-        """Connect to IB Gateway/TWS
+        """Connect to IB Gateway/Client Portal API
 
         Args:
             host: IB Gateway hostname or IP
-            port: IB Gateway port (4001 for TWS live, 4002 for paper, 4004 for Gateway)
+            port: IB Gateway port (5000 for Client Portal API)
             client_id: Unique client ID
             timeout: Connection timeout in seconds
 
@@ -35,7 +48,7 @@ class IBInterface(Protocol):
         ...
 
     def is_connected(self) -> bool:
-        """Check if connected to IB Gateway
+        """Check if connected to IB
 
         Returns:
             True if connected, False otherwise
@@ -44,7 +57,7 @@ class IBInterface(Protocol):
 
     def place_order(
         self, ticker: str, action: str, quantity: int
-    ) -> Trade | None:
+    ) -> OrderResult | None:
         """Place a market order
 
         Args:
@@ -53,7 +66,7 @@ class IBInterface(Protocol):
             quantity: Number of shares
 
         Returns:
-            Trade object if order placed successfully, None otherwise
+            OrderResult object if order placed successfully, None otherwise
         """
         ...
 
@@ -69,7 +82,7 @@ class IBInterface(Protocol):
         ...
 
     def disconnect(self) -> None:
-        """Disconnect from IB Gateway"""
+        """Disconnect from IB"""
         ...
 
     def get_account(self) -> str:

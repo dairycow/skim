@@ -1,30 +1,27 @@
 version: '3.8'
 
 services:
-  # Interactive Brokers Gateway
-  ibgateway:
-    image: ghcr.io/gnzsnz/ib-gateway:latest
-    container_name: ibgateway
+  # IBeam - Client Portal API Gateway with automated authentication
+  ibeam:
+    image: voyz/ibeam:latest
+    container_name: ibeam
     restart: unless-stopped
+    network_mode: bridge  # Required for Client Portal IP whitelist
     environment:
-      - TWS_USERID=${IB_USERNAME}
-      - TWS_PASSWORD=${IB_PASSWORD}
-      - TRADING_MODE=${TRADING_MODE:-paper}
-      - READ_ONLY_API=no
-      - ACCEPT_INCOMING_CONNECTION_ACTION=accept
-      - TWOFA_TIMEOUT_ACTION=restart
+      - IBEAM_ACCOUNT=${IB_USERNAME}
+      - IBEAM_PASSWORD=${IB_PASSWORD}
+      - IBEAM_TWO_FA_HANDLER=EXTERNAL_REQUEST  # Manual phone approval
+      - IBEAM_GATEWAY_BASE_URL=https://localhost:5000
     ports:
-      - "${IB_PORT:-4002}:4004"  # IB Gateway API port (socat forwards 4004 to 4002)
+      - "5000:5000"  # Client Portal REST API
     volumes:
-      - ibgateway-settings:/home/ibgateway/Jts
-    networks:
-      - skim-network
+      - ibeam-data:/srv/ibeam
     healthcheck:
-      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/4004' || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 12
-      start_period: 120s
+      test: ["CMD-SHELL", "curl -k -f https://localhost:5000/v1/api/tickle || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
 
   # Skim Trading Bot
   bot:
@@ -32,11 +29,11 @@ services:
     container_name: skim-bot
     restart: unless-stopped
     depends_on:
-      ibgateway:
+      ibeam:
         condition: service_healthy
     environment:
-      - IB_HOST=${IB_HOST:-ibgateway}
-      - IB_PORT=${IB_PORT:-4004}
+      - IB_HOST=${IB_HOST:-ibeam}
+      - IB_PORT=${IB_PORT:-5000}
       - IB_CLIENT_ID=${IB_CLIENT_ID:-1}
       - PAPER_TRADING=${PAPER_TRADING:-true}
       - GAP_THRESHOLD=${GAP_THRESHOLD:-3.0}
@@ -46,7 +43,6 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./bot.py:/app/bot.py  # Mount for live editing
     networks:
       - skim-network
 
@@ -55,4 +51,4 @@ networks:
     driver: bridge
 
 volumes:
-  ibgateway-settings:
+  ibeam-data:
