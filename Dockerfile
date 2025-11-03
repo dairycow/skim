@@ -6,6 +6,7 @@ WORKDIR /app
 # Install system dependencies and cron
 RUN apt-get update && apt-get install -y \
     cron \
+    curl \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
