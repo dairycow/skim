@@ -16,10 +16,9 @@ services:
        - IBEAM_PAGE_LOAD_TIMEOUT=300  # 5 minutes for 2FA approval
        - IBEAM_OAUTH_TIMEOUT=300  # 5 minutes for OAuth/2FA wait
        - IBEAM_REQUEST_RETRIES=1  # Reduce retry attempts
-       - IBEAM_MAINTENANCE_INTERVAL=60  # Check every minute for 2FA
-       - IBEAM_RESTART_FAILED_SESSIONS=false  # Don't kill Gateway after failed auth
-       - IBEAM_MAX_REAUTHENTICATE_RETRIES=10  # More retries for 2FA approval window
-       - IBEAM_START_ACTIVE=false  # Don't auto-login, wait for manual auth
+       - IBEAM_MAINTENANCE_INTERVAL=60  # Check every minute for session
+       - IBEAM_RESTART_FAILED_SESSIONS=false  # Don't restart Gateway
+       - IBEAM_MAX_FAILED_AUTH=100  # Allow many failed auth attempts (manual login)
      ports:
        - "5000:5000"  # Client Portal REST API
      healthcheck:
