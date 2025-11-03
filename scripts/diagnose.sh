@@ -1,27 +1,27 @@
 #!/bin/bash
-# Diagnostic script to troubleshoot IB Gateway connection issues
+# Diagnostic script to troubleshoot IBeam Client Portal connection issues
 
-echo "=== IB Gateway Connection Diagnostics ==="
+echo "=== IBeam Client Portal Connection Diagnostics ==="
 echo ""
 
 echo "1. Container Status:"
 docker-compose ps
 echo ""
 
-echo "2. IB Gateway Logs (last 30 lines):"
-docker-compose logs --tail=30 ibgateway
+echo "2. IBeam Logs (last 30 lines):"
+docker-compose logs --tail=30 ibeam
 echo ""
 
-echo "3. Checking jts.ini file:"
-docker exec ibgateway cat /home/ibgateway/Jts/jts.ini 2>/dev/null || echo "ERROR: Cannot read jts.ini"
+echo "3. IBeam Authentication Status:"
+curl -k -s https://ibeam:5000/v1/api/tickle 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "Cannot connect to IBeam API"
 echo ""
 
-echo "4. Checking for trusted IPs:"
-docker exec ibgateway grep -i "trustedIPs" /home/ibgateway/Jts/jts.ini 2>/dev/null || echo "No trustedIPs found"
+echo "4. IBeam Account Information:"
+curl -k -s https://ibeam:5000/v1/api/portfolio/accounts 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "Cannot retrieve account info"
 echo ""
 
-echo "5. Network connectivity test from bot to IB Gateway:"
-docker exec skim-bot bash -c "timeout 2 bash -c 'echo > /dev/tcp/ibgateway/4004' && echo 'TCP connection successful' || echo 'TCP connection failed'"
+echo "5. Client Portal API connectivity test from bot:"
+docker exec skim-bot curl -k -s https://ibeam:5000/v1/api/tickle | head -5 2>/dev/null || echo "Bot cannot connect to IBeam API"
 echo ""
 
 echo "6. Bot container logs (last 20 lines):"
@@ -31,7 +31,7 @@ echo ""
 echo "=== Diagnostic Complete ==="
 echo ""
 echo "Common issues:"
-echo "- If jts.ini doesn't exist: IB Gateway hasn't fully initialized yet"
-echo "- If trustedIPs is missing: apply_trusted_ips.sh didn't run or failed"
-echo "- If IB Gateway logs show 'rejected': IP not in trusted list"
-echo "- If TimeoutError persists: IB Gateway may need restart or credentials issue"
+echo "- If tickle returns 'not authenticated': Approve 2FA on IBKR Mobile app"
+echo "- If accounts API fails: IBeam authentication expired, restart container"
+echo "- If bot cannot connect: Check network connectivity between containers"
+echo "- If Client Portal API is down: Restart IBeam: docker-compose restart ibeam"
