@@ -14,7 +14,9 @@ services:
        - IBEAM_PAGE_LOAD_TIMEOUT=300  # 5 minutes for 2FA approval
        - IBEAM_OAUTH_TIMEOUT=300  # 5 minutes for OAuth/2FA wait
        - IBEAM_REQUEST_RETRIES=1  # Reduce retry attempts
-       - IBEAM_MAINTENANCE_INTERVAL=300  # Check every 5 min instead of default
+       - IBEAM_MAINTENANCE_INTERVAL=60  # Check every minute for 2FA
+       - IBEAM_RESTART_FAILED_SESSIONS=false  # Don't kill Gateway after failed auth
+       - IBEAM_MAX_REAUTHENTICATE_RETRIES=10  # More retries for 2FA approval window
      ports:
        - "5000:5000"  # Client Portal REST API
      healthcheck:
