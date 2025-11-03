@@ -1,15 +1,16 @@
 # Skim - ASX Pivot Trading Bot
 
-Production-ready ASX pivot trading bot for paper trading on Interactive Brokers. Optimized for iPhone deployment via Termius + DigitalOcean.
+Production-ready ASX pivot trading bot with modern layered architecture. Uses Client Portal API for Interactive Brokers paper trading. Optimized for iPhone deployment via Termius + DigitalOcean.
 
 ## Strategy Overview
 
-1. Scan ASX market using TradingView scanner API for momentum stocks
-2. Monitor for gaps >3% at market open
-3. Enter on breakout above opening range high
-4. Stop loss at low of day
-5. Sell half position on day 3
-6. Trail remaining with 10-day SMA
+1. Scan ASX market using TradingView scanner API for momentum stocks with gaps >2%
+2. Filter candidates to only include stocks with price-sensitive ASX announcements today
+3. Monitor for gaps ≥3% at market open
+4. Enter on breakout above opening range high
+5. Stop loss at low of day
+6. Sell half position on day 3
+7. Trail remaining with 10-day SMA
 
 ## Quick Start (iPhone Deployment)
 
@@ -18,6 +19,7 @@ Production-ready ASX pivot trading bot for paper trading on Interactive Brokers.
 - DigitalOcean Ubuntu 24.04 droplet
 - Docker & Docker Compose installed on droplet
 - Interactive Brokers paper trading account
+- IBKR Mobile app installed on your phone (for 2FA authentication)
 - Termius app on iPhone
 - Git configured
 
@@ -46,22 +48,21 @@ Edit `.env` with your Interactive Brokers credentials:
 ```bash
 IB_USERNAME=your_ib_username
 IB_PASSWORD=your_ib_password
-TRADING_MODE=paper
 PAPER_TRADING=true
 ```
 
-CRITICAL: Ensure `TRADING_MODE=paper` and `PAPER_TRADING=true` for safety.
+CRITICAL: Ensure `PAPER_TRADING=true` for safety.
 
 ### Step 2.5: Authentication Setup
 
-This bot uses IBKR Mobile push notifications for 2FA authentication in headless mode.
+This bot uses IBeam for automated Client Portal authentication with manual 2FA approval.
 
-Ensure you have:
+**Important**: IBeam requires weekly manual authentication via IBKR Mobile:
 1. IBKR Mobile app installed on your phone
 2. Mobile authentication enabled in IB Account Management
-3. Your phone ready to approve login requests
+3. Your phone ready to approve login requests (~weekly)
 
-When IB Gateway starts, you'll receive a push notification on your phone to approve the login.
+When IBeam starts, it will automate login and prompt for phone approval. Sessions last ~1 week.
 
 ### Step 3: Deploy
 
@@ -80,7 +81,7 @@ docker-compose logs -f bot
 
 ```bash
 # Check bot status
-docker-compose exec bot python -m skim.core.bot status
+docker-compose exec bot skim status
 
 # Verify paper account (should see DU prefix)
 docker-compose logs bot | grep "Connected to account"
@@ -88,30 +89,31 @@ docker-compose logs bot | grep "Connected to account"
 
 ## Detailed Setup
 
-IB Gateway requires initial manual configuration before the bot can connect automatically.
+IBeam manages Client Portal authentication automatically. The bot connects via REST API.
 
-### Step 1: Start IB Gateway
+### Step 1: Start IBeam (Client Portal Gateway)
 
 ```bash
-docker-compose up -d ibgateway
+docker-compose up -d ibeam
 ```
 
-Wait for IB Gateway to fully initialize (check logs):
+Wait for IBeam to initialize and prompt for authentication:
 ```bash
-docker-compose logs -f ibgateway
+docker-compose logs -f ibeam
 ```
 
-### Step 2: Access IB Gateway VNC (if needed)
+**You'll see**: "Please log in to authenticate" - approve the push notification on your IBKR Mobile app.
 
-If you need to interact with IB Gateway GUI:
+### Step 2: Verify IBeam Authentication
+
+Once authenticated, IBeam will show:
 ```bash
-# Check if VNC is exposed (typically port 5900)
-docker-compose logs ibgateway | grep VNC
+docker-compose logs ibeam | grep -i "authenticated\|success"
 ```
 
-### Step 3: Make First Connection from Bot
+The session will remain valid for ~1 week before requiring re-authentication.
 
-The first connection from the bot will prompt IB Gateway to create config files:
+### Step 3: Start the Bot
 
 ```bash
 # Start the bot
@@ -121,56 +123,7 @@ docker-compose up -d bot
 docker-compose logs -f bot
 ```
 
-You'll see connection attempts. IB Gateway should prompt to accept/reject the connection.
-
-### Step 4: Check if jts.ini Exists in Container
-
-```bash
-# Check if jts.ini exists inside the ibgateway container
-docker exec ibgateway test -f /home/ibgateway/Jts/jts.ini && echo "jts.ini exists" || echo "jts.ini not found"
-
-# If it exists, view it
-docker exec ibgateway cat /home/ibgateway/Jts/jts.ini
-```
-
-If jts.ini doesn't exist yet, IB Gateway hasn't completed first login. Check logs:
-```bash
-docker-compose logs ibgateway | grep -i "login\|error\|2fa"
-```
-
-### Step 5: Configure Trusted IPs
-
-#### Option A: Automated Configuration (Recommended)
-
-Once jts.ini exists in the container, run:
-```bash
-./scripts/apply_trusted_ips.sh
-```
-
-This script will:
-- Check if jts.ini exists in the container
-- Auto-detect your Docker network subnet (e.g., 172.18.0.0/16)
-- Copy jts.ini out, modify it, and copy it back
-- Add Docker subnet to trustedIPs
-
-#### Option B: Manual Configuration
-
-```bash
-# Copy jts.ini from container
-docker cp ibgateway:/home/ibgateway/Jts/jts.ini ./jts.ini.temp
-
-# Edit it - add under [IBGateway] section:
-# trustedIPs=172.18.0.0/16
-# (Use your actual Docker network subnet - check with: docker network inspect skim_skim-network)
-
-# Copy it back
-docker cp ./jts.ini.temp ibgateway:/home/ibgateway/Jts/jts.ini
-
-# Restart IB Gateway
-docker-compose restart ibgateway
-```
-
-### Step 6: Verify Connection
+### Step 4: Verify Connection
 
 ```bash
 # Check bot logs for successful connection
@@ -178,10 +131,10 @@ docker-compose logs bot | grep "Connected to account"
 
 # You should see:
 # "PAPER TRADING MODE - Account: DU..."
-# "IB connection established successfully"
+# "Client Portal connection established"
 ```
 
-### Step 7: Run Diagnostic
+### Step 5: Run Diagnostic
 
 ```bash
 chmod +x scripts/diagnose.sh
@@ -191,15 +144,16 @@ chmod +x scripts/diagnose.sh
 ## Troubleshooting
 
 ### Connection Timeout
-- IB Gateway may not be fully started
-- Check: `docker-compose logs ibgateway`
-- Wait 2-3 minutes after "healthy" status
+- IBeam may not be fully authenticated
+- Check: `docker-compose logs ibeam`
+- Wait for "authenticated successfully" message
+- Approve push notification on IBKR Mobile if prompted
 
 ### "Not Connected" Error
-- Trusted IPs not configured in container
-- Check: `docker exec ibgateway cat /home/ibgateway/Jts/jts.ini | grep trustedIPs`
-- Should show: `trustedIPs=172.18.0.0/16` (or your Docker network subnet)
-- If missing, run: `./scripts/apply_trusted_ips.sh`
+- IBeam authentication may have expired
+- Check: `docker-compose logs ibeam | grep -i "auth\|session"`
+- Restart IBeam: `docker-compose restart ibeam`
+- Approve new push notification on IBKR Mobile
 
 ### Client ID Already in Use
 - Change in `.env`:
@@ -208,38 +162,22 @@ chmod +x scripts/diagnose.sh
   ```
 - Restart: `docker-compose restart bot`
 
-### jts.ini Doesn't Exist
-- IB Gateway hasn't completed first login
-- Check credentials in `.env`
-- Check 2FA isn't timing out
+### Authentication Issues
+- IBeam authentication failed or expired
+- Check: `docker-compose logs ibeam | grep -i "auth\|login\|error"`
+- Common issues:
+  - Push notification not approved on phone
+  - IBKR Mobile app not logged in
+  - Mobile authentication not enabled in IB portal
+- Fix: Restart IBeam and approve new push notification
 
 ## Normal Operation
 
 After initial setup, the bot will:
-1. Wait for IB Gateway to be healthy
+1. Wait for IBeam authentication
 2. Connect automatically using lazy initialization
 3. Run scheduled tasks via cron
 4. Reconnect automatically if connection drops
-
-## Maintenance
-
-### View Logs
-```bash
-docker-compose logs -f bot
-docker-compose logs -f ibgateway
-```
-
-### Restart Services
-```bash
-docker-compose restart bot
-docker-compose restart ibgateway
-```
-
-### Clean Restart
-```bash
-docker-compose down
-docker-compose up -d
-```
 
 ## Daily Operations (via Termius)
 
@@ -247,7 +185,7 @@ docker-compose up -d
 
 ```bash
 cd /opt/skim
-docker-compose exec bot python -m skim.core.bot status
+docker-compose exec bot skim status
 ```
 
 ### View Logs
@@ -267,16 +205,16 @@ tail -f logs/skim_*.log
 
 ```bash
 # Run scan manually
-docker-compose exec bot python -m skim.core.bot scan
+docker-compose exec bot skim scan
 
 # Monitor for gaps
-docker-compose exec bot python -m skim.core.bot monitor
+docker-compose exec bot skim monitor
 
 # Execute orders
-docker-compose exec bot python -m skim.core.bot execute
+docker-compose exec bot skim execute
 
 # Manage positions
-docker-compose exec bot python -m skim.core.bot manage_positions
+docker-compose exec bot skim manage_positions
 ```
 
 ### Check Database
@@ -323,7 +261,7 @@ cd /opt/skim
 
 ```bash
 docker-compose restart bot
-docker-compose restart ibgateway
+docker-compose restart ibeam
 ```
 
 ### Stop Trading
@@ -336,64 +274,6 @@ docker-compose stop bot
 
 ```bash
 cp data/skim.db data/skim_backup_$(date +%Y%m%d).db
-```
-
-## Troubleshooting
-
-### Bot Not Connecting to IB Gateway
-
-```bash
-# Check IB Gateway status
-docker-compose logs ibgateway
-
-# Restart IB Gateway
-docker-compose restart ibgateway
-
-# Wait 30 seconds, then restart bot
-docker-compose restart bot
-```
-
-### Authentication Issues
-
-If IB Gateway fails to authenticate:
-
-```bash
-# Check authentication logs
-docker-compose logs ibgateway | grep -i "auth\|login"
-
-# Common issues:
-# - Push notification not approved on phone
-# - IBKR Mobile app not installed or not logged in
-# - Mobile authentication not enabled in IB portal
-```
-
-To fix authentication:
-1. Ensure IBKR Mobile app is installed and logged in
-2. Check IB Account Management > Security > Secure Login System
-3. Enable "IBKR Mobile Authentication" if not already enabled
-4. Restart IB Gateway: `docker-compose restart ibgateway`
-5. Approve the push notification on your phone when prompted
-
-### Database Locked
-
-```bash
-# Stop bot, backup database, restart
-docker-compose stop bot
-cp data/skim.db data/skim_backup.db
-docker-compose start bot
-```
-
-### Check Cron Jobs
-
-```bash
-# Enter container
-docker-compose exec bot bash
-
-# View crontab
-crontab -l
-
-# Check cron logs
-tail -f /var/log/cron.log
 ```
 
 ## Safety Features
@@ -434,10 +314,13 @@ skim/
 │       │   └── asx_announcements.py  # ASX announcements scraper
 │       ├── brokers/        # Broker interface layer
 │       │   ├── __init__.py
-│       │   └── ib_interface.py    # IB Protocol definition
+│       │   ├── ib_interface.py    # IB Protocol definition
+│       │   └── ibind_client.py    # IBind Client Portal implementation
 │       └── strategy/       # Trading strategy layer
 │           ├── __init__.py
-│           └── entry.py    # Entry logic and filters
+│           ├── entry.py            # Entry logic and filters
+│           ├── exit.py             # Exit logic (stop loss, trailing)
+│           └── position_manager.py # Position sizing and limits
 ├── docker-compose.yml      # Service orchestration
 ├── Dockerfile              # Bot container definition
 ├── pyproject.toml          # Python dependencies and tool config
@@ -458,6 +341,36 @@ skim/
     └── webhook.sh          # Deployment script
 ```
 
+### Component Layers
+
+**Core Layer** (`skim.core`)
+- `config.py`: Environment configuration and validation
+- `bot.py`: Thin orchestrator coordinating all components
+
+**Strategy Layer** (`skim.strategy`)
+- `entry.py`: Entry signals (gap detection, breakout confirmation, announcement filtering)
+- `exit.py`: Exit signals (stop loss, half-exit, trailing stops)
+- `position_manager.py`: Position sizing and risk management
+
+**Brokers Layer** (`skim.brokers`)
+- `ib_interface.py`: Abstract broker interface for testing
+- `ibind_client.py`: Client Portal API implementation with IBind
+
+**Scanners Layer** (`skim.scanners`)
+- `tradingview.py`: TradingView API for momentum scanning
+- `asx_announcements.py`: ASX website scraping for price-sensitive announcements
+
+**Data Layer** (`skim.data`)
+- `models.py`: Immutable data models (Position, Candidate, Trade)
+- `database.py`: SQLite operations and schema management
+
+### Data Flow
+
+1. **Scan**: TradingView API → ASX announcements → Filter intersection → Store candidates
+2. **Monitor**: Check gap thresholds → Mark triggered candidates
+3. **Execute**: Calculate position size → Place market orders → Create positions
+4. **Manage**: Check exit signals → Execute exits → Update positions
+
 ### Data Sources
 
 **TradingView Scanner API**
@@ -467,10 +380,11 @@ skim/
 - No API key required
 - Returns ticker, close price, and gap percentage
 
-**Interactive Brokers API**
-- Used for order execution and position management
+**Interactive Brokers Client Portal API**
+- Used for order execution and position management via IBind
 - Real-time market data for entry/exit decisions
 - Paper trading mode for safe testing
+- REST API with automated authentication via IBeam
 
 ## Database Schema
 
@@ -513,11 +427,11 @@ docker-compose up -d --build
 
 ```bash
 # Each method can be called independently
-docker-compose exec bot python -m skim.core.bot scan
-docker-compose exec bot python -m skim.core.bot monitor
-docker-compose exec bot python -m skim.core.bot execute
-docker-compose exec bot python -m skim.core.bot manage_positions
-docker-compose exec bot python -m skim.core.bot status
+docker-compose exec bot skim scan
+docker-compose exec bot skim monitor
+docker-compose exec bot skim execute
+docker-compose exec bot skim manage_positions
+docker-compose exec bot skim status
 ```
 
 ### Package Structure
@@ -538,16 +452,82 @@ Key environment variables in `.env`:
 
 - `IB_USERNAME` / `IB_PASSWORD`: IB credentials
 - `PAPER_TRADING`: Safety flag (true/false)
+- `IB_HOST`: Client Portal host (default: ibeam)
+- `IB_PORT`: Client Portal port (default: 5000)
+- `IB_CLIENT_ID`: Client ID for connections (default: 1)
 - `GAP_THRESHOLD`: Gap % to trigger entry (default: 3.0)
 - `MAX_POSITION_SIZE`: Max shares per position (default: 1000)
 - `MAX_POSITIONS`: Max concurrent positions (default: 5)
+- `DB_PATH`: SQLite database path (default: /app/data/skim.db)
+
+## Testing
+
+The bot includes comprehensive unit tests with pytest:
+
+### Run Tests
+
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=skim
+
+# Run specific test file
+pytest tests/unit/test_entry.py
+```
+
+### Test Structure
+
+- `tests/conftest.py`: Shared fixtures (mock IB client, test database, sample data)
+- `tests/unit/`: Unit tests for each component
+- Mock external dependencies (HTTP, IB API) for fast, reliable testing
+
+## Development Setup
+
+### Local Development
+
+```bash
+# Clone and setup
+git clone https://github.com/dairycow/skim.git
+cd skim
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install package and dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run bot locally (requires .env file)
+skim status
+```
+
+### Code Quality
+
+```bash
+# Format code
+ruff format .
+
+# Lint code
+ruff check .
+
+# Fix auto-fixable issues
+ruff check --fix .
+```
 
 ## Support
 
 For issues or questions:
 - Check logs: `docker-compose logs bot`
 - Review database: `sqlite3 data/skim.db`
-- Verify IB connection: `docker-compose logs ibgateway`
+- Verify IB connection: `docker-compose logs ibeam`
 
 ## License
 
