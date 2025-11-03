@@ -22,8 +22,10 @@ These are mounted as volumes and will survive restarts:
 - **./data/** - Trading database (skim.db)
   - Candidates, positions, trades all preserved
 - **./logs/** - Log files
-- **IBeam handles authentication** - No persistent config needed
-  - Client Portal API session managed by IBeam container
+- **./oauth_keys/** - OAuth cryptographic keys (.pem files)
+  - Required for OAuth 1.0a authentication
+- **.env** - OAuth credentials and configuration
+  - Consumer key, access tokens, DH prime
 
 ### What Will Be Rebuilt (Expected)
 
@@ -39,39 +41,33 @@ These are mounted as volumes and will survive restarts:
 - Environment variables in docker-compose.yml use .env if present
 
 **New Scripts**
-- startup.sh, diagnose.sh will be updated
-- They're checked into git so will auto-update
-
-**IBeam Container**
-- Uses pre-built image, not rebuilt
-- Handles Client Portal API authentication
-- Should reconnect automatically after restart
+- startup.sh will be updated
+- Checked into git so will auto-update
 
 ## First Deploy After These Changes
 
-With IBind + IBeam setup:
+With OAuth 1.0a authentication:
 
-1. Pull new code with IBind integration
-2. Rebuild bot container
-3. Restart IBeam container (handles Client Portal API)
-4. IBeam manages authentication automatically
-5. Bot connects directly to Client Portal API via IBind
+1. Pull new code with OAuth integration
+2. Rebuild bot container with ibind[oauth] dependencies
+3. Bot authenticates directly with IBKR API using OAuth
+4. No Gateway needed - connects directly to api.ibkr.com
 
 ## Potential Issues
 
-### Issue 1: Authentication Not Completed
+### Issue 1: OAuth Authentication Failed
 
-With IBind + IBeam setup:
-- IBeam handles Client Portal API authentication
-- No jts.ini configuration needed (IBind connects directly to API)
-- If authentication fails, check IBeam logs and retry 2FA
+With OAuth 1.0a setup:
+- Check OAuth credentials in .env are correct
+- Verify .pem key files exist in /opt/skim/oauth_keys/
+- Ensure DH prime was extracted correctly
+- Check bot logs for specific OAuth error messages
 
-### Issue 2: IB Gateway Restart Delay
+### Issue 2: Missing oauth_keys Directory
 
-- IB Gateway takes ~2 minutes to fully initialize after restart
-- startup.sh waits 60s after TCP port opens
-- First connection attempts may still timeout
-- Bot will retry automatically via lazy connection
+- OAuth requires .pem files to be uploaded to server
+- Use scp to copy from local: `scp -r oauth_keys root@server:/opt/skim/`
+- Verify permissions: `ls -la /opt/skim/oauth_keys/`
 
 ### Issue 3: Environment Variables
 
@@ -80,9 +76,13 @@ If you have custom env vars on server not in repo:
 - It will persist across deployments
 - Example:
   ```
-  IB_USERNAME=your_username
-  IB_PASSWORD=your_password
-  IB_CLIENT_ID=1
+  OAUTH_CONSUMER_KEY=your_consumer_key
+  OAUTH_ACCESS_TOKEN=your_access_token
+  OAUTH_ACCESS_TOKEN_SECRET=your_secret
+  OAUTH_SIGNATURE_PATH=/opt/skim/oauth_keys/private_signature.pem
+  OAUTH_ENCRYPTION_PATH=/opt/skim/oauth_keys/private_encryption.pem
+  OAUTH_DH_PRIME=your_dh_prime_hex
+  PAPER_TRADING=true
   ```
 
 ## Recommended Deployment Workflow
@@ -108,8 +108,8 @@ sudo journalctl -u webhook -f
 # Watch containers restart
 docker-compose logs -f
 
-# Check bot connection
-docker-compose logs bot | grep "IB connection"
+# Check bot OAuth authentication
+docker-compose logs bot | grep -i "oauth\|connected"
 ```
 
 ### After Deployment
@@ -119,7 +119,6 @@ Wait 3-5 minutes for everything to stabilize, then check:
 cd /opt/skim
 docker-compose ps
 docker-compose logs bot | tail -50
-./diagnose.sh
 ```
 
 ## Manual Intervention Scenarios
@@ -127,10 +126,10 @@ docker-compose logs bot | tail -50
 ### Scenario 1: Fresh Server Setup
 
 1. Clone repo to /opt/skim
-2. Create .env file with IB credentials
-3. Run webhook.sh manually first time
-4. IBeam will handle Client Portal API authentication
-5. Approve 2FA on IBKR mobile app when prompted
+2. Create .env file with OAuth credentials
+3. Upload oauth_keys/ directory with .pem files
+4. Run webhook.sh manually first time
+5. Bot authenticates via OAuth directly with IBKR API
 6. Future deploys are automatic
 
 ### Scenario 2: Database Corruption
@@ -142,14 +141,15 @@ docker-compose down
 docker-compose up -d
 ```
 
-### Scenario 3: IB Gateway Not Connecting
+### Scenario 3: OAuth Authentication Issues
 
 ```bash
 cd /opt/skim
-docker-compose logs ibgateway | tail -100
-# Check for 2FA timeout, wrong credentials, etc.
-# May need to update .env and restart
-docker-compose restart ibgateway
+docker-compose logs bot | grep -i "oauth\|error" | tail -100
+# Check for invalid consumer, missing keys, etc.
+# Verify .env OAuth credentials and .pem files
+# Update .env or re-upload oauth_keys/ if needed
+docker-compose restart bot
 ```
 
 ## Testing the Deployment
@@ -198,8 +198,9 @@ Or fix forward by pushing a new commit with the fix.
 Your gitops setup is solid:
 - ✅ Auto-deploys on push to main
 - ✅ Preserves trading data (./data/)
-- ✅ Preserves IB Gateway config (./ibgateway/)
+- ✅ Preserves OAuth keys (./oauth_keys/)
+- ✅ Preserves OAuth credentials (.env)
 - ✅ Rebuilds application code
-- ✅ Handles secrets via .env
+- ✅ Direct IBKR API connection via OAuth - no Gateway needed!
 
-Main consideration: First deploy after connection fixes may need manual jts.ini configuration if not already done.
+Main consideration: Ensure OAuth credentials and .pem files are on server before first deploy.
