@@ -22,9 +22,8 @@ These are mounted as volumes and will survive restarts:
 - **./data/** - Trading database (skim.db)
   - Candidates, positions, trades all preserved
 - **./logs/** - Log files
-- **./ibgateway/** - IB Gateway config including jts.ini
-  - Trusted IPs configuration will persist
-  - Login credentials stored here
+- **IBeam handles authentication** - No persistent config needed
+  - Client Portal API session managed by IBeam container
 
 ### What Will Be Rebuilt (Expected)
 
@@ -40,33 +39,32 @@ These are mounted as volumes and will survive restarts:
 - Environment variables in docker-compose.yml use .env if present
 
 **New Scripts**
-- startup.sh, apply_trusted_ips.sh, diagnose.sh will be updated
+- startup.sh, diagnose.sh will be updated
 - They're checked into git so will auto-update
 
-**IB Gateway Container**
+**IBeam Container**
 - Uses pre-built image, not rebuilt
-- Configuration in ./ibgateway/ persists
+- Handles Client Portal API authentication
 - Should reconnect automatically after restart
 
 ## First Deploy After These Changes
 
-Since we've made significant changes (lazy connection, startup delays, etc.), the first deploy will:
+With IBind + IBeam setup:
 
-1. Pull new code with all our fixes
-2. Rebuild bot container with new bot.py and startup.sh
-3. Restart both containers
-4. Bot will wait 60s for IB Gateway to be ready
-5. Connection should succeed automatically (if jts.ini is configured)
+1. Pull new code with IBind integration
+2. Rebuild bot container
+3. Restart IBeam container (handles Client Portal API)
+4. IBeam manages authentication automatically
+5. Bot connects directly to Client Portal API via IBind
 
 ## Potential Issues
 
-### Issue 1: jts.ini Not Configured Yet
+### Issue 1: Authentication Not Completed
 
-If this is first deployment and jts.ini doesn't exist:
-- Bot will retry connection 10 times with 20s timeout each
-- Will fail but container keeps running
-- After IB Gateway creates jts.ini, run: `./apply_trusted_ips.sh`
-- Then restart: `docker-compose restart bot`
+With IBind + IBeam setup:
+- IBeam handles Client Portal API authentication
+- No jts.ini configuration needed (IBind connects directly to API)
+- If authentication fails, check IBeam logs and retry 2FA
 
 ### Issue 2: IB Gateway Restart Delay
 
@@ -129,12 +127,11 @@ docker-compose logs bot | tail -50
 ### Scenario 1: Fresh Server Setup
 
 1. Clone repo to /opt/skim
-2. Create .env file with credentials
+2. Create .env file with IB credentials
 3. Run webhook.sh manually first time
-4. Wait for IB Gateway to create jts.ini
-5. Run ./apply_trusted_ips.sh
-6. Restart: docker-compose restart
-7. Future deploys are automatic
+4. IBeam will handle Client Portal API authentication
+5. Approve 2FA on IBKR mobile app when prompted
+6. Future deploys are automatic
 
 ### Scenario 2: Database Corruption
 
