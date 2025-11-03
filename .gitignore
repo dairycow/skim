@@ -1,6 +1,10 @@
 # Environment variables
 .env
 
+# OAuth keys (sensitive cryptographic keys)
+oauth_keys/
+*.pem
+
 # Python
 __pycache__/
 *.py[cod]
