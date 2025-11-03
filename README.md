@@ -1,6 +1,6 @@
 # Skim - ASX Pivot Trading Bot
 
-Production-ready ASX pivot trading bot with modern layered architecture. Uses Client Portal API for Interactive Brokers paper trading. Optimized for iPhone deployment via Termius + DigitalOcean.
+Production-ready ASX pivot trading bot with modern layered architecture. Uses OAuth 1.0a authentication to connect directly to Interactive Brokers API - no Gateway needed! Optimized for iPhone deployment via Termius + DigitalOcean.
 
 ## Strategy Overview
 
@@ -19,7 +19,7 @@ Production-ready ASX pivot trading bot with modern layered architecture. Uses Cl
 - DigitalOcean Ubuntu 24.04 droplet
 - Docker & Docker Compose installed on droplet
 - Interactive Brokers paper trading account
-- IBKR Mobile app installed on your phone (for 2FA authentication)
+- OAuth 1.0a credentials generated from IBKR portal
 - Termius app on iPhone
 - Git configured
 
@@ -41,33 +41,49 @@ cp .env.example .env
 vim .env  # Edit with your IB credentials
 ```
 
-### Step 2: Configure Environment Variables
+### Step 2: Generate OAuth Credentials
 
-Edit `.env` with your Interactive Brokers credentials:
+Follow the IBind OAuth guide to generate credentials:
+https://github.com/Voyz/ibind/wiki/OAuth-1.0a
+
+You'll need to:
+1. Generate consumer key from IBKR portal
+2. Create RSA keys for signature and encryption
+3. Generate DH parameters
+4. Extract DH prime from dhparam.pem
+
+### Step 3: Configure Environment Variables
+
+Edit `.env` with your OAuth credentials:
 
 ```bash
-IB_USERNAME=your_ib_username
-IB_PASSWORD=your_ib_password
+# OAuth Configuration
+OAUTH_CONSUMER_KEY=your_consumer_key
+OAUTH_ACCESS_TOKEN=your_access_token
+OAUTH_ACCESS_TOKEN_SECRET=your_access_token_secret
+OAUTH_SIGNATURE_PATH=/opt/skim/oauth_keys/private_signature.pem
+OAUTH_ENCRYPTION_PATH=/opt/skim/oauth_keys/private_encryption.pem
+OAUTH_DH_PRIME=your_dh_prime_hex_string
+
+# Trading Configuration
 PAPER_TRADING=true
 ```
 
 CRITICAL: Ensure `PAPER_TRADING=true` for safety.
 
-### Step 2.5: Authentication Setup
+### Step 4: Upload OAuth Keys
 
-This bot uses IBeam for automated Client Portal authentication with manual 2FA approval.
-
-**Important**: IBeam requires weekly manual authentication via IBKR Mobile:
-1. IBKR Mobile app installed on your phone
-2. Mobile authentication enabled in IB Account Management
-3. Your phone ready to approve login requests (~weekly)
-
-When IBeam starts, it will automate login and prompt for phone approval. Sessions last ~1 week.
-
-### Step 3: Deploy
+Copy your generated .pem files to the server:
 
 ```bash
-# Start the services
+# On your local machine
+scp -r /path/to/oauth_keys root@your-droplet:/opt/skim/
+```
+
+### Step 5: Deploy
+
+```bash
+# Start the bot service
 docker-compose up -d
 
 # Check status
@@ -77,105 +93,48 @@ docker-compose ps
 docker-compose logs -f bot
 ```
 
-### Step 4: Verify Paper Trading
+### Step 6: Verify OAuth Authentication
 
 ```bash
 # Check bot status
 docker-compose exec bot skim status
 
-# Verify paper account (should see DU prefix)
-docker-compose logs bot | grep "Connected to account"
-```
-
-## Detailed Setup
-
-IBeam manages Client Portal authentication automatically. The bot connects via REST API.
-
-### Step 1: Start IBeam (Client Portal Gateway)
-
-```bash
-docker-compose up -d ibeam
-```
-
-Wait for IBeam to initialize and prompt for authentication:
-```bash
-docker-compose logs -f ibeam
-```
-
-**You'll see**: "Please log in to authenticate" - approve the push notification on your IBKR Mobile app.
-
-### Step 2: Verify IBeam Authentication
-
-Once authenticated, IBeam will show:
-```bash
-docker-compose logs ibeam | grep -i "authenticated\|success"
-```
-
-The session will remain valid for ~1 week before requiring re-authentication.
-
-### Step 3: Start the Bot
-
-```bash
-# Start the bot
-docker-compose up -d bot
-
-# Watch bot logs
-docker-compose logs -f bot
-```
-
-### Step 4: Verify Connection
-
-```bash
-# Check bot logs for successful connection
-docker-compose logs bot | grep "Connected to account"
+# Verify paper account (should see DU prefix) and OAuth authentication
+docker-compose logs bot | grep -i "oauth\|connected to account"
 
 # You should see:
+# "Initializing IBind client with OAuth 1.0a authentication"
 # "PAPER TRADING MODE - Account: DU..."
-# "Client Portal connection established"
-```
-
-### Step 5: Run Diagnostic
-
-```bash
-chmod +x scripts/diagnose.sh
-./scripts/diagnose.sh
 ```
 
 ## Troubleshooting
 
-### Connection Timeout
-- IBeam may not be fully authenticated
-- Check: `docker-compose logs ibeam`
-- Wait for "authenticated successfully" message
-- Approve push notification on IBKR Mobile if prompted
+### OAuth Authentication Failed (401 Unauthorized)
+- Check consumer key is correct and matches your paper trading account
+- Verify all OAuth credentials in `.env` match what IBKR generated
+- Ensure .pem key files are readable: `ls -la /opt/skim/oauth_keys/`
+- Check DH prime was extracted correctly (should be a long hex string with no spaces/colons)
+- Verify paths in `.env` match actual .pem file locations
 
-### "Not Connected" Error
-- IBeam authentication may have expired
-- Check: `docker-compose logs ibeam | grep -i "auth\|session"`
-- Restart IBeam: `docker-compose restart ibeam`
-- Approve new push notification on IBKR Mobile
+### "Invalid Consumer" Error
+- Consumer key may be for live trading instead of paper trading
+- Generate new OAuth credentials specifically for your paper account
+- Check IBKR portal to ensure OAuth is enabled for paper trading
 
-### Client ID Already in Use
-- Change in `.env`:
-  ```
-  IB_CLIENT_ID=2
-  ```
-- Restart: `docker-compose restart bot`
+### Module Not Found Errors
+- Rebuild container: `docker-compose up -d --build`
+- Verify package is installed: `docker-compose exec bot pip show skim`
 
-### Authentication Issues
-- IBeam authentication failed or expired
-- Check: `docker-compose logs ibeam | grep -i "auth\|login\|error"`
-- Common issues:
-  - Push notification not approved on phone
-  - IBKR Mobile app not logged in
-  - Mobile authentication not enabled in IB portal
-- Fix: Restart IBeam and approve new push notification
+### Database Errors
+- Check database path exists: `docker-compose exec bot ls -la /app/data/`
+- Verify database file permissions
+- Try recreating database: `rm data/skim.db` (will lose data!)
 
 ## Normal Operation
 
 After initial setup, the bot will:
-1. Wait for IBeam authentication
-2. Connect automatically using lazy initialization
+1. Authenticate via OAuth 1.0a directly with IBKR API
+2. Connect automatically (no Gateway needed!)
 3. Run scheduled tasks via cron
 4. Reconnect automatically if connection drops
 
@@ -261,7 +220,6 @@ cd /opt/skim
 
 ```bash
 docker-compose restart bot
-docker-compose restart ibeam
 ```
 
 ### Stop Trading
@@ -330,7 +288,6 @@ skim/
 ├── data/                   # SQLite database (not in git)
 ├── logs/                   # Log files (not in git)
 ├── docs/                   # Documentation
-│   ├── AGENTS.md
 │   ├── GITOPS_NOTES.md
 │   └── WEBHOOK_SETUP.md
 ├── scripts/                # Utility scripts
@@ -380,11 +337,11 @@ skim/
 - No API key required
 - Returns ticker, close price, and gap percentage
 
-**Interactive Brokers Client Portal API**
+**Interactive Brokers API (via OAuth 1.0a)**
 - Used for order execution and position management via IBind
 - Real-time market data for entry/exit decisions
 - Paper trading mode for safe testing
-- REST API with automated authentication via IBeam
+- Direct REST API connection with OAuth 1.0a - no Gateway needed!
 
 ## Database Schema
 
@@ -450,11 +407,16 @@ This modular structure makes the code more maintainable and testable while keepi
 
 Key environment variables in `.env`:
 
-- `IB_USERNAME` / `IB_PASSWORD`: IB credentials
+**OAuth Authentication:**
+- `OAUTH_CONSUMER_KEY`: Consumer key from IBKR
+- `OAUTH_ACCESS_TOKEN`: Access token from IBKR
+- `OAUTH_ACCESS_TOKEN_SECRET`: Access token secret from IBKR
+- `OAUTH_SIGNATURE_PATH`: Path to signature .pem file
+- `OAUTH_ENCRYPTION_PATH`: Path to encryption .pem file
+- `OAUTH_DH_PRIME`: DH prime hex string
+
+**Trading Configuration:**
 - `PAPER_TRADING`: Safety flag (true/false)
-- `IB_HOST`: Client Portal host (default: ibeam)
-- `IB_PORT`: Client Portal port (default: 5000)
-- `IB_CLIENT_ID`: Client ID for connections (default: 1)
 - `GAP_THRESHOLD`: Gap % to trigger entry (default: 3.0)
 - `MAX_POSITION_SIZE`: Max shares per position (default: 1000)
 - `MAX_POSITIONS`: Max concurrent positions (default: 5)
@@ -527,7 +489,7 @@ ruff check --fix .
 For issues or questions:
 - Check logs: `docker-compose logs bot`
 - Review database: `sqlite3 data/skim.db`
-- Verify IB connection: `docker-compose logs ibeam`
+- Verify OAuth authentication in logs
 
 ## License
 
