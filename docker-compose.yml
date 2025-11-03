@@ -26,6 +26,7 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./oauth_keys:/opt/skim/oauth_keys:ro
+      - ./scripts:/app/scripts:ro
     networks:
       - skim-network
 
