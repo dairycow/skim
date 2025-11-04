@@ -96,6 +96,12 @@ docker-compose logs -f bot
 ### Step 6: Verify OAuth Authentication
 
 ```bash
+# Validate OAuth configuration
+docker-compose exec bot python /app/scripts/validate_oauth.py
+
+# Test OAuth connection (recommended - comprehensive check)
+docker-compose exec bot python /app/scripts/test_oauth_connection.py
+
 # Check bot status
 docker-compose exec bot skim status
 
@@ -107,9 +113,26 @@ docker-compose logs bot | grep -i "oauth\|connected to account"
 # "PAPER TRADING MODE - Account: DU..."
 ```
 
+### Step 7: Monitor OAuth Connection (Optional)
+
+Run periodic health checks to ensure OAuth connection stays healthy:
+
+```bash
+# Monitor connection every 5 minutes (default)
+docker-compose exec bot /app/scripts/monitor_oauth.sh
+
+# Monitor every 60 seconds
+docker-compose exec bot /app/scripts/monitor_oauth.sh 60
+
+# Run single connection test
+docker-compose exec bot python /app/scripts/test_oauth_connection.py
+```
+
 ## Troubleshooting
 
 ### OAuth Authentication Failed (401 Unauthorized)
+- Run validation script: `docker-compose exec bot python /app/scripts/validate_oauth.py`
+- Test connection: `docker-compose exec bot python /app/scripts/test_oauth_connection.py`
 - Check consumer key is correct and matches your paper trading account
 - Verify all OAuth credentials in `.env` match what IBKR generated
 - Ensure .pem key files are readable: `ls -la /opt/skim/oauth_keys/`
