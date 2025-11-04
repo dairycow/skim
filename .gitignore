@@ -5,6 +5,11 @@
 oauth_keys/
 *.pem
 
+# OAuth test files (contain credentials/tokens)
+test_oauth_local.py
+.venv_oauth_test/
+OAUTH_TEST_RESULTS.md
+
 # Python
 __pycache__/
 *.py[cod]
