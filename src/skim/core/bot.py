@@ -18,7 +18,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from skim.brokers import IBIndClient
+from skim.brokers.ibkr_client import IBKRClient
 from skim.core.config import Config
 from skim.data.database import Database
 from skim.data.models import Candidate
@@ -47,8 +47,7 @@ class TradingBot:
         self.asx_scanner = ASXAnnouncementScanner()
 
         # Initialize IB client (lazy connection)
-        base_url = f"https://{config.ib_host}:{config.ib_port}"
-        self.ib_client = IBIndClient(base_url=base_url, paper_trading=config.paper_trading)
+        self.ib_client = IBKRClient(paper_trading=config.paper_trading)
 
         logger.info("Bot initialized successfully")
 
@@ -57,11 +56,11 @@ class TradingBot:
         if self.ib_client.is_connected():
             return
 
-        # IBIndClient handles retries internally
+        # IBKRClient uses OAuth, host/port/client_id are not used
         self.ib_client.connect(
-            host=self.config.ib_host,
-            port=self.config.ib_port,
-            client_id=self.config.ib_client_id,
+            host="",  # OAuth uses api.ibkr.com
+            port=0,   # OAuth uses HTTPS
+            client_id=0,  # OAuth uses consumer key
             timeout=20,
         )
 
