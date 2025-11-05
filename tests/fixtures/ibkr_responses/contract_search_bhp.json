@@ -1,0 +1,21 @@
+[
+  {
+    "conid": 6793599,
+    "companyHeader": "BHP Group Ltd - ASX",
+    "companyName": "BHP GROUP LTD",
+    "symbol": "BHP",
+    "description": "BHP GROUP LTD",
+    "restricted": null,
+    "fop": "0",
+    "opt": null,
+    "war": null,
+    "sections": [
+      {
+        "secType": "STK",
+        "months": "",
+        "exchange": "ASX",
+        "legSecType": null
+      }
+    ]
+  }
+]
