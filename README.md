@@ -16,12 +16,18 @@ Production-ready ASX pivot trading bot with modern layered architecture. Uses OA
 
 ### Prerequisites
 
-- DigitalOcean Ubuntu 24.04 droplet
+- DigitalOcean Ubuntu 24.04 droplet (1 GB RAM minimum, 2 GB recommended)
 - Docker & Docker Compose installed on droplet
 - Interactive Brokers paper trading account
 - OAuth 1.0a credentials generated from IBKR portal
 - Termius app on iPhone
 - Git configured
+
+**Resource Requirements:**
+- **Minimum**: 1 GB RAM / 1 vCPU / 25 GB SSD (~$6/month)
+- **Recommended**: 2 GB RAM / 1 vCPU / 50 GB SSD (~$12/month)
+- No IB Gateway or Java required with OAuth authentication
+- Lightweight Python bot runs on cron schedule with minimal resource usage
 
 ### Step 1: Initial Setup on Droplet
 
@@ -43,14 +49,17 @@ vim .env  # Edit with your IB credentials
 
 ### Step 2: Generate OAuth Credentials
 
-Follow the IBind OAuth guide to generate credentials:
-https://github.com/Voyz/ibind/wiki/OAuth-1.0a
+Generate OAuth 1.0a credentials from IBKR portal (https://www.interactivebrokers.com/portal):
 
 You'll need to:
-1. Generate consumer key from IBKR portal
-2. Create RSA keys for signature and encryption
-3. Generate DH parameters
-4. Extract DH prime from dhparam.pem
+1. Generate consumer key from IBKR portal for your paper trading account
+2. Create RSA keys for signature and encryption:
+   ```bash
+   openssl genrsa -out private_signature.pem 2048
+   openssl genrsa -out private_encryption.pem 2048
+   ```
+3. Generate DH parameters and extract the prime as a hex string (no spaces/colons)
+4. Upload public keys to IBKR portal and complete OAuth setup
 
 ### Step 3: Configure Environment Variables
 
@@ -109,7 +118,7 @@ docker-compose exec bot skim status
 docker-compose logs bot | grep -i "oauth\|connected to account"
 
 # You should see:
-# "Initializing IBind client with OAuth 1.0a authentication"
+# "OAuth authentication - connecting directly to IBKR Client Portal API"
 # "PAPER TRADING MODE - Account: DU..."
 ```
 
