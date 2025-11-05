@@ -1,6 +1,8 @@
 """Pytest fixtures for Skim trading bot tests"""
 
+import json
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -109,3 +111,89 @@ def mock_ibkr_client(mocker):
     mock_client.place_order.return_value = mock_order_result
 
     return mock_client
+
+
+# ==============================================================================
+# OAuth Testing Fixtures
+# ==============================================================================
+
+@pytest.fixture
+def fixtures_dir():
+    """Return path to test fixtures directory"""
+    return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def test_rsa_keys(fixtures_dir):
+    """Provide paths to test RSA keys
+
+    These are test-only keys safe to commit to version control.
+    They should NEVER be used in production.
+    """
+    sig_key = fixtures_dir / "rsa_keys/test_signature_key.pem"
+    enc_key = fixtures_dir / "rsa_keys/test_encryption_key.pem"
+
+    assert sig_key.exists(), f"Test signature key not found: {sig_key}"
+    assert enc_key.exists(), f"Test encryption key not found: {enc_key}"
+
+    return str(sig_key), str(enc_key)
+
+
+@pytest.fixture
+def mock_oauth_env(monkeypatch, test_rsa_keys):
+    """Set up OAuth environment variables for testing"""
+    sig_path, enc_path = test_rsa_keys
+
+    # Test OAuth credentials (not real, safe for testing)
+    monkeypatch.setenv("OAUTH_CONSUMER_KEY", "TEST_CONSUMER_KEY")
+    monkeypatch.setenv("OAUTH_ACCESS_TOKEN", "test_access_token_123")
+    monkeypatch.setenv(
+        "OAUTH_ACCESS_TOKEN_SECRET",
+        "dGVzdF9lbmNyeXB0ZWRfc2VjcmV0X3Rva2VuXzEyMzQ1Njc4OTA="
+    )
+    monkeypatch.setenv(
+        "OAUTH_DH_PRIME",
+        "00f4c0ac1c6a120cffe7c0438769be9f35a721c6c7aed77a6a676a2811fb4277"
+    )
+    monkeypatch.setenv("OAUTH_SIGNATURE_PATH", sig_path)
+    monkeypatch.setenv("OAUTH_ENCRYPTION_PATH", enc_path)
+
+
+@pytest.fixture
+def load_fixture(fixtures_dir):
+    """Helper to load JSON fixture files"""
+    def _load(filename):
+        fixture_path = fixtures_dir / "ibkr_responses" / filename
+        with open(fixture_path) as f:
+            return json.load(f)
+    return _load
+
+
+@pytest.fixture
+def mock_lst_response(load_fixture):
+    """Mock LST generation response from IBKR"""
+    return load_fixture("lst_success.json")
+
+
+@pytest.fixture
+def mock_session_init_response(load_fixture):
+    """Mock session init response from IBKR"""
+    return load_fixture("session_init_success.json")
+
+
+@pytest.fixture
+def mock_account_list_response(load_fixture):
+    """Mock account list response from IBKR"""
+    return load_fixture("account_list.json")
+
+
+@pytest.fixture
+def mock_contract_search_bhp(load_fixture):
+    """Mock contract search response for BHP"""
+    return load_fixture("contract_search_bhp.json")
+
+
+@pytest.fixture
+def mock_order_placed_response(load_fixture):
+    """Mock order placement response from IBKR"""
+    return load_fixture("order_placed.json")

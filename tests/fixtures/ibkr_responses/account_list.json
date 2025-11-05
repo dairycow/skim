@@ -1,0 +1,19 @@
+[
+  {
+    "id": "DU1234567",
+    "accountId": "DU1234567",
+    "accountVan": "DU1234567",
+    "accountTitle": "Test Paper Trading Account",
+    "displayName": "DU1234567",
+    "accountAlias": null,
+    "accountStatus": 1634631261000,
+    "currency": "USD",
+    "type": "DEMO",
+    "tradingType": "STKNOPT",
+    "faclient": false,
+    "clearingStatus": "O",
+    "covestor": false,
+    "parent": {},
+    "desc": "DU1234567"
+  }
+]
