@@ -6,7 +6,7 @@ set -e
 echo "=== Skim Bot Startup ==="
 
 # Check if using OAuth - if so, no Gateway needed!
-if [ "${IBIND_USE_OAUTH}" = "True" ]; then
+if [ -n "${OAUTH_CONSUMER_KEY}" ]; then
     echo "Using OAuth 1.0a authentication"
     echo "OAuth connects directly to IBKR API - no Gateway needed!"
     echo "Starting bot immediately..."
