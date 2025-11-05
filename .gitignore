@@ -5,10 +5,9 @@
 oauth_keys/
 *.pem
 
-# OAuth test files (contain credentials/tokens)
-test_oauth_local.py
+# OAuth / Phase test files (may contain credentials/tokens)
 .venv_oauth_test/
-OAUTH_TEST_RESULTS.md
+tests/oauth_tests/
 
 # Python
 __pycache__/

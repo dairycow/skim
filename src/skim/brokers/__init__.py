@@ -1,6 +1,6 @@
 """Broker integrations (Interactive Brokers)"""
 
-from .ibind_client import IBIndClient
+from .ibkr_client import IBKRClient
 from .ib_interface import IBInterface, MarketData, OrderResult
 
-__all__ = ["IBIndClient", "IBInterface", "MarketData", "OrderResult"]
+__all__ = ["IBKRClient", "IBInterface", "MarketData", "OrderResult"]

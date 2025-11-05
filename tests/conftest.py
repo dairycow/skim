@@ -74,20 +74,21 @@ def sample_market_data() -> MarketData:
 
 
 @pytest.fixture
-def mock_ibind_client(mocker):
-    """Mock IBIndClient for testing
+def mock_ibkr_client(mocker):
+    """Mock IBKRClient for testing
 
-    Returns a mock IBIndClient with common success scenarios configured.
+    Returns a mock IBKRClient with common success scenarios configured.
     Tests can override specific methods as needed.
     """
     mock_client = mocker.MagicMock()
 
     # Configure default successful behaviors
     mock_client.is_connected.return_value = True
-    mock_client.get_account.return_value = "DU12345"
+    mock_client.get_account.return_value = "DUN090463"
 
     # Mock successful market data response
-    mock_market_data = Mock(
+    from skim.brokers.ib_interface import MarketData as IBMarketData
+    mock_market_data = IBMarketData(
         ticker="BHP",
         last_price=46.50,
         bid=46.45,
