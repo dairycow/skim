@@ -1,16 +1,19 @@
 # Skim Trading Bot - Cron Schedule
 # Times are in UTC (convert from AEDT)
+# ASX market hours: 10:00 AM - 4:00 PM AEDT (23:00 - 05:00 UTC)
+# Opening auction completes by 10:10 AM AEDT
 
-# Pre-market scan for candidates
-# 10:30 UTC = 9:30 PM AEDT (evening before trading day)
-30 10 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
+# Scan for candidates after opening auction
+# 23:15 UTC = 10:15 AM AEDT (after opening auction completes)
+15 23 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
 
-# Market open monitoring for gaps
-# 23:00 UTC = 10:00 AM AEDT (market open)
-0 23 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot monitor >> /var/log/cron.log 2>&1
+# Monitor for gaps and entry triggers
+# 23:20 UTC = 10:20 AM AEDT (5 min after scan)
+20 23 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot monitor >> /var/log/cron.log 2>&1
 
-# Execute triggered orders (15 min after open)
-15 23 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot execute >> /var/log/cron.log 2>&1
+# Execute triggered orders
+# 23:25 UTC = 10:25 AM AEDT (10 min after scan)
+25 23 * * 0-4 cd /app && /usr/local/bin/python -m skim.core.bot execute >> /var/log/cron.log 2>&1
 
 # Intraday position management (every 5 minutes during market hours)
 # Market hours: 23:00 - 05:00 UTC (10:00 AM - 4:00 PM AEDT)
