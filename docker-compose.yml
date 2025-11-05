@@ -7,21 +7,19 @@ services:
     container_name: skim-bot
     restart: unless-stopped
     environment:
-      - IB_HOST=${IB_HOST:-ibeam}
-      - IB_PORT=${IB_PORT:-5000}
-      - IB_CLIENT_ID=${IB_CLIENT_ID:-1}
+      # Trading bot configuration
       - PAPER_TRADING=${PAPER_TRADING:-true}
       - GAP_THRESHOLD=${GAP_THRESHOLD:-3.0}
       - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-1000}
       - MAX_POSITIONS=${MAX_POSITIONS:-5}
       - DB_PATH=${DB_PATH:-/app/data/skim.db}
-      - IBIND_USE_OAUTH=True
-      - IBIND_OAUTH1A_CONSUMER_KEY=${OAUTH_CONSUMER_KEY}
-      - IBIND_OAUTH1A_ACCESS_TOKEN=${OAUTH_ACCESS_TOKEN}
-      - IBIND_OAUTH1A_ACCESS_TOKEN_SECRET=${OAUTH_ACCESS_TOKEN_SECRET}
-      - IBIND_OAUTH1A_SIGNATURE_KEY_FP=${OAUTH_SIGNATURE_PATH}
-      - IBIND_OAUTH1A_ENCRYPTION_KEY_FP=${OAUTH_ENCRYPTION_PATH}
-      - IBIND_OAUTH1A_DH_PRIME=${OAUTH_DH_PRIME}
+      # OAuth 1.0a credentials for IBKR Client Portal API
+      - OAUTH_CONSUMER_KEY=${OAUTH_CONSUMER_KEY}
+      - OAUTH_ACCESS_TOKEN=${OAUTH_ACCESS_TOKEN}
+      - OAUTH_ACCESS_TOKEN_SECRET=${OAUTH_ACCESS_TOKEN_SECRET}
+      - OAUTH_SIGNATURE_PATH=${OAUTH_SIGNATURE_PATH}
+      - OAUTH_ENCRYPTION_PATH=${OAUTH_ENCRYPTION_PATH}
+      - OAUTH_DH_PRIME=${OAUTH_DH_PRIME}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

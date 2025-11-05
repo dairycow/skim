@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Set working directory
 WORKDIR /app
@@ -38,5 +38,5 @@ RUN touch /var/log/cron.log
 # Create data and logs directories
 RUN mkdir -p /app/data /app/logs
 
-# Use startup script to ensure IB Gateway is ready
+# Use startup script to run cron and OAuth-authenticated bot
 CMD ["/app/startup.sh"]

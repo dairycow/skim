@@ -32,27 +32,8 @@ docker-compose down || true
 echo "Building and starting containers..."
 docker-compose up -d --build
 
-# Wait for IBeam to be healthy
-echo "Waiting for IBeam to be healthy..."
-timeout=300
-elapsed=0
-while [ $elapsed -lt $timeout ]; do
-    if docker-compose ps ibeam | grep -q "healthy"; then
-        echo "IBeam is healthy"
-        break
-    fi
-    echo "Waiting for IBeam... ($elapsed/$timeout seconds)"
-    sleep 10
-    elapsed=$((elapsed + 10))
-done
-
-if [ $elapsed -ge $timeout ]; then
-    echo "ERROR: IBeam did not become healthy within $timeout seconds"
-    exit 1
-fi
-
-# Note: Trusted IPs configuration not needed with IBind + IBeam setup
-echo "IBind handles authentication directly through Client Portal API"
+# OAuth connects directly to IBKR - no Gateway health check needed
+echo "OAuth authentication - connecting directly to IBKR Client Portal API"
 
 # Show status
 echo
@@ -64,7 +45,6 @@ docker-compose ps
 echo
 echo "View logs with:"
 echo "  docker-compose logs -f bot"
-echo "  docker-compose logs -f ibgateway"
 echo
 echo "Check bot status:"
 echo "  docker-compose exec bot python /app/bot.py status"

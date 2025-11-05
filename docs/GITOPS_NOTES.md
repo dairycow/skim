@@ -44,14 +44,50 @@ These are mounted as volumes and will survive restarts:
 - startup.sh will be updated
 - Checked into git so will auto-update
 
+## Infrastructure Requirements
+
+### Resource Optimization with OAuth
+
+Since migrating from IB Gateway to OAuth 1.0a, the bot now has **significantly reduced resource requirements**:
+
+**Before (with IB Gateway/Java):**
+- IB Gateway container: 1-2 GB RAM
+- IBeam container: 512 MB - 1 GB RAM
+- Bot container: 256-512 MB RAM
+- **Total: 2-4 GB RAM required** (~$12-24/month droplet)
+
+**After (OAuth only):**
+- Bot container: 256-512 MB RAM
+- **Total: 1 GB RAM sufficient** (~$6/month droplet)
+- **Savings: 50-75% cost reduction** ($6-18/month)
+
+### Recommended Droplet Sizes
+
+- **Minimum**: 1 GB RAM / 1 vCPU / 25 GB SSD (~$6/month)
+  - Sufficient for paper trading with monitoring
+  - ~500 MB free RAM under normal operation
+  - Suitable for cron-based bot execution
+
+- **Recommended**: 2 GB RAM / 1 vCPU / 50 GB SSD (~$12/month)
+  - Comfortable buffer for peak usage
+  - Better for live trading or multiple bots
+  - Room for log growth and database expansion
+
+**Why so lightweight?**
+- Python 3.12-slim base image (~150 MB)
+- No Java/JVM overhead (Gateway removed)
+- Cron-based execution (bot idle most of the time)
+- OAuth connects directly to api.ibkr.com (no Gateway proxy)
+- Minimal dependencies (7 lightweight Python packages)
+
 ## First Deploy After These Changes
 
-With OAuth 1.0a authentication:
+With custom OAuth 1.0a client implementation:
 
-1. Pull new code with OAuth integration
-2. Rebuild bot container with ibind[oauth] dependencies
+1. Pull new code with custom IBKR client
+2. Rebuild bot container with Python 3.12-slim and pycryptodome
 3. Bot authenticates directly with IBKR API using OAuth
-4. No Gateway needed - connects directly to api.ibkr.com
+4. No Gateway, no IBeam, no Java - just lightweight Python bot
 
 ## Potential Issues
 
