@@ -33,11 +33,19 @@ class TestGenerateLST:
         # Mock random for deterministic DH challenge
         mocker.patch("random.getrandbits", return_value=12345678)
 
+        # Mock base64 decode
+        mocker.patch("skim.brokers.ibkr_oauth.base64.b64decode", return_value=b"test_ciphertext")
+
+        # Mock the decrypt to return test bytes
+        mock_cipher = mocker.MagicMock()
+        mock_cipher.decrypt.return_value = b"test_prepend_value"
+        mocker.patch("skim.brokers.ibkr_oauth.PKCS1_v1_5_Cipher.new", return_value=mock_cipher)
+
         # Call function with test credentials
         lst, expiration = generate_lst(
             consumer_key="TEST_CONSUMER",
             access_token="test_token",
-            access_token_secret="test_secret",
+            access_token_secret="dGVzdA==",
             dh_prime_hex="00f4c0ac1c6a120cffe7c0438769be9f35a721",
             signature_key_path=sig_path,
             encryption_key_path=enc_path,
