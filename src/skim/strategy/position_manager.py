@@ -1,6 +1,5 @@
 """Position sizing and management logic"""
 
-from typing import Optional
 
 
 def can_open_new_position(
@@ -77,7 +76,7 @@ def calculate_position_size(
 
 def calculate_stop_loss(
     entry_price: float,
-    low_of_day: Optional[float] = None,
+    low_of_day: float | None = None,
     default_stop_percent: float = 0.05,
 ) -> float:
     """

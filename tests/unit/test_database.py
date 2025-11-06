@@ -1,8 +1,7 @@
 """Unit tests for database operations"""
 
-import pytest
 
-from skim.data.models import Candidate, Position
+from skim.data.models import Candidate
 
 
 def test_database_init(test_db):

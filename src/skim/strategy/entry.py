@@ -1,6 +1,5 @@
 """Entry logic for trading strategy"""
 
-from typing import Optional
 
 from skim.data.models import Candidate
 
@@ -93,7 +92,7 @@ def check_breakout(
 
 def calculate_opening_range_high(
     high_prices: list[float],
-) -> Optional[float]:
+) -> float | None:
     """
     Calculate opening range high from price samples
 
