@@ -14,3 +14,9 @@ Commits to the main branch are automatically applied to the deployed container v
 
 ## Debugging
 For deep debugging, use SSH to access the container directly.
+
+## Superpowers System
+
+<EXTREMELY_IMPORTANT>
+You have superpowers. Superpowers teach you new skills and capabilities. RIGHT NOW run: `.opencode/superpowers/.opencode/superpowers-opencode bootstrap` and follow the instructions it returns.
+</EXTREMELY_IMPORTANT>
