@@ -109,9 +109,9 @@ class TradingViewScanner:
 
         for item in data.get("data", []):
             ticker = item.get("s", "")  # Symbol like "ASX:BHP"
-            values = item.get("d", [])
+            values = item.get("d")
 
-            if len(values) >= 3:
+            if values is not None and len(values) >= 3:
                 # Extract ticker name (remove ASX: prefix)
                 ticker_name = ticker.replace("ASX:", "")
                 close_price = float(values[1]) if values[1] else 0.0
