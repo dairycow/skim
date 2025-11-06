@@ -158,6 +158,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="open",
         )
 
         signal = check_stop_loss(position, current_price=42.50)
@@ -175,6 +176,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="open",
         )
 
         signal = check_stop_loss(position, current_price=44.00)
@@ -189,6 +191,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="open",
         )
 
         # Price below low_of_day but above position.stop_loss
@@ -205,6 +208,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="half_exited",
             half_sold=True,
         )
 
@@ -221,6 +225,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="open",
         )
 
         signal = check_half_exit(position, days_held=3)
@@ -238,6 +243,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="open",
         )
 
         signal = check_half_exit(position, days_held=2)
@@ -252,6 +258,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="half_exited",
             half_sold=True,
         )
 
@@ -267,6 +274,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="open",
         )
 
         signal = check_half_exit(position, days_held=3)
@@ -282,6 +290,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-01T10:15:00",
+            status="half_exited",
             half_sold=True,
         )
 
@@ -299,6 +308,7 @@ class TestExitLogic:
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
+            status="half_exited",
             stop_loss=43.00,
             entry_date="2025-11-01T10:15:00",
             half_sold=True,
@@ -315,7 +325,8 @@ class TestExitLogic:
             quantity=100,
             entry_price=46.50,
             stop_loss=43.00,
-            entry_date="2025-11-01T10:15:00",
+            entry_date="2025-11-03T10:15:00",
+            status="open",
             half_sold=False,
         )
 
@@ -331,6 +342,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="open",
         )
 
         new_stop = update_stop_loss(position, low_of_day=44.00)
@@ -345,6 +357,7 @@ class TestExitLogic:
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
+            status="open",
         )
 
         new_stop = update_stop_loss(position, low_of_day=42.00)
