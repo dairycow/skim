@@ -1,7 +1,6 @@
 """Exit logic for trading strategy"""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from skim.data.models import Position
 
@@ -18,8 +17,8 @@ class ExitSignal:
 def check_stop_loss(
     position: Position,
     current_price: float,
-    low_of_day: Optional[float] = None,
-) -> Optional[ExitSignal]:
+    low_of_day: float | None = None,
+) -> ExitSignal | None:
     """
     Check if stop loss should be triggered
 
@@ -59,8 +58,8 @@ def check_stop_loss(
 
 def check_half_exit(
     position: Position,
-    days_held: Optional[int] = None,
-) -> Optional[ExitSignal]:
+    days_held: int | None = None,
+) -> ExitSignal | None:
     """
     Check if half position should be exited on day 3
 
@@ -106,7 +105,7 @@ def check_trailing_stop(
     position: Position,
     current_price: float,
     sma_10: float,
-) -> Optional[ExitSignal]:
+) -> ExitSignal | None:
     """
     Check if trailing stop with 10-day SMA should be triggered
 

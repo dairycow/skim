@@ -23,7 +23,6 @@ import threading
 import time
 from datetime import datetime
 from hashlib import sha256
-from typing import Any
 from urllib.parse import quote, quote_plus
 
 import requests

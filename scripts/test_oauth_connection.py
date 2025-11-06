@@ -145,9 +145,9 @@ def test_oauth_connection() -> bool:
         # Check paper trading
         is_paper = account_id.startswith("DU")
         if is_paper:
-            print_status(True, f"Account is PAPER TRADING (DU prefix)")
+            print_status(True, "Account is PAPER TRADING (DU prefix)")
         else:
-            print_warn(f"Account is LIVE TRADING (not DU prefix)")
+            print_warn("Account is LIVE TRADING (not DU prefix)")
 
         # Display account type
         account_type = accounts.data[0].get("type", "unknown")

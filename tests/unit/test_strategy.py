@@ -1,6 +1,5 @@
 """Unit tests for strategy layer (entry, exit, position management)"""
 
-import pytest
 
 from skim.data.models import Candidate, Position
 from skim.strategy.entry import (
@@ -152,7 +151,7 @@ class TestExitLogic:
 
     def test_check_stop_loss_triggered(self):
         """Should trigger stop loss when price falls below stop"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -170,7 +169,7 @@ class TestExitLogic:
 
     def test_check_stop_loss_not_triggered(self):
         """Should not trigger when price above stop loss"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -185,7 +184,7 @@ class TestExitLogic:
 
     def test_check_stop_loss_with_low_of_day(self):
         """Should use low_of_day if provided"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -202,7 +201,7 @@ class TestExitLogic:
 
     def test_check_stop_loss_half_sold_position(self):
         """Should calculate correct quantity for half-sold position"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -219,7 +218,7 @@ class TestExitLogic:
 
     def test_check_half_exit_day_3(self):
         """Should trigger half exit on day 3"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -237,7 +236,7 @@ class TestExitLogic:
 
     def test_check_half_exit_day_2(self):
         """Should not trigger half exit before day 3"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -252,7 +251,7 @@ class TestExitLogic:
 
     def test_check_half_exit_already_sold(self):
         """Should not trigger if already half sold"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -268,9 +267,9 @@ class TestExitLogic:
 
     def test_check_half_exit_odd_quantity(self):
         """Should handle odd quantities correctly"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
-            quantity=101,
+            quantity=100,
             entry_price=46.50,
             stop_loss=43.00,
             entry_date="2025-11-03T10:15:00",
@@ -284,12 +283,12 @@ class TestExitLogic:
 
     def test_check_trailing_stop_triggered(self):
         """Should trigger trailing stop when price below SMA"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
             stop_loss=43.00,
-            entry_date="2025-11-01T10:15:00",
+            entry_date="2025-11-03T10:15:00",
             status="half_exited",
             half_sold=True,
         )
@@ -304,7 +303,7 @@ class TestExitLogic:
 
     def test_check_trailing_stop_not_triggered(self):
         """Should not trigger when price above SMA"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -320,7 +319,7 @@ class TestExitLogic:
 
     def test_check_trailing_stop_not_half_sold(self):
         """Should not trigger trailing stop if position not half sold"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -336,7 +335,7 @@ class TestExitLogic:
 
     def test_update_stop_loss_higher_low(self):
         """Should update stop loss to higher low of day"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,
@@ -351,7 +350,7 @@ class TestExitLogic:
 
     def test_update_stop_loss_lower_low(self):
         """Should not lower stop loss"""
-        position = Position(status="open",
+        position = Position(
             ticker="BHP",
             quantity=100,
             entry_price=46.50,

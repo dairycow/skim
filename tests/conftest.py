@@ -3,13 +3,12 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
+from skim.brokers.ib_interface import OrderResult
 from skim.data.database import Database
 from skim.data.models import Candidate, MarketData, Position, Trade
-from skim.brokers.ib_interface import OrderResult
 
 
 @pytest.fixture

@@ -5,7 +5,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from .models import Candidate, Position, Trade
+from .models import Candidate, Position
 
 
 class Database:
