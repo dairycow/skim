@@ -78,10 +78,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
-norecursedirs = ["oauth_tests"]
 markers = [
     "manual: marks tests that require real IBKR credentials (not run in CI)",
-    "integration: marks tests as integration tests (slower, mocked HTTP only)",
+    "integration: marks tests as integration tests (requires external services)",
     "unit: marks tests as unit tests (fast, everything mocked)",
 ]
 
@@ -102,4 +101,5 @@ exclude_lines = [
 [dependency-groups]
 dev = [
     "pre-commit>=4.3.0",
+    "detect-secrets>=1.5.0",
 ]
