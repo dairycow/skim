@@ -31,13 +31,13 @@ def test_load_rsa_keys(oauth_config):
     with open(oauth_config["signature_key_path"]) as f:
         signature_key = RSA.importKey(f.read())
         print(
-            f"✓ Loaded signature key from {oauth_config['signature_key_path']}"
+            f"✓ Loaded signature key from {oauth_config['signature_key_path'].split('/')[-1]}"
         )
 
     with open(oauth_config["encryption_key_path"]) as f:
         encryption_key = RSA.importKey(f.read())
         print(
-            f"✓ Loaded encryption key from {oauth_config['encryption_key_path']}"
+            f"✓ Loaded encryption key from {oauth_config['encryption_key_path'].split('/')[-1]}"
         )
 
     assert signature_key is not None
@@ -128,8 +128,8 @@ def test_build_oauth_parameters(oauth_config, dh_challenge):
     }
 
     print("✓ OAuth params created:")
-    print(f"  - Consumer Key: {oauth_config['consumer_key']}")
-    print(f"  - Access Token: {oauth_config['access_token']}")
+    print(f"  - Consumer Key: {oauth_config['consumer_key'][:8]}...")
+    print(f"  - Access Token: {oauth_config['access_token'][:8]}...")
     print(f"  - Timestamp: {oauth_params['oauth_timestamp']}")
     print(f"  - Nonce: {oauth_params['oauth_nonce']}")
 
