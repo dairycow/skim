@@ -2,7 +2,7 @@
 
 This directory contains the test suite for the Skim trading bot.
 
-## 📚 Complete Testing Guide
+## Complete Testing Guide
 
 For comprehensive testing documentation, including:
 - Test structure and categories
@@ -30,11 +30,14 @@ pytest --cov=src/skim --cov-report=html
 
 ```
 tests/
-├── conftest.py                  # Shared pytest fixtures
+├── conftest.py                  # Shared pytest fixtures and environment setup
 ├── fixtures/                    # Test data and mock responses
 ├── unit/                        # Fast, isolated unit tests
-├── integration/                 # Integration tests (mocked HTTP)
-└── manual/                      # Manual tests (require real credentials)
+├── integration/                 # Integration tests with real services
+│   ├── oauth/                   # OAuth authentication tests
+│   ├── client/                  # Client operation tests
+│   └── workflow/                # End-to-end workflow tests
+└── docs/                        # Test documentation and results
 ```
 
 See [docs/TESTING.md](../docs/TESTING.md) for detailed information.

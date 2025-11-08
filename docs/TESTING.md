@@ -6,6 +6,10 @@ This guide covers testing strategies, test structure, and quality assurance for 
 
 ```
 tests/
+├── conftest.py           # Shared pytest fixtures and environment setup
+├── fixtures/              # Test data and mocks
+│   ├── ibkr_responses/   # IBKR API response samples
+│   └── rsa_keys/          # Test RSA keys
 ├── unit/                   # Unit tests (fast, everything mocked)
 │   ├── test_database.py   # Database operations
 │   ├── test_models.py     # Data models
@@ -13,12 +17,11 @@ tests/
 │   ├── test_strategy.py   # Trading strategy
 │   └── brokers/
 │       └── test_ibkr_oauth.py  # OAuth authentication
-├── integration/            # Integration tests (mocked HTTP only)
-├── oauth_tests/           # Manual tests requiring real credentials
-├── fixtures/              # Test data and mocks
-│   ├── ibkr_responses/   # IBKR API response samples
-│   └── rsa_keys/          # Test RSA keys
-└── conftest.py           # Pytest configuration
+├── integration/            # Integration tests with real services
+│   ├── oauth/             # OAuth authentication tests
+│   ├── client/            # Client operation tests
+│   └── workflow/          # End-to-end workflow tests
+└── docs/                  # Test documentation and results
 ```
 
 ## Test Categories
@@ -35,11 +38,11 @@ tests/
 - **Mocking**: HTTP requests mocked, real database
 - **Examples**: End-to-end workflows, API integrations
 
-### Manual Tests (`tests/oauth_tests/`)
-- **Purpose**: Test real OAuth authentication
-- **Speed**: Slow (requires network calls)
-- **Mocking**: No mocking (real credentials required)
-- **Examples**: OAuth flow, IBKR API calls
+### Integration Tests (`tests/integration/`)
+- **Purpose**: Test component interactions with real services
+- **Speed**: Medium to Slow (requires network calls)
+- **Mocking**: Minimal mocking (real credentials required)
+- **Examples**: OAuth flow, IBKR API calls, end-to-end workflows
 
 ## Running Tests
 
@@ -63,8 +66,8 @@ uv run pytest tests/unit/
 # Integration tests only
 uv run pytest tests/integration/
 
-# Manual OAuth tests (requires credentials)
-uv run pytest tests/oauth_tests/ -m manual
+# Integration tests (requires credentials)
+uv run pytest tests/integration/ -v
 ```
 
 ### Specific Tests
@@ -84,8 +87,7 @@ uv run pytest -k "test_oauth"
 ### Available Markers
 ```python
 @pytest.mark.unit        # Unit tests (fast, everything mocked)
-@pytest.mark.integration # Integration tests (mocked HTTP only)
-@pytest.mark.manual      # Manual tests requiring real credentials
+@pytest.mark.integration # Integration tests (requires real credentials)
 ```
 
 ### Running with Markers
@@ -96,11 +98,8 @@ uv run pytest -m unit
 # Run only integration tests
 uv run pytest -m integration
 
-# Run only manual tests
-uv run pytest -m manual
-
-# Skip manual tests
-uv run pytest -m "not manual"
+# Run all tests (unit + integration)
+uv run pytest
 ```
 
 ## Test Configuration
@@ -113,10 +112,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
-norecursedirs = ["oauth_tests"]
+norecursedirs = []
 markers = [
-    "manual: marks tests that require real IBKR credentials (not run in CI)",
-    "integration: marks tests as integration tests (slower, mocked HTTP only)",
+    "integration: marks tests as integration tests (requires real credentials)",
     "unit: marks tests as unit tests (fast, everything mocked)",
 ]
 ```
@@ -165,57 +163,28 @@ class TestDatabase:
 ### Integration Test Example
 ```python
 import pytest
-import responses
-from skim.scanners.tradingview import TradingViewScanner
+import os
+from skim.brokers.ibkr_client import IBKRClient
 
 @pytest.mark.integration
-class TestTradingViewScanner:
-    @responses.activate
-    def test_scan_gaps(self):
-        """Test scanning for gaps with mocked HTTP."""
-        # Arrange
-        responses.add(
-            responses.GET,
-            "https://scanner.tradingview.com/australia/scan",
-            json={"data": [{"s": "ASX:BHP", "d": [3.5]}]}
-        )
-        scanner = TradingViewScanner()
-        
-        # Act
-        gaps = scanner.scan_gaps(min_gap=3.0)
-        
-        # Assert
-        assert len(gaps) == 1
-        assert gaps[0]["symbol"] == "BHP"
-        assert gaps[0]["gap_percentage"] == 3.5
-```
-
-### Manual Test Example
-```python
-import pytest
-import os
-from skim.brokers.ibkr_oauth import IBKROAuth
-
-@pytest.mark.manual
-class TestIBKROAuth:
-    def test_real_oauth_flow(self):
-        """Test real OAuth authentication with IBKR."""
+class TestIBKRClient:
+    def test_real_connection(self):
+        """Test real connection to IBKR API."""
         # Arrange
         if not all([
             os.getenv("OAUTH_CONSUMER_KEY"),
             os.getenv("OAUTH_ACCESS_TOKEN"),
-            os.getenv("OAUTH_ACCESS_TOKEN_SECRET"),
         ]):
-            pytest.skip("OAuth credentials not available")
+            pytest.skip("IBKR credentials not available")
         
-        oauth = IBKROAuth()
+        client = IBKRClient()
         
         # Act
-        session = oauth.authenticate()
+        accounts = client.get_accounts()
         
         # Assert
-        assert session is not None
-        assert session.access_token is not None
+        assert isinstance(accounts, list)
+        assert len(accounts) > 0
 ```
 
 ## Test Data and Fixtures
