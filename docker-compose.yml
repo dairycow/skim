@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Skim Trading Bot
    bot:
@@ -27,6 +25,7 @@ services:
       - ./logs:/app/logs
       - ./oauth_keys:/opt/skim/oauth_keys:ro
       - ./scripts:/app/scripts:ro
+      - ./crontab:/etc/cron.d/skim-cron:ro
     networks:
       - skim-network
 
