@@ -26,7 +26,7 @@ from skim.scanners.tradingview import TradingViewScanner
 
 
 class TradingBot:
-    """ASX Pivot Trading Bot - Mobile-optimized for iPhone deployment"""
+    """ASX Pivot Trading Bot"""
 
     def __init__(self, config: Config):
         """Initialize the trading bot with configuration
