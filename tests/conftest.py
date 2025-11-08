@@ -1,14 +1,30 @@
 """Pytest fixtures for Skim trading bot tests"""
 
 import json
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
 from skim.brokers.ib_interface import OrderResult
 from skim.data.database import Database
 from skim.data.models import Candidate, MarketData, Position, Trade
+
+# =============================================================================
+# Global Test Setup
+# =============================================================================
+
+# Add src to Python path for all tests
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+# Load environment variables from .env file for all tests
+# This ensures OAuth credentials are available for integration tests
+env_path = Path(__file__).parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
 
 
 @pytest.fixture
@@ -200,3 +216,68 @@ def mock_contract_search_bhp(load_fixture):
 def mock_order_placed_response(load_fixture):
     """Mock order placement response from IBKR"""
     return load_fixture("order_placed.json")
+
+
+# =============================================================================
+# Integration Test Fixtures
+# =============================================================================
+
+
+def validate_oauth_environment():
+    """Validate required OAuth environment variables are set for integration tests."""
+    required_vars = [
+        "OAUTH_CONSUMER_KEY",
+        "OAUTH_ACCESS_TOKEN",
+        "OAUTH_ACCESS_TOKEN_SECRET",
+        "OAUTH_DH_PRIME",
+        "OAUTH_SIGNATURE_PATH",
+        "OAUTH_ENCRYPTION_PATH",
+    ]
+
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        raise ValueError(
+            f"Missing required environment variables: {missing_vars}"
+        )
+
+    # Validate key files exist
+    signature_path = Path(os.getenv("OAUTH_SIGNATURE_PATH", ""))
+    encryption_path = Path(os.getenv("OAUTH_ENCRYPTION_PATH", ""))
+
+    if not signature_path.exists():
+        raise ValueError(f"Signature key file not found: {signature_path}")
+    if not encryption_path.exists():
+        raise ValueError(f"Encryption key file not found: {encryption_path}")
+
+
+@pytest.fixture(scope="module")
+def oauth_config():
+    """Load real OAuth configuration from environment for integration tests."""
+    validate_oauth_environment()
+
+    return {
+        "consumer_key": os.getenv("OAUTH_CONSUMER_KEY"),
+        "access_token": os.getenv("OAUTH_ACCESS_TOKEN"),
+        "access_token_secret": os.getenv("OAUTH_ACCESS_TOKEN_SECRET"),
+        "dh_prime_hex": os.getenv("OAUTH_DH_PRIME"),
+        "signature_key_path": Path(os.getenv("OAUTH_SIGNATURE_PATH", "")),
+        "encryption_key_path": Path(os.getenv("OAUTH_ENCRYPTION_PATH", "")),
+    }
+
+
+@pytest.fixture(scope="module")
+def ibkr_client():
+    """Create and connect IBKR client for integration testing."""
+    validate_oauth_environment()
+
+    from skim.brokers.ibkr_client import IBKRClient
+
+    # Create and connect client
+    client = IBKRClient(paper_trading=True)
+    client.connect(host="", port=0, client_id=0)
+
+    yield client
+
+    # Cleanup
+    if client.is_connected():
+        client.disconnect()

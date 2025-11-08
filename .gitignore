@@ -7,8 +7,6 @@ oauth_keys/
 
 # OAuth / Phase test files (may contain credentials/tokens)
 .venv_oauth_test/
-tests/oauth_tests/
-tests/manual/
 
 # Python
 __pycache__/
