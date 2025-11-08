@@ -1,6 +1,5 @@
 """Unit tests for strategy layer (entry, exit, position management)"""
 
-
 from skim.data.models import Candidate, Position
 from skim.strategy.entry import (
     calculate_opening_range_high,
@@ -99,7 +98,9 @@ class TestEntryLogic:
             gap_percent=3.5,
         )
 
-        assert check_breakout(candidate, current_price=46.50, opening_range_high=46.00)
+        assert check_breakout(
+            candidate, current_price=46.50, opening_range_high=46.00
+        )
 
     def test_check_breakout_price_below_opening_range(self):
         """Should return False when price is below opening range high"""
@@ -111,7 +112,9 @@ class TestEntryLogic:
             gap_percent=3.5,
         )
 
-        assert not check_breakout(candidate, current_price=45.50, opening_range_high=46.00)
+        assert not check_breakout(
+            candidate, current_price=45.50, opening_range_high=46.00
+        )
 
     def test_check_breakout_price_equals_opening_range(self):
         """Should return False when price equals opening range high"""
@@ -123,11 +126,15 @@ class TestEntryLogic:
             gap_percent=3.5,
         )
 
-        assert not check_breakout(candidate, current_price=46.00, opening_range_high=46.00)
+        assert not check_breakout(
+            candidate, current_price=46.00, opening_range_high=46.00
+        )
 
     def test_calculate_opening_range_high_normal(self):
         """Should return highest price from list"""
-        assert calculate_opening_range_high([46.00, 46.20, 46.10, 45.90]) == 46.20
+        assert (
+            calculate_opening_range_high([46.00, 46.20, 46.10, 45.90]) == 46.20
+        )
 
     def test_calculate_opening_range_high_empty_list(self):
         """Should return None for empty list"""
@@ -194,7 +201,9 @@ class TestExitLogic:
         )
 
         # Price below low_of_day but above position.stop_loss
-        signal = check_stop_loss(position, current_price=43.50, low_of_day=44.00)
+        signal = check_stop_loss(
+            position, current_price=43.50, low_of_day=44.00
+        )
 
         assert signal is not None
         assert signal.action == "SELL_ALL"
@@ -293,7 +302,9 @@ class TestExitLogic:
             half_sold=True,
         )
 
-        signal = check_trailing_stop(position, current_price=45.00, sma_10=46.00)
+        signal = check_trailing_stop(
+            position, current_price=45.00, sma_10=46.00
+        )
 
         assert signal is not None
         assert signal.action == "SELL_ALL"
@@ -313,7 +324,9 @@ class TestExitLogic:
             half_sold=True,
         )
 
-        signal = check_trailing_stop(position, current_price=47.00, sma_10=46.00)
+        signal = check_trailing_stop(
+            position, current_price=47.00, sma_10=46.00
+        )
 
         assert signal is None
 
@@ -329,7 +342,9 @@ class TestExitLogic:
             half_sold=False,
         )
 
-        signal = check_trailing_stop(position, current_price=45.00, sma_10=46.00)
+        signal = check_trailing_stop(
+            position, current_price=45.00, sma_10=46.00
+        )
 
         assert signal is None
 
@@ -414,7 +429,12 @@ class TestPositionManager:
     def test_calculate_position_size_custom_limits(self):
         """Should respect custom max_shares and max_value"""
         # $10000 / $50 = 200 shares
-        assert calculate_position_size(price=50.0, max_shares=500, max_value=10000.0) == 200
+        assert (
+            calculate_position_size(
+                price=50.0, max_shares=500, max_value=10000.0
+            )
+            == 200
+        )
 
     def test_calculate_stop_loss_with_low_of_day(self):
         """Should use low_of_day when provided"""
@@ -471,8 +491,12 @@ class TestPositionManager:
 
     def test_validate_position_size_custom_limit(self):
         """Should respect custom max_position_value"""
-        assert validate_position_size(quantity=100, price=90.0, max_position_value=10000.0)
-        assert not validate_position_size(quantity=100, price=110.0, max_position_value=10000.0)
+        assert validate_position_size(
+            quantity=100, price=90.0, max_position_value=10000.0
+        )
+        assert not validate_position_size(
+            quantity=100, price=110.0, max_position_value=10000.0
+        )
 
 
 class TestExitSignal:

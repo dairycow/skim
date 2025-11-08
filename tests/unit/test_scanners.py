@@ -96,8 +96,8 @@ class TestTradingViewScanner:
         scanner = TradingViewScanner()
 
         mock_response = Mock()
-        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
-            "500 Server Error"
+        mock_response.raise_for_status.side_effect = (
+            requests.exceptions.HTTPError("500 Server Error")
         )
 
         mocker.patch("requests.post", return_value=mock_response)
@@ -280,8 +280,8 @@ class TestASXAnnouncementScanner:
         scanner = ASXAnnouncementScanner()
 
         mock_response = Mock()
-        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
-            "404 Not Found"
+        mock_response.raise_for_status.side_effect = (
+            requests.exceptions.HTTPError("404 Not Found")
         )
 
         mocker.patch("requests.get", return_value=mock_response)
@@ -294,7 +294,9 @@ class TestASXAnnouncementScanner:
         """Test fetch with malformed HTML"""
         scanner = ASXAnnouncementScanner()
 
-        mock_html = "<html><body><table><tr class='pricesens'></table></body></html>"
+        mock_html = (
+            "<html><body><table><tr class='pricesens'></table></body></html>"
+        )
 
         mock_response = Mock()
         mock_response.text = mock_html

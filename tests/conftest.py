@@ -89,6 +89,7 @@ def mock_ibkr_client(mocker):
 
     # Mock successful market data response
     from skim.brokers.ib_interface import MarketData as IBMarketData
+
     mock_market_data = IBMarketData(
         ticker="BHP",
         last_price=46.50,
@@ -115,6 +116,7 @@ def mock_ibkr_client(mocker):
 # ==============================================================================
 # OAuth Testing Fixtures
 # ==============================================================================
+
 
 @pytest.fixture
 def fixtures_dir():
@@ -148,11 +150,11 @@ def mock_oauth_env(monkeypatch, test_rsa_keys):
     monkeypatch.setenv("OAUTH_ACCESS_TOKEN", "test_access_token_123")
     monkeypatch.setenv(
         "OAUTH_ACCESS_TOKEN_SECRET",
-        "dGVzdF9lbmNyeXB0ZWRfc2VjcmV0X3Rva2VuXzEyMzQ1Njc4OTA="
+        "dGVzdF9lbmNyeXB0ZWRfc2VjcmV0X3Rva2VuXzEyMzQ1Njc4OTA=",
     )
     monkeypatch.setenv(
         "OAUTH_DH_PRIME",
-        "00f4c0ac1c6a120cffe7c0438769be9f35a721c6c7aed77a6a676a2811fb4277"
+        "00f4c0ac1c6a120cffe7c0438769be9f35a721c6c7aed77a6a676a2811fb4277",
     )
     monkeypatch.setenv("OAUTH_SIGNATURE_PATH", sig_path)
     monkeypatch.setenv("OAUTH_ENCRYPTION_PATH", enc_path)
@@ -161,10 +163,12 @@ def mock_oauth_env(monkeypatch, test_rsa_keys):
 @pytest.fixture
 def load_fixture(fixtures_dir):
     """Helper to load JSON fixture files"""
+
     def _load(filename):
         fixture_path = fixtures_dir / "ibkr_responses" / filename
         with open(fixture_path) as f:
             return json.load(f)
+
     return _load
 
 

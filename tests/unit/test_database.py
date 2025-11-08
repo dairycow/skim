@@ -1,6 +1,5 @@
 """Unit tests for database operations"""
 
-
 from skim.data.models import Candidate
 
 
@@ -213,9 +212,7 @@ def test_update_position_exit(test_db):
         entry_date="2025-11-03T10:15:00",
     )
 
-    test_db.update_position_exit(
-        pos_id, "closed", 48.00, "2025-11-03T15:00:00"
-    )
+    test_db.update_position_exit(pos_id, "closed", 48.00, "2025-11-03T15:00:00")
 
     # Should not be in open positions anymore
     open_positions = test_db.get_open_positions()

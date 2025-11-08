@@ -50,7 +50,33 @@ skim/
 
 ## Development
 
-See README.md for development setup, testing, and contribution guidelines.
+### Setup
+```bash
+# Install dependencies
+uv sync
+
+# Install pre-commit hooks (one-time setup)
+uv run pre-commit install
+```
+
+### Testing & Quality
+```bash
+# Run all quality checks
+uv run pre-commit run --all-files
+
+# Or run individually
+uv run ruff check src tests
+uv run ruff format src tests
+uv run pytest tests/unit/ tests/integration/
+```
+
+### Pre-commit Hooks
+The project uses UV-based pre-commit hooks for automated quality assurance:
+- Linting with ruff
+- Code formatting with ruff
+- Testing with pytest (on pre-push)
+
+See [tests/README.md](tests/README.md) for detailed testing information.
 
 ## License
 

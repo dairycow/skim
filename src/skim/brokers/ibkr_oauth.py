@@ -92,17 +92,19 @@ def generate_lst(
 
     # Step 7: Create signature base string with prepend
     url = "https://api.ibkr.com/v1/api/oauth/live_session_token"
-    params_string = "&".join([f"{k}={v}" for k, v in sorted(oauth_params.items())])
+    params_string = "&".join(
+        [f"{k}={v}" for k, v in sorted(oauth_params.items())]
+    )
     base_string = f"{prepend}POST&{quote_plus(url)}&{quote(params_string)}"
 
     # Step 8: Sign base string with RSA-SHA256
     sha256_hash = SHA256.new(data=base_string.encode("utf-8"))
-    bytes_pkcs115_signature = PKCS1_v1_5_Signature.new(rsa_key=signature_key).sign(
-        msg_hash=sha256_hash
-    )
-    b64_str_pkcs115_signature = base64.b64encode(bytes_pkcs115_signature).decode(
-        "utf-8"
-    )
+    bytes_pkcs115_signature = PKCS1_v1_5_Signature.new(
+        rsa_key=signature_key
+    ).sign(msg_hash=sha256_hash)
+    b64_str_pkcs115_signature = base64.b64encode(
+        bytes_pkcs115_signature
+    ).decode("utf-8")
     oauth_params["oauth_signature"] = quote_plus(b64_str_pkcs115_signature)
     oauth_params["realm"] = realm
 
@@ -110,7 +112,10 @@ def generate_lst(
     oauth_header = "OAuth " + ", ".join(
         [f'{k}="{v}"' for k, v in sorted(oauth_params.items())]
     )
-    headers = {"authorization": oauth_header, "User-Agent": "skim-trading-bot/1.0"}
+    headers = {
+        "authorization": oauth_header,
+        "User-Agent": "skim-trading-bot/1.0",
+    }
 
     # Step 10: Send request to IBKR API
     response = requests.post(url=url, headers=headers, timeout=30)
@@ -158,7 +163,10 @@ def generate_lst(
     ).hexdigest()
 
     # Skip validation in test environment
-    if "PYTEST_CURRENT_TEST" not in os.environ and hex_str_hmac_hash_lst != lst_signature:
+    if (
+        "PYTEST_CURRENT_TEST" not in os.environ
+        and hex_str_hmac_hash_lst != lst_signature
+    ):
         raise RuntimeError("LST validation failed: signature mismatch")
 
     return (computed_lst, lst_expiration)

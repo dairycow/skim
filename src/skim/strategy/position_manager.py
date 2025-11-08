@@ -1,7 +1,6 @@
 """Position sizing and management logic"""
 
 
-
 def can_open_new_position(
     current_positions: int,
     max_positions: int = 5,

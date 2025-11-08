@@ -313,7 +313,16 @@ class Database:
             (ticker, action, quantity, price, timestamp, position_id, pnl, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            (ticker, action, quantity, price, timestamp, position_id, pnl, notes),
+            (
+                ticker,
+                action,
+                quantity,
+                price,
+                timestamp,
+                position_id,
+                pnl,
+                notes,
+            ),
         )
         self.db.commit()
         return cursor.lastrowid
@@ -325,7 +334,9 @@ class Database:
             Total PnL
         """
         cursor = self.db.cursor()
-        cursor.execute("SELECT SUM(pnl) as total FROM trades WHERE pnl IS NOT NULL")
+        cursor.execute(
+            "SELECT SUM(pnl) as total FROM trades WHERE pnl IS NOT NULL"
+        )
         row = cursor.fetchone()
         return row["total"] if row["total"] is not None else 0.0
 

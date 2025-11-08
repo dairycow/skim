@@ -45,7 +45,11 @@ def check_stop_loss(
 
     if current_price <= stop_price:
         # Calculate remaining quantity (may be half if already partially exited)
-        remaining_qty = position.quantity if not position.half_sold else position.quantity // 2
+        remaining_qty = (
+            position.quantity
+            if not position.half_sold
+            else position.quantity // 2
+        )
 
         return ExitSignal(
             action="SELL_ALL",
