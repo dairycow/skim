@@ -293,8 +293,12 @@ tests/fixtures/
 │   ├── lst_success.json
 │   └── order_placed.json
 └── rsa_keys/
-    └── README.md
+    ├── test_signature_key.pem    # Test RSA key for OAuth signatures
+    ├── test_encryption_key.pem   # Test RSA key for token decryption
+    └── README.md                 # RSA keys security documentation
 ```
+
+**Important**: The RSA keys in `tests/fixtures/rsa_keys/` are test-only keys that are safe to commit to version control. See [`tests/fixtures/rsa_keys/README.md`](../tests/fixtures/rsa_keys/README.md) for detailed security information.
 
 ## Mocking External Services
 
