@@ -16,6 +16,7 @@ docker-compose up -d
 ## Documentation
 - **Setup & Configuration**: docs/SETUP.md
 - **Development**: docs/DEVELOPMENT.md  
+- **Testing**: docs/TESTING.md
 - **Architecture**: docs/ARCHITECTURE.md
 - **Trading Workflow**: docs/TRADING_WORKFLOW.md
 - **GitOps Deployment**: docs/GITOPS_NOTES.md
