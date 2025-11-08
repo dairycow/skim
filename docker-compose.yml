@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Skim Trading Bot (OAuth connects directly to IBKR - no Gateway needed!)
+  # Skim Trading Bot
    bot:
     build: .
     container_name: skim-bot
