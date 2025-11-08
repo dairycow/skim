@@ -1,25 +1,15 @@
 # Skim - ASX Pivot Trading Bot
 
-ASX trading bot with modern layered architecture. Uses OAuth 1.0a authentication to connect directly to Interactive Brokers API.
-
-## Strategy Overview
-Scan ASX for momentum stocks with gaps >2%, filter by price-sensitive announcements, enter on breakouts, manage positions with automated stops.
-
-## Quick Start
-```bash
-git clone https://github.com/your-repo/skim.git
-cd skim
-# See docs/SETUP.md for detailed configuration
-docker-compose up -d
-```
+ASX trading bot. Connects directly to Interactive Brokers web API.
 
 ## Documentation
-- **Setup & Configuration**: docs/SETUP.md
-- **Development**: docs/DEVELOPMENT.md  
-- **Testing**: docs/TESTING.md
-- **Architecture**: docs/ARCHITECTURE.md
-- **Trading Workflow**: docs/TRADING_WORKFLOW.md
-- **GitOps Deployment**: docs/GITOPS_NOTES.md
-
-## License
-MIT License
+- **Setup & Configuration**: [SETUP.md](docs/SETUP.md)
+- **Configuration**: [CONFIGURATION.md](docs/CONFIGURATION.md)
+- **Development**: [DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **Testing**: [TESTING.md](docs/TESTING.md)
+- **Architecture**: [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Trading Workflow**: [TRADING_WORKFLOW.md](docs/TRADING_WORKFLOW.md)
+- **GitOps Deployment**: [GITOPS_NOTES.md](docs/GITOPS_NOTES.md)
+- **Security**: [SECURITY.md](docs/SECURITY.md)
+- **Discord Webhook Setup**: [DISCORD_WEBHOOK_SETUP.md](docs/DISCORD_WEBHOOK_SETUP.md)
+- **Webhook Setup**: [WEBHOOK_SETUP.md](docs/WEBHOOK_SETUP.md)
