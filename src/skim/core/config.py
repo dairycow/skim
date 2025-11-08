@@ -24,6 +24,9 @@ class Config:
     # Database settings
     db_path: str
 
+    # Discord webhook settings
+    discord_webhook_url: str | None
+
     @classmethod
     def from_env(cls) -> "Config":
         """Load configuration from environment variables
@@ -52,6 +55,7 @@ class Config:
             max_position_size=int(os.getenv("MAX_POSITION_SIZE", "1000")),
             max_positions=int(os.getenv("MAX_POSITIONS", "5")),
             db_path=os.getenv("DB_PATH", "data/skim.db"),
+            discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL"),
         )
 
         logger.info("Configuration loaded:")
@@ -62,5 +66,8 @@ class Config:
         logger.info(f"  Max Position Size: {config.max_position_size} shares")
         logger.info(f"  Max Positions: {config.max_positions}")
         logger.info(f"  Database: {config.db_path}")
+        logger.info(
+            f"  Discord Webhook: {'Configured' if config.discord_webhook_url else 'Not configured'}"
+        )
 
         return config
