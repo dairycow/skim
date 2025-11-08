@@ -30,14 +30,7 @@ ENV PATH="/root/.local/bin:/app/.venv/bin:$PATH"
 COPY scripts/startup.sh .
 RUN chmod +x /app/startup.sh
 
-# Copy crontab file
-COPY crontab /etc/cron.d/skim-cron
 
-# Give execution rights on the cron job
-RUN chmod 0644 /etc/cron.d/skim-cron
-
-# Apply cron job
-RUN crontab /etc/cron.d/skim-cron
 
 # Create log file to be able to run tail
 RUN touch /var/log/cron.log
