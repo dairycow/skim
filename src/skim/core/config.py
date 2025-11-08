@@ -10,7 +10,7 @@ from loguru import logger
 class Config:
     """Configuration for Skim trading bot loaded from environment variables"""
 
-    # IB Gateway connection settings
+    # IBKR API connection settings (OAuth - no Gateway needed)
     ib_host: str
     ib_port: int
     ib_client_id: int
@@ -44,7 +44,7 @@ class Config:
             )
 
         config = cls(
-            ib_host=os.getenv("IB_HOST", "ibeam"),
+            ib_host=os.getenv("IB_HOST", "localhost"),
             ib_port=int(os.getenv("IB_PORT", "5000")),
             ib_client_id=int(os.getenv("IB_CLIENT_ID", "1")),
             paper_trading=paper_trading,
