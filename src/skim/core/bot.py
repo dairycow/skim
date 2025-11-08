@@ -21,6 +21,7 @@ from skim.brokers.ibkr_client import IBKRClient
 from skim.core.config import Config
 from skim.data.database import Database
 from skim.data.models import Candidate
+from skim.notifications.discord import DiscordNotifier
 from skim.scanners.asx_announcements import ASXAnnouncementScanner
 from skim.scanners.tradingview import TradingViewScanner
 
@@ -47,6 +48,9 @@ class TradingBot:
 
         # Initialize IB client (lazy connection)
         self.ib_client = IBKRClient(paper_trading=config.paper_trading)
+
+        # Initialize Discord notifier
+        self.discord_notifier = DiscordNotifier(config.discord_webhook_url)
 
         logger.info("Bot initialized successfully")
 
@@ -90,9 +94,15 @@ class TradingBot:
 
         if not gap_stocks:
             logger.info("No stocks found in scan")
+            # Send Discord notification for no candidates
+            try:
+                self.discord_notifier.send_scan_results(0, [])
+            except Exception as e:
+                logger.error(f"Failed to send Discord notification: {e}")
             return 0
 
         candidates_found = 0
+        new_candidates = []
 
         for stock in gap_stocks:
             # Only process if ticker has price-sensitive announcement
@@ -122,6 +132,13 @@ class TradingBot:
                     )
                     self.db.save_candidate(candidate)
                     candidates_found += 1
+                    new_candidates.append(
+                        {
+                            "ticker": stock.ticker,
+                            "gap_percent": stock.gap_percent,
+                            "price": stock.close_price,
+                        }
+                    )
                     logger.info(
                         f"Added {stock.ticker} to candidates (gap: {stock.gap_percent:.2f}%, price-sensitive announcement)"
                     )
@@ -129,6 +146,14 @@ class TradingBot:
             except Exception as e:
                 logger.error(f"Error adding candidate {stock.ticker}: {e}")
                 continue
+
+        # Send Discord notification
+        try:
+            self.discord_notifier.send_scan_results(
+                candidates_found, new_candidates
+            )
+        except Exception as e:
+            logger.error(f"Failed to send Discord notification: {e}")
 
         logger.info(
             f"Scan complete. Found {candidates_found} new candidates with both momentum and announcements"
