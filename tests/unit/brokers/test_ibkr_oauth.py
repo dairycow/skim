@@ -34,20 +34,31 @@ class TestGenerateLST:
         mocker.patch("random.getrandbits", return_value=12345678)
 
         # Mock base64 decode
-        mocker.patch("skim.brokers.ibkr_oauth.base64.b64decode", return_value=b"test_ciphertext")
+        mocker.patch(
+            "skim.brokers.ibkr_oauth.base64.b64decode",
+            return_value=b"test_ciphertext",
+        )
 
         # Mock the decrypt to return test bytes
         mock_cipher = mocker.MagicMock()
         mock_cipher.decrypt.return_value = b"test_prepend_value"
-        mocker.patch("skim.brokers.ibkr_oauth.PKCS1_v1_5_Cipher.new", return_value=mock_cipher)
+        mocker.patch(
+            "skim.brokers.ibkr_oauth.PKCS1_v1_5_Cipher.new",
+            return_value=mock_cipher,
+        )
 
         # Mock HMAC for LST computation and validation
         def mock_hmac_new(*args, **kwargs):
             mock = mocker.MagicMock()
             mock.digest.return_value = b"test_hmac_digest"
-            mock.hexdigest.return_value = mock_lst_response["live_session_token_signature"]
+            mock.hexdigest.return_value = mock_lst_response[
+                "live_session_token_signature"
+            ]
             return mock
-        mocker.patch("skim.brokers.ibkr_oauth.hmac.new", side_effect=mock_hmac_new)
+
+        mocker.patch(
+            "skim.brokers.ibkr_oauth.hmac.new", side_effect=mock_hmac_new
+        )
 
         # Call function with test credentials
         lst, expiration = generate_lst(
@@ -121,18 +132,25 @@ class TestGenerateLST:
         sig_path, enc_path = test_rsa_keys
 
         # Mock base64 decode
-        mocker.patch("skim.brokers.ibkr_oauth.base64.b64decode", return_value=b"test_ciphertext")
+        mocker.patch(
+            "skim.brokers.ibkr_oauth.base64.b64decode",
+            return_value=b"test_ciphertext",
+        )
 
         # Mock the decrypt to return test bytes
         mock_cipher = mocker.MagicMock()
         mock_cipher.decrypt.return_value = b"test_prepend_value"
-        mocker.patch("skim.brokers.ibkr_oauth.PKCS1_v1_5_Cipher.new", return_value=mock_cipher)
+        mocker.patch(
+            "skim.brokers.ibkr_oauth.PKCS1_v1_5_Cipher.new",
+            return_value=mock_cipher,
+        )
 
         # Mock requests.post to raise timeout exception
         import requests
+
         mocker.patch(
             "requests.post",
-            side_effect=requests.exceptions.Timeout("Connection timeout")
+            side_effect=requests.exceptions.Timeout("Connection timeout"),
         )
 
         with pytest.raises(requests.exceptions.Timeout):
@@ -154,12 +172,18 @@ class TestGenerateLST:
         sig_path, enc_path = test_rsa_keys
 
         # Mock base64 decode
-        mocker.patch("skim.brokers.ibkr_oauth.base64.b64decode", return_value=b"test_ciphertext")
+        mocker.patch(
+            "skim.brokers.ibkr_oauth.base64.b64decode",
+            return_value=b"test_ciphertext",
+        )
 
         # Mock the decrypt to return test bytes
         mock_cipher = mocker.MagicMock()
         mock_cipher.decrypt.return_value = b"test_prepend_value"
-        mocker.patch("skim.brokers.ibkr_oauth.PKCS1_v1_5_Cipher.new", return_value=mock_cipher)
+        mocker.patch(
+            "skim.brokers.ibkr_oauth.PKCS1_v1_5_Cipher.new",
+            return_value=mock_cipher,
+        )
 
         responses.post(
             "https://api.ibkr.com/v1/api/oauth/live_session_token",

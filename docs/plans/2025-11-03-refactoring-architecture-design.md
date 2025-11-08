@@ -326,8 +326,17 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY src/ ./src/
 
-# Install package in editable mode
-RUN pip install -e .
+# Install uv for fast dependency management
+RUN pip install uv
+
+# Copy dependency files for optimal layer caching
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies using uv sync (deterministic, fast)
+RUN uv sync --frozen
+
+# Update PATH to include uv-installed packages
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy additional files
 COPY crontab ./

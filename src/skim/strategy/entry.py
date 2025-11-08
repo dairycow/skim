@@ -1,6 +1,5 @@
 """Entry logic for trading strategy"""
 
-
 from skim.data.models import Candidate
 
 

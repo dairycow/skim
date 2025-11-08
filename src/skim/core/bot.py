@@ -58,7 +58,7 @@ class TradingBot:
         # IBKRClient uses OAuth, host/port/client_id are not used
         self.ib_client.connect(
             host="",  # OAuth uses api.ibkr.com
-            port=0,   # OAuth uses HTTPS
+            port=0,  # OAuth uses HTTPS
             client_id=0,  # OAuth uses consumer key
             timeout=20,
         )
@@ -66,7 +66,9 @@ class TradingBot:
     def _ensure_connection(self):
         """Ensure IB connection is alive, reconnect if needed"""
         if not self.ib_client.is_connected():
-            logger.warning("IB connection not established or lost, connecting...")
+            logger.warning(
+                "IB connection not established or lost, connecting..."
+            )
             self._connect_ib()
 
     def scan(self) -> int:
@@ -78,7 +80,9 @@ class TradingBot:
         logger.info("Starting TradingView market scan for candidates...")
 
         # Fetch price-sensitive announcements first
-        price_sensitive_tickers = self.asx_scanner.fetch_price_sensitive_tickers()
+        price_sensitive_tickers = (
+            self.asx_scanner.fetch_price_sensitive_tickers()
+        )
 
         # Query TradingView for stocks with gaps > 2% (lower threshold for scanning)
         scan_threshold = 2.0
@@ -230,7 +234,11 @@ class TradingBot:
                 # Get current market price
                 market_data = self.ib_client.get_market_data(ticker)
 
-                if not market_data or not market_data.last_price or market_data.last_price <= 0:
+                if (
+                    not market_data
+                    or not market_data.last_price
+                    or market_data.last_price <= 0
+                ):
                     logger.warning(f"{ticker}: No valid market data available")
                     continue
 
@@ -251,7 +259,9 @@ class TradingBot:
                 stop_loss = current_price * 0.95
 
                 # Place market order
-                order_result = self.ib_client.place_order(ticker, "BUY", quantity)
+                order_result = self.ib_client.place_order(
+                    ticker, "BUY", quantity
+                )
 
                 if not order_result:
                     logger.warning(f"Order placement failed for {ticker}")
@@ -260,7 +270,11 @@ class TradingBot:
                 logger.info(f"Order placed: BUY {quantity} {ticker} @ market")
 
                 # Use filled price if available, otherwise use current price as estimate
-                fill_price = order_result.filled_price if order_result.filled_price else current_price
+                fill_price = (
+                    order_result.filled_price
+                    if order_result.filled_price
+                    else current_price
+                )
 
                 logger.info(
                     f"Order {order_result.status}: {quantity} {ticker} @ ${fill_price:.2f}"
@@ -322,7 +336,11 @@ class TradingBot:
                 # Get current price
                 market_data = self.ib_client.get_market_data(ticker)
 
-                if not market_data or not market_data.last_price or market_data.last_price <= 0:
+                if (
+                    not market_data
+                    or not market_data.last_price
+                    or market_data.last_price <= 0
+                ):
                     logger.warning(f"{ticker}: No valid market data")
                     continue
 
@@ -333,10 +351,14 @@ class TradingBot:
                     quantity_to_sell = position.quantity // 2
 
                     if quantity_to_sell > 0:
-                        order_result = self.ib_client.place_order(ticker, "SELL", quantity_to_sell)
+                        order_result = self.ib_client.place_order(
+                            ticker, "SELL", quantity_to_sell
+                        )
 
                         if not order_result:
-                            logger.warning(f"Day 3 sell order failed for {ticker}")
+                            logger.warning(
+                                f"Day 3 sell order failed for {ticker}"
+                            )
                             continue
 
                         logger.info(
@@ -344,8 +366,14 @@ class TradingBot:
                         )
 
                         # Use filled price if available, otherwise use current price as estimate
-                        fill_price = order_result.filled_price if order_result.filled_price else current_price
-                        pnl = (fill_price - position.entry_price) * quantity_to_sell
+                        fill_price = (
+                            order_result.filled_price
+                            if order_result.filled_price
+                            else current_price
+                        )
+                        pnl = (
+                            fill_price - position.entry_price
+                        ) * quantity_to_sell
 
                         logger.info(
                             f"Half position sold: {quantity_to_sell} {ticker} @ ${fill_price:.2f}, PnL: ${pnl:.2f}"
@@ -376,16 +404,24 @@ class TradingBot:
                         else position.quantity // 2
                     )
 
-                    order_result = self.ib_client.place_order(ticker, "SELL", remaining_qty)
+                    order_result = self.ib_client.place_order(
+                        ticker, "SELL", remaining_qty
+                    )
 
                     if not order_result:
                         logger.warning(f"Stop loss order failed for {ticker}")
                         continue
 
-                    logger.warning(f"STOP LOSS HIT: Selling {remaining_qty} {ticker}")
+                    logger.warning(
+                        f"STOP LOSS HIT: Selling {remaining_qty} {ticker}"
+                    )
 
                     # Use filled price if available, otherwise use current price as estimate
-                    fill_price = order_result.filled_price if order_result.filled_price else current_price
+                    fill_price = (
+                        order_result.filled_price
+                        if order_result.filled_price
+                        else current_price
+                    )
                     pnl = (fill_price - position.entry_price) * remaining_qty
 
                     logger.info(
@@ -420,7 +456,9 @@ class TradingBot:
                 logger.error(f"Error managing position {ticker}: {e}")
                 continue
 
-        logger.info(f"Position management complete. {actions_taken} actions taken")
+        logger.info(
+            f"Position management complete. {actions_taken} actions taken"
+        )
         return actions_taken
 
     def status(self):

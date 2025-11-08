@@ -76,7 +76,7 @@ pytest -m manual
 ### Install Test Dependencies
 
 ```bash
-pip install -e ".[dev]"
+uv sync --dev
 ```
 
 This installs:
@@ -85,11 +85,31 @@ This installs:
 - `pytest-cov` - Coverage reports
 - `responses` - HTTP mocking
 - `freezegun` - Time mocking
+- `pre-commit` - Pre-commit hooks
+
+### Pre-commit Hooks
+
+The project uses UV-based pre-commit hooks for automated testing:
+
+```bash
+# Install hooks (one-time setup)
+uv run pre-commit install
+
+# Run all hooks manually
+uv run pre-commit run --all-files
+
+# Hooks run automatically on commit/push:
+# - ruff check (linting)
+# - ruff format (formatting) 
+# - pytest (unit + integration tests)
+```
 
 ### Run All Tests (Unit + Integration)
 
 ```bash
 pytest
+# or via pre-commit
+uv run pre-commit run --all-files
 ```
 
 ### Run Only Unit Tests
@@ -287,7 +307,7 @@ openssl genrsa -out test_encryption_key.pem 2048
 ### Import errors
 Install dev dependencies:
 ```bash
-pip install -e ".[dev]"
+uv sync --dev
 ```
 
 ### Coverage too low

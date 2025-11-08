@@ -10,14 +10,21 @@ RUN apt-get update && apt-get install -y \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml first for dependency installation
-COPY pyproject.toml .
+# Install uv for fast dependency management (official installer from Astral)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy dependency files for optimal layer caching
+COPY pyproject.toml uv.lock ./
 
 # Copy source code
 COPY src/ ./src/
 
-# Install package in editable mode
-RUN pip install --no-cache-dir -e .
+# Install dependencies using uv sync (deterministic, fast)
+RUN uv sync --frozen
+
+# Update PATH to include uv and uv-installed packages
+ENV PATH="/root/.local/bin:/app/.venv/bin:$PATH"
 
 # Copy startup script
 COPY scripts/startup.sh .

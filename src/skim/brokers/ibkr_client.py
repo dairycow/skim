@@ -79,7 +79,9 @@ class IBKRClient(IBInterface):
         ]
         missing = [var for var in required_vars if not os.getenv(var)]
         if missing:
-            raise ValueError(f"Missing required environment variables: {missing}")
+            raise ValueError(
+                f"Missing required environment variables: {missing}"
+            )
 
     def _generate_lst(self) -> None:
         """Generate new Live Session Token via OAuth flow
@@ -161,7 +163,9 @@ class IBKRClient(IBInterface):
                     msg=base_string.encode("utf-8"),
                     digestmod=sha256,
                 ).digest()
-                b64_str_hmac_hash = base64.b64encode(bytes_hmac_hash).decode("utf-8")
+                b64_str_hmac_hash = base64.b64encode(bytes_hmac_hash).decode(
+                    "utf-8"
+                )
                 oauth_params["oauth_signature"] = quote_plus(b64_str_hmac_hash)
                 oauth_params["realm"] = self.REALM
 
@@ -183,7 +187,11 @@ class IBKRClient(IBInterface):
                     )
                 elif method.upper() == "POST":
                     response = requests.post(
-                        url, headers=headers, json=data, params=params, timeout=30
+                        url,
+                        headers=headers,
+                        json=data,
+                        params=params,
+                        timeout=30,
                     )
                 elif method.upper() == "DELETE":
                     response = requests.delete(
@@ -253,7 +261,7 @@ class IBKRClient(IBInterface):
                     retry_count += 1
                     continue
                 else:
-                    raise RuntimeError(f"Max retries exceeded: {e}")
+                    raise RuntimeError(f"Max retries exceeded: {e}") from e
 
         raise RuntimeError("Request failed after all retries")
 
@@ -331,13 +339,17 @@ class IBKRClient(IBInterface):
         logger.info("Initializing brokerage session...")
         # Note: Paper trading requires compete: True to fully authenticate
         init_data = {"publish": True, "compete": True}
-        init_response = self._request("POST", "/iserver/auth/ssodh/init", data=init_data)
+        init_response = self._request(
+            "POST", "/iserver/auth/ssodh/init", data=init_data
+        )
         logger.info(f"Session initialized: {init_response}")
 
         # Step 3: Poll for authentication status if needed
         # If response contains 'wait': True, we need to poll until authenticated
         if init_response.get("wait"):
-            logger.info("Session requires polling - checking authentication status...")
+            logger.info(
+                "Session requires polling - checking authentication status..."
+            )
             max_poll_attempts = 10
             poll_delay = 2.0
 
@@ -345,8 +357,12 @@ class IBKRClient(IBInterface):
                 time.sleep(poll_delay)
                 try:
                     # Try to get accounts - if it works, we're authenticated
-                    logger.debug(f"Polling attempt {poll_attempt + 1}/{max_poll_attempts}")
-                    status_response = self._request("GET", "/iserver/auth/status")
+                    logger.debug(
+                        f"Polling attempt {poll_attempt + 1}/{max_poll_attempts}"
+                    )
+                    status_response = self._request(
+                        "GET", "/iserver/auth/status"
+                    )
                     logger.info(f"Auth status: {status_response}")
 
                     if status_response.get("authenticated"):
@@ -359,7 +375,7 @@ class IBKRClient(IBInterface):
                     else:
                         raise RuntimeError(
                             f"Session did not authenticate after {max_poll_attempts} attempts"
-                        )
+                        ) from e
         else:
             # Session initialized immediately, give it a brief moment
             time.sleep(2)
@@ -393,7 +409,9 @@ class IBKRClient(IBInterface):
             if isinstance(first_item, str):
                 self._account_id = first_item
             elif isinstance(first_item, dict):
-                self._account_id = first_item.get("accountId") or first_item.get("id")
+                self._account_id = first_item.get(
+                    "accountId"
+                ) or first_item.get("id")
 
         if not self._account_id:
             raise RuntimeError(
@@ -478,15 +496,23 @@ class IBKRClient(IBInterface):
         if isinstance(response, dict):
             # Try to find balance info in various possible locations
             if "availablefunds" in response:
-                balance["availableFunds"] = float(response["availablefunds"].get("amount", 0))
+                balance["availableFunds"] = float(
+                    response["availablefunds"].get("amount", 0)
+                )
             if "netliquidation" in response:
-                balance["netLiquidation"] = float(response["netliquidation"].get("amount", 0))
+                balance["netLiquidation"] = float(
+                    response["netliquidation"].get("amount", 0)
+                )
             if "buyingpower" in response:
-                balance["buyingPower"] = float(response["buyingpower"].get("amount", 0))
+                balance["buyingPower"] = float(
+                    response["buyingpower"].get("amount", 0)
+                )
 
             # If no fields found, log the response structure
             if not balance:
-                logger.warning(f"Could not parse balance from response: {response}")
+                logger.warning(
+                    f"Could not parse balance from response: {response}"
+                )
                 # Return raw response for debugging
                 return response
 
@@ -522,7 +548,9 @@ class IBKRClient(IBInterface):
                 if isinstance(pos, dict):
                     # Extract relevant fields
                     position_dict = {
-                        "ticker": pos.get("contractDesc") or pos.get("ticker") or pos.get("symbol"),
+                        "ticker": pos.get("contractDesc")
+                        or pos.get("ticker")
+                        or pos.get("symbol"),
                         "conid": pos.get("conid"),
                         "position": pos.get("position", 0),
                         "avgPrice": pos.get("avgPrice", 0.0),
@@ -555,7 +583,9 @@ class IBKRClient(IBInterface):
         """
         # Check cache first
         if ticker in self._contract_cache:
-            logger.debug(f"Contract ID for {ticker} found in cache: {self._contract_cache[ticker]}")
+            logger.debug(
+                f"Contract ID for {ticker} found in cache: {self._contract_cache[ticker]}"
+            )
             return self._contract_cache[ticker]
 
         # Search for contract
@@ -578,18 +608,23 @@ class IBKRClient(IBInterface):
 
                     # Check if this contract has STK (stock) in sections
                     has_stk = any(
-                        isinstance(section, dict) and section.get("secType") == "STK"
+                        isinstance(section, dict)
+                        and section.get("secType") == "STK"
                         for section in sections
                     )
 
                     if has_stk:
                         current_conid = str(contract.get("conid"))
-                        logger.debug(f"Found STK contract: {contract.get('companyHeader')} - conid: {current_conid}")
+                        logger.debug(
+                            f"Found STK contract: {contract.get('companyHeader')} - conid: {current_conid}"
+                        )
 
                         # Prefer ASX exchange
                         if "ASX" in description.upper():
                             asx_conid = current_conid
-                            logger.debug(f"Found ASX contract: {contract.get('companyHeader')}")
+                            logger.debug(
+                                f"Found ASX contract: {contract.get('companyHeader')}"
+                            )
                             break
 
                         # Keep first STK as fallback
@@ -731,7 +766,9 @@ class IBKRClient(IBInterface):
         if stop_price is not None:
             order_data["auxPrice"] = stop_price
 
-        logger.info(f"Placing {order_type} order: {action} {quantity} {ticker} @ {order_data}")
+        logger.info(
+            f"Placing {order_type} order: {action} {quantity} {ticker} @ {order_data}"
+        )
 
         # Step 3: Submit order
         endpoint = f"/iserver/account/{self._account_id}/orders"
@@ -748,7 +785,9 @@ class IBKRClient(IBInterface):
 
                 # Check if order was accepted
                 if isinstance(first_response, dict):
-                    order_id = first_response.get("order_id") or first_response.get("id")
+                    order_id = first_response.get(
+                        "order_id"
+                    ) or first_response.get("id")
                     status = first_response.get("order_status", "submitted")
 
                     # If we have an order ID, it was accepted
@@ -762,22 +801,38 @@ class IBKRClient(IBInterface):
                         )
 
                 # Check if confirmation is needed
-                if isinstance(first_response, dict) and "message" in first_response:
+                if (
+                    isinstance(first_response, dict)
+                    and "message" in first_response
+                ):
                     # Confirmation required - reply to confirm
                     reply_id = first_response.get("id")
                     if reply_id:
-                        logger.info(f"Order requires confirmation: {first_response.get('message')}")
+                        logger.info(
+                            f"Order requires confirmation: {first_response.get('message')}"
+                        )
                         confirm_endpoint = f"/iserver/reply/{reply_id}"
                         confirm_data = {"confirmed": True}
-                        confirm_response = self._request("POST", confirm_endpoint, data=confirm_data)
-                        logger.debug(f"Confirmation response: {confirm_response}")
+                        confirm_response = self._request(
+                            "POST", confirm_endpoint, data=confirm_data
+                        )
+                        logger.debug(
+                            f"Confirmation response: {confirm_response}"
+                        )
 
                         # Extract order ID from confirmation response
-                        if isinstance(confirm_response, list) and len(confirm_response) > 0:
+                        if (
+                            isinstance(confirm_response, list)
+                            and len(confirm_response) > 0
+                        ):
                             confirmed_order = confirm_response[0]
                             if isinstance(confirmed_order, dict):
-                                order_id = confirmed_order.get("order_id") or confirmed_order.get("id")
-                                status = confirmed_order.get("order_status", "submitted")
+                                order_id = confirmed_order.get(
+                                    "order_id"
+                                ) or confirmed_order.get("id")
+                                status = confirmed_order.get(
+                                    "order_status", "submitted"
+                                )
 
                                 return OrderResult(
                                     order_id=str(order_id),
@@ -833,7 +888,8 @@ class IBKRClient(IBInterface):
                 order_dict = {
                     "order_id": order.get("orderId") or order.get("order_id"),
                     "ticker": order.get("ticker") or order.get("symbol"),
-                    "quantity": order.get("totalSize") or order.get("quantity", 0),
+                    "quantity": order.get("totalSize")
+                    or order.get("quantity", 0),
                     "order_type": order.get("orderType"),
                     "status": order.get("status"),
                     "limit_price": order.get("price"),
@@ -867,11 +923,12 @@ class IBKRClient(IBInterface):
             logger.info(f"Cancel order response: {response}")
 
             # IBKR may return various response formats
-            if isinstance(response, dict):
-                # Check for success indicators
-                if response.get("msg") == "Order cancelled" or response.get("conid"):
-                    logger.info(f"Order {order_id} cancelled successfully")
-                    return True
+            if isinstance(response, dict) and (
+                response.get("msg") == "Order cancelled"
+                or response.get("conid")
+            ):
+                logger.info(f"Order {order_id} cancelled successfully")
+                return True
 
             # If we got here without error, consider it successful
             logger.info(f"Order {order_id} cancellation submitted")

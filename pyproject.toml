@@ -7,7 +7,7 @@ name = "skim"
 version = "0.1.0"
 description = "ASX Pivot Trading Bot for Interactive Brokers"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
     "beautifulsoup4==4.12.3",
@@ -34,7 +34,7 @@ dev = [
 
 [tool.ruff]
 line-length = 80
-target-version = "py311"
+target-version = "py312"
 
 # Exclude common directories
 exclude = [
@@ -97,4 +97,9 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.3.0",
 ]
