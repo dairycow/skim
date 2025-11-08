@@ -76,6 +76,12 @@ OAUTH_ENCRYPTION_PATH=/opt/skim/oauth_keys/private_encryption.pem
 OAUTH_DH_PRIME=your_dh_prime_hex_string
 ```
 
+#### Discord Webhook (Optional)
+```bash
+# Create webhook at: https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
+DISCORD_WEBHOOK_URL=your_discord_webhook_url
+```
+
 ### OAuth Key Setup
 
 1. **Generate RSA Keys**:

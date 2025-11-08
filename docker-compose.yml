@@ -20,6 +20,8 @@ services:
       - OAUTH_SIGNATURE_PATH=${OAUTH_SIGNATURE_PATH}
       - OAUTH_ENCRYPTION_PATH=${OAUTH_ENCRYPTION_PATH}
       - OAUTH_DH_PRIME=${OAUTH_DH_PRIME}
+      # Discord webhook for notifications (optional)
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
