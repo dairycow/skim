@@ -1,16 +1,7 @@
 # AGENTS.md
 
-## Project Type
-This is a Python project using modern Python packaging with `pyproject.toml`.
+- This is a modern Python project defined by `pyproject.toml`.
+- uv is used as the unified toolchain.
 
-## Code Formatting & Linting
-- **Ruff**: Fast Python linter and formatter configured for 80 character line length
-- Run `ruff format .` to format code
-- Run `ruff check .` to lint code
-- Run `ruff check --fix .` to auto-fix linting issues
-
-## Deployment
-Commits to the main branch are automatically applied to the deployed container via webhook.
-
-## Debugging
-For deep debugging, use SSH to access the container directly.
+## EXTREMELY IMPORTANT
+- Before using the edit tool YOU MUST follow the Test-Driven Development RED -> GREEN -> REFACTOR cycle.
