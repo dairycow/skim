@@ -287,3 +287,133 @@ def test_get_total_pnl_with_trades(test_db):
 
     total = test_db.get_total_pnl()
     assert total == 125.00  # 75 + 100 - 50
+
+
+def test_get_or_tracking_candidates(test_db):
+    """Test retrieving candidates with status='or_tracking'"""
+    # Create candidates with different statuses
+    cand1 = Candidate(
+        ticker="BHP",
+        headline="Test 1",
+        scan_date="2025-11-03",
+        status="or_tracking",
+        gap_percent=3.5,
+        prev_close=45.20,
+    )
+    cand2 = Candidate(
+        ticker="RIO",
+        headline="Test 2",
+        scan_date="2025-11-03",
+        status="watching",
+        gap_percent=4.2,
+        prev_close=120.50,
+    )
+    cand3 = Candidate(
+        ticker="FMG",
+        headline="Test 3",
+        scan_date="2025-11-03",
+        status="or_tracking",
+        gap_percent=3.8,
+        prev_close=18.90,
+    )
+
+    test_db.save_candidate(cand1)
+    test_db.save_candidate(cand2)
+    test_db.save_candidate(cand3)
+
+    or_tracking = test_db.get_or_tracking_candidates()
+    assert len(or_tracking) == 2
+    assert all(c.status == "or_tracking" for c in or_tracking)
+    assert {c.ticker for c in or_tracking} == {"BHP", "FMG"}
+
+
+def test_get_orh_breakout_candidates(test_db):
+    """Test retrieving candidates with status='orh_breakout'"""
+    cand1 = Candidate(
+        ticker="BHP",
+        headline="Test",
+        scan_date="2025-11-03",
+        status="orh_breakout",
+        gap_percent=3.5,
+        prev_close=45.20,
+    )
+    test_db.save_candidate(cand1)
+
+    breakout = test_db.get_orh_breakout_candidates()
+    assert len(breakout) == 1
+    assert breakout[0].ticker == "BHP"
+    assert breakout[0].status == "orh_breakout"
+
+
+def test_update_candidate_or_data(test_db, sample_candidate):
+    """Test updating candidate OR tracking data"""
+    test_db.save_candidate(sample_candidate)
+
+    test_db.update_candidate_or_data(
+        "BHP", or_high=47.50, or_low=44.80, or_timestamp="2025-11-03T10:30:00"
+    )
+
+    updated = test_db.get_candidate("BHP")
+    assert updated.or_high == 47.50
+    assert updated.or_low == 44.80
+    assert updated.or_timestamp == "2025-11-03T10:30:00"
+
+
+def test_update_candidate_or_data_nonexistent(test_db):
+    """Test updating OR data for non-existent candidate"""
+    # Should not raise an exception
+    test_db.update_candidate_or_data(
+        "NONEXISTENT",
+        or_high=47.50,
+        or_low=44.80,
+        or_timestamp="2025-11-03T10:30:00",
+    )
+
+
+def test_get_or_tracking_candidates_empty(test_db):
+    """Test getting OR tracking candidates when none exist"""
+    or_tracking = test_db.get_or_tracking_candidates()
+    assert or_tracking == []
+
+
+def test_get_orh_breakout_candidates_empty(test_db):
+    """Test getting ORH breakout candidates when none exist"""
+    breakout = test_db.get_orh_breakout_candidates()
+    assert breakout == []
+
+
+def test_update_candidate_or_data_validation(test_db, sample_candidate):
+    """Test validation in update_candidate_or_data"""
+    test_db.save_candidate(sample_candidate)
+
+    # Test or_high <= or_low validation
+    import pytest
+
+    with pytest.raises(
+        ValueError, match="or_high .* must be greater than or_low"
+    ):
+        test_db.update_candidate_or_data(
+            "BHP",
+            or_high=45.00,
+            or_low=45.00,  # Equal to or_high
+            or_timestamp="2025-11-03T10:30:00",
+        )
+
+    with pytest.raises(
+        ValueError, match="or_high .* must be greater than or_low"
+    ):
+        test_db.update_candidate_or_data(
+            "BHP",
+            or_high=44.00,
+            or_low=45.00,  # Greater than or_high
+            or_timestamp="2025-11-03T10:30:00",
+        )
+
+    # Test empty timestamp validation
+    with pytest.raises(ValueError, match="or_timestamp cannot be empty"):
+        test_db.update_candidate_or_data(
+            "BHP",
+            or_high=47.50,
+            or_low=44.80,
+            or_timestamp="",  # Empty
+        )

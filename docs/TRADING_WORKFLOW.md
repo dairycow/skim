@@ -14,14 +14,14 @@ graph TB
         subgraph "Market Open - 23:15 UTC (10:15 AM AEDT)"
             Scan[SCAN<br/>Sunday-Thursday 23:15]
             Scan --> FetchASX[Fetch ASX<br/>Price-Sensitive<br/>Announcements]
-            FetchASX --> QueryTV[Query TradingView<br/>Gaps > 2%]
+            FetchASX --> QueryIBKR[Query IBKR<br/>Gaps > 2%]
             QueryTV --> FilterPS[Filter: Only stocks with<br/>price-sensitive announcements]
             FilterPS --> SaveCandidates[Save to DB<br/>status: watching]
         end
 
         subgraph "5 Min After Scan - 23:20 UTC (10:20 AM AEDT)"
             Monitor[MONITOR<br/>Sunday-Thursday 23:20]
-            Monitor --> CheckGaps[Query TradingView<br/>Gaps ≥ 3%]
+            Monitor --> CheckGaps[Query IBKR<br/>Gaps ≥ 3%]
             CheckGaps --> UpdateCandidates[Update candidates<br/>status: triggered]
         end
 
@@ -80,11 +80,11 @@ graph TB
 
 ## Workflow Confirmation
 
-✅ **Cron is active** - Started by `/app/startup.sh`
-✅ **All jobs configured** - Loaded from `/etc/cron.d/skim-cron`
-✅ **Logs are captured** - Output to `/var/log/cron.log`
-✅ **Custom IBKR Client** - OAuth 1.0a authentication via `ibkr_client.py`
-✅ **OAuth configured** - All environment variables and key files present
+- **Cron is active** - Started by `/app/startup.sh`
+- **All jobs configured** - Loaded from `/etc/cron.d/skim-cron`
+- **Logs are captured** - Output to `/var/log/cron.log`
+- **Custom IBKR Client** - OAuth 1.0a authentication via `ibkr_client.py`
+- **OAuth configured** - All environment variables and key files present
 
 ## Manual Execution
 

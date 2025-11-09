@@ -214,7 +214,7 @@ chmod 666 /app/data/skim.db
 - Check logs: `docker-compose logs bot`
 - Verify configuration: `cat .env`
 - Test OAuth: `uv run python -m skim.core.bot status`
-- Review [trading workflow](trading-workflow.md) for cron issues
+- Review [trading workflow](TRADING_WORKFLOW.md) for cron issues
 
 ## Next Steps
 
@@ -225,4 +225,4 @@ After successful setup:
 3. **Automate**: Set up GitOps deployment (see [GITOPS_NOTES.md](GITOPS_NOTES.md))
 4. **Test**: Run paper trading before live trading
 
-For detailed trading workflow, see [trading-workflow.md](trading-workflow.md).
+For detailed trading workflow, see [TRADING_WORKFLOW.md](TRADING_WORKFLOW.md).
