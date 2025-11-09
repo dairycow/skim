@@ -632,22 +632,27 @@ class TestIBKRGapScanner:
 
         # Verify required parameters are present
         assert "instrument" in params
-        assert "scan_code" in params
+        assert "type" in params
         assert "location" in params
         assert "filter" in params
 
         # Verify parameter values
         assert params["instrument"] == "STK"
-        assert params["scan_code"] == "TOP_PERC_GAIN"
-        assert params["location"] == "ASX"
+        assert params["type"] == "TOP_PERC_GAIN"
+        assert params["location"] == "STK.AU.MAJOR"
 
         # Verify filter structure
         assert isinstance(params["filter"], list)
-        assert len(params["filter"]) == 3
+        assert len(params["filter"]) == 2
 
-        # Verify change_percent filter
-        change_filter = next(
-            f for f in params["filter"] if f["name"] == "change_percent"
+        # Verify priceAbove filter
+        price_filter = next(
+            f for f in params["filter"] if f["code"] == "priceAbove"
         )
-        assert change_filter["value"] == "3.0,100"
-        assert change_filter["type"] == "change_percent"
+        assert price_filter["value"] == 1
+
+        # Verify volumeAbove filter
+        volume_filter = next(
+            f for f in params["filter"] if f["code"] == "volumeAbove"
+        )
+        assert volume_filter["value"] == 50000

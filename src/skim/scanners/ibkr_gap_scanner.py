@@ -75,23 +75,16 @@ class IBKRGapScanner:
         """
         return {
             "instrument": "STK",
-            "scan_code": "TOP_PERC_GAIN",
-            "location": "ASX",
+            "type": "TOP_PERC_GAIN",
+            "location": "STK.AU.MAJOR",
             "filter": [
                 {
-                    "name": "change_percent",
-                    "value": f"{min_gap},100",
-                    "type": "change_percent",
+                    "code": "priceAbove",
+                    "value": 1,
                 },
                 {
-                    "name": "price",
-                    "value": "1,100",
-                    "type": "price",
-                },
-                {
-                    "name": "volume",
-                    "value": "50000",
-                    "type": "volume",
+                    "code": "volumeAbove",
+                    "value": 50000,
                 },
             ],
         }
