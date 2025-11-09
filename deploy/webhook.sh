@@ -8,9 +8,16 @@ cd /opt/skim
 echo "Deploying main branch..."
 git fetch origin && git reset --hard origin/main
 docker-compose down
-docker-compose up -d --build
+docker-compose build --no-cache bot
+docker-compose up -d
 
-echo "Deployment complete! Status:"
+echo "Deployment complete! Running status check..."
 docker-compose ps
-echo "Logs: docker-compose logs -f bot"
-echo "Status: docker-compose exec bot python /app/bot.py status"
+
+# Wait for container to be ready, then check bot status
+sleep 10
+if docker-compose exec bot /app/.venv/bin/python -m skim.core.bot status > /dev/null 2>&1; then
+    echo "Bot started successfully"
+else
+    echo "Bot failed to start - check logs: docker-compose logs bot"
+fi

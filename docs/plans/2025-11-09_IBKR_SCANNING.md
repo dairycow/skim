@@ -206,16 +206,16 @@ class BreakoutSignal:
 # Replace existing cron entries with ORH-based schedule:
 
 # IBKR gap scan (10:00:30 AEDT = 00:00:30 UTC)
-30 0 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot scan_ibkr >> /var/log/cron.log 2>&1
+30 0 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot scan_ibkr_gaps >> /var/log/cron.log 2>&1
 
 # OR tracking and breakout detection (10:10:30 AEDT = 00:10:30 UTC)  
-30 0 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot track_or_breakouts >> /var/log/cron.log 2>&1
+30 0 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot track_or_breakouts >> /var/log/cron.log 2>&1
 
 # Execute ORH breakout orders (10:12:00 AEDT = 00:12:00 UTC)
-0 1 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot execute_orh_breakouts >> /var/log/cron.log 2>&1
+0 1 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot execute_orh_breakouts >> /var/log/cron.log 2>&1
 
 # Keep existing position management
-*/5 0,1,2,3,4,5 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot manage_positions >> /var/log/cron.log 2>&1
+*/5 0,1,2,3,4,5 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot manage_positions >> /var/log/cron.log 2>&1
 ```
 
 ## Implementation Notes
