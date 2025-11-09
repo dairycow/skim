@@ -88,6 +88,11 @@ class TradingBot:
             self.asx_scanner.fetch_price_sensitive_tickers()
         )
 
+        # Connect to IBKR if needed
+        if not self.ibkr_scanner.is_connected():
+            self._ensure_connection()
+            self.ibkr_scanner.connect()
+
         # Query IBKR for stocks with gaps > 2% (lower threshold for scanning)
         scan_threshold = 2.0
         gap_stocks = self.ibkr_scanner.scan_for_gaps(min_gap=scan_threshold)

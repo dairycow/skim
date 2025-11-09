@@ -37,6 +37,7 @@ class TestTradingBotIBKRIntegration:
             patch("skim.core.bot.IBKRClient"),
             patch("skim.core.bot.DiscordNotifier"),
             patch("skim.core.bot.IBKRGapScanner"),
+            patch("skim.core.bot.ASXAnnouncementScanner"),
         ):
             return TradingBot(config)
 
@@ -276,3 +277,42 @@ class TestTradingBotIBKRIntegration:
 
         # Should return 0 when error occurs
         assert result == 0
+
+    def test_scan_method_connects_ibkr_scanner_when_not_connected(self, bot):
+        """Test that scan() method connects IBKR scanner when not connected"""
+        # Get the mocked scanner instance from the bot
+        mock_scanner = bot.ibkr_scanner
+        mock_scanner.is_connected.return_value = False
+        mock_scanner.scan_for_gaps.return_value = []
+
+        # Mock ASX scanner
+        bot.asx_scanner.fetch_price_sensitive_tickers = Mock(return_value=[])
+
+        # Mock Discord notifier
+        bot.discord_notifier.send_scan_results = Mock()
+
+        result = bot.scan()
+
+        # Verify connection was established
+        mock_scanner.is_connected.assert_called()
+        mock_scanner.connect.assert_called_once()
+        assert isinstance(result, int)
+
+    def test_scan_method_skips_connection_when_already_connected(self, bot):
+        """Test that scan() method skips connection when IBKR scanner is already connected"""
+        # Get the mocked scanner instance from the bot
+        mock_scanner = bot.ibkr_scanner
+        mock_scanner.is_connected.return_value = True
+        mock_scanner.scan_for_gaps.return_value = []
+
+        # Mock ASX scanner
+        bot.asx_scanner.fetch_price_sensitive_tickers = Mock(return_value=[])
+
+        # Mock Discord notifier
+        bot.discord_notifier.send_scan_results = Mock()
+
+        result = bot.scan()
+
+        # Verify connection was not attempted
+        mock_scanner.connect.assert_not_called()
+        assert isinstance(result, int)
