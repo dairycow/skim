@@ -75,6 +75,7 @@ class IBKRGapScanner:
         """
         return {
             "instrument": "STK",
+            "type": "GAP",
             "location": "ASX",
             "filter": [
                 {
