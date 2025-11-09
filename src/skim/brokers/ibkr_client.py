@@ -541,7 +541,7 @@ class IBKRClient(IBInterface):
         endpoint = f"/portfolio/{self._account_id}/positions/0"
         response = self._request("GET", endpoint)
 
-        positions = []
+        positions: list[dict] = []
 
         if isinstance(response, list):
             for pos in response:
@@ -873,7 +873,7 @@ class IBKRClient(IBInterface):
         endpoint = "/iserver/account/orders"
         response = self._request("GET", endpoint)
 
-        orders = []
+        orders: list[dict] = []
 
         if isinstance(response, dict) and "orders" in response:
             orders_list = response["orders"]
@@ -948,7 +948,7 @@ class IBKRClient(IBInterface):
             "7295": "volume",
         }
 
-        results = []
+        results: list[dict] = []
         if not isinstance(response, list):
             logger.warning(
                 f"Unexpected scanner response format: {type(response)}"

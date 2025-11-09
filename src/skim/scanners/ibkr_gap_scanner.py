@@ -102,10 +102,10 @@ class IBKRGapScanner:
             for result in mock_scanner_results:
                 try:
                     gap_stock = GapStock(
-                        ticker=result["ticker"],
-                        gap_percent=float(result["gap_percent"]),
-                        close_price=float(result["close_price"]),
-                        conid=int(result["conid"]),
+                        ticker=str(result.get("ticker", "")),
+                        gap_percent=float(result.get("gap_percent", 0)),
+                        close_price=float(result.get("close_price", 0)),
+                        conid=int(result.get("conid", 0)),
                     )
                     gap_stocks.append(gap_stock)
                 except (KeyError, ValueError, TypeError) as e:
@@ -186,14 +186,19 @@ class IBKRGapScanner:
                         else:
                             # Update high/low
                             ticker_data["high"] = max(
-                                ticker_data["high"], current_price
+                                ticker_data["high"] or 0.0, current_price
                             )
                             ticker_data["low"] = min(
-                                ticker_data["low"], current_price
+                                ticker_data["low"] or float("inf"),
+                                current_price,
                             )
 
                         # Check if gap is still holding
-                        if current_price < ticker_data["prev_close"]:
+                        prev_close = ticker_data["prev_close"]
+                        if (
+                            prev_close is not None
+                            and current_price < prev_close
+                        ):
                             ticker_data["gap_holding"] = False
                             logger.warning(
                                 f"{stock.ticker} gap failed - price {current_price} < prev_close {ticker_data['prev_close']}"
@@ -217,18 +222,19 @@ class IBKRGapScanner:
             current_price = (
                 final_market_data.last_price
                 if final_market_data
-                else ticker_data.get("first_price", 0)
+                and final_market_data.last_price is not None
+                else float(ticker_data.get("first_price", 0))
             )
 
             or_data = OpeningRangeData(
                 ticker=stock.ticker,
                 conid=stock.conid,
-                or_high=ticker_data["high"] or 0,
-                or_low=ticker_data["low"] or 0,
-                open_price=ticker_data["first_price"] or 0,
-                prev_close=ticker_data["prev_close"],
-                current_price=current_price,
-                gap_holding=ticker_data["gap_holding"],
+                or_high=float(ticker_data["high"] or 0),
+                or_low=float(ticker_data["low"] or 0),
+                open_price=float(ticker_data["first_price"] or 0),
+                prev_close=float(ticker_data["prev_close"] or 0),
+                current_price=float(current_price),
+                gap_holding=bool(ticker_data["gap_holding"]),
             )
             results.append(or_data)
 

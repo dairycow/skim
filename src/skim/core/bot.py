@@ -405,7 +405,8 @@ class TradingBot:
                         )
 
                         # Update position
-                        self.db.update_position_half_sold(position_id, True)
+                        if position_id is not None:
+                            self.db.update_position_half_sold(position_id, True)
                         self.db.update_candidate_status(ticker, "half_exited")
 
                         # Record trade
@@ -454,12 +455,13 @@ class TradingBot:
                     )
 
                     # Close position
-                    self.db.update_position_exit(
-                        position_id=position_id,
-                        status="closed",
-                        exit_price=fill_price,
-                        exit_date=datetime.now().isoformat(),
-                    )
+                    if position_id is not None:
+                        self.db.update_position_exit(
+                            position_id=position_id,
+                            status="closed",
+                            exit_price=fill_price,
+                            exit_date=datetime.now().isoformat(),
+                        )
 
                     # Record trade
                     self.db.create_trade(
@@ -681,12 +683,8 @@ class TradingBot:
                 logger.info("No ORH breakout candidates to execute")
                 return 0
 
-            # Use existing _execute_breakout_orders method if available
-            if hasattr(self, "_execute_breakout_orders"):
-                return self._execute_breakout_orders(candidates)
-            else:
-                # Fallback to basic execution logic
-                return self._execute_orh_orders_fallback(candidates)
+            # Use fallback execution logic
+            return self._execute_orh_orders_fallback(candidates)
 
         except Exception as e:
             logger.error(f"Error executing ORH breakout orders: {e}")

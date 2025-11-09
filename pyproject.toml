@@ -102,4 +102,5 @@ exclude_lines = [
 dev = [
     "pre-commit>=4.3.0",
     "detect-secrets>=1.5.0",
+    "types-requests>=2.32.4.20250913",
 ]
