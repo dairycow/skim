@@ -92,13 +92,22 @@ class IBKRClient(IBInterface):
             RuntimeError: If LST generation fails
         """
         logger.info("Generating new Live Session Token...")
+
+        # Type casting - these should never be None due to validation in __init__
+        consumer_key: str = self._consumer_key or ""
+        access_token: str = self._access_token or ""
+        access_token_secret: str = self._access_token_secret or ""
+        dh_prime_hex: str = self._dh_prime_hex or ""
+        signature_key_path: str = self._signature_key_path or ""
+        encryption_key_path: str = self._encryption_key_path or ""
+
         self._lst, self._lst_expiration = generate_lst(
-            consumer_key=self._consumer_key,
-            access_token=self._access_token,
-            access_token_secret=self._access_token_secret,
-            dh_prime_hex=self._dh_prime_hex,
-            signature_key_path=self._signature_key_path,
-            encryption_key_path=self._encryption_key_path,
+            consumer_key=consumer_key,
+            access_token=access_token,
+            access_token_secret=access_token_secret,
+            dh_prime_hex=dh_prime_hex,
+            signature_key_path=signature_key_path,
+            encryption_key_path=encryption_key_path,
             realm=self.REALM,
         )
         expiration_dt = datetime.fromtimestamp(self._lst_expiration / 1000)
@@ -158,8 +167,9 @@ class IBKRClient(IBInterface):
                 )
 
                 # Sign with HMAC-SHA256 using LST
+                lst: str = self._lst or ""
                 bytes_hmac_hash = hmac.new(
-                    key=base64.b64decode(self._lst),
+                    key=base64.b64decode(lst),
                     msg=base_string.encode("utf-8"),
                     digestmod=sha256,
                 ).digest()
