@@ -3,24 +3,22 @@
 from unittest.mock import Mock, patch
 
 from skim.core.bot import TradingBot
-from skim.core.config import Config
+from skim.core.config import Config, ScannerConfig
 
 
 class TestTradingBotDiscordIntegration:
     """Tests for Discord integration in TradingBot"""
 
     @patch("skim.core.bot.ASXAnnouncementScanner")
-    @patch("skim.core.bot.TradingViewScanner")
+    @patch("skim.core.bot.IBKRGapScanner")
     @patch("skim.core.bot.Database")
     @patch("skim.notifications.discord.requests.post")
     def test_scan_with_discord_notification_success(
-        self, mock_requests_post, mock_db, mock_tv_scanner, mock_asx_scanner
+        self, mock_requests_post, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
         """Test scan method with successful Discord notification"""
         # Setup config
         config = Config(
-            ib_host="localhost",
-            ib_port=5000,
             ib_client_id=1,
             paper_trading=True,
             gap_threshold=3.0,
@@ -28,6 +26,14 @@ class TestTradingBotDiscordIntegration:
             max_positions=5,
             db_path="test.db",
             discord_webhook_url="https://discord.com/api/webhooks/test/webhook",
+            scanner_config=ScannerConfig(
+                volume_filter=50000,
+                price_filter=0.50,
+                or_duration_minutes=10,
+                or_poll_interval_seconds=30,
+                gap_fill_tolerance=1.0,
+                or_breakout_buffer=0.1,
+            ),
         )
 
         # Setup mocks
@@ -41,7 +47,7 @@ class TestTradingBotDiscordIntegration:
         mock_gap_stock.gap_percent = 5.5
         mock_gap_stock.close_price = 45.20
 
-        mock_tv_scanner.return_value.scan_for_gaps.return_value = [
+        mock_ibkr_scanner.return_value.scan_for_gaps.return_value = [
             mock_gap_stock
         ]
 
@@ -76,17 +82,15 @@ class TestTradingBotDiscordIntegration:
         assert embed["color"] == 0x00FF00
 
     @patch("skim.core.bot.ASXAnnouncementScanner")
-    @patch("skim.core.bot.TradingViewScanner")
+    @patch("skim.core.bot.IBKRGapScanner")
     @patch("skim.core.bot.Database")
     @patch("skim.notifications.discord.requests.post")
     def test_scan_with_discord_notification_no_candidates(
-        self, mock_requests_post, mock_db, mock_tv_scanner, mock_asx_scanner
+        self, mock_requests_post, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
         """Test scan method with no candidates and Discord notification"""
         # Setup config
         config = Config(
-            ib_host="localhost",
-            ib_port=5000,
             ib_client_id=1,
             paper_trading=True,
             gap_threshold=3.0,
@@ -94,11 +98,19 @@ class TestTradingBotDiscordIntegration:
             max_positions=5,
             db_path="test.db",
             discord_webhook_url="https://discord.com/api/webhooks/test/webhook",
+            scanner_config=ScannerConfig(
+                volume_filter=50000,
+                price_filter=0.50,
+                or_duration_minutes=10,
+                or_poll_interval_seconds=30,
+                gap_fill_tolerance=1.0,
+                or_breakout_buffer=0.1,
+            ),
         )
 
         # Setup mocks - no gap stocks found
         mock_asx_scanner.return_value.fetch_price_sensitive_tickers.return_value = set()
-        mock_tv_scanner.return_value.scan_for_gaps.return_value = []
+        mock_ibkr_scanner.return_value.scan_for_gaps.return_value = []
 
         # Mock successful Discord response
         mock_response = Mock()
@@ -121,17 +133,15 @@ class TestTradingBotDiscordIntegration:
         assert embed["color"] == 0xFFFF00  # Yellow
 
     @patch("skim.core.bot.ASXAnnouncementScanner")
-    @patch("skim.core.bot.TradingViewScanner")
+    @patch("skim.core.bot.IBKRGapScanner")
     @patch("skim.core.bot.Database")
     @patch("skim.notifications.discord.requests.post")
     def test_scan_with_discord_notification_error(
-        self, mock_requests_post, mock_db, mock_tv_scanner, mock_asx_scanner
+        self, mock_requests_post, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
         """Test scan method with Discord notification error"""
         # Setup config
         config = Config(
-            ib_host="localhost",
-            ib_port=5000,
             ib_client_id=1,
             paper_trading=True,
             gap_threshold=3.0,
@@ -139,6 +149,14 @@ class TestTradingBotDiscordIntegration:
             max_positions=5,
             db_path="test.db",
             discord_webhook_url="https://discord.com/api/webhooks/test/webhook",
+            scanner_config=ScannerConfig(
+                volume_filter=50000,
+                price_filter=0.50,
+                or_duration_minutes=10,
+                or_poll_interval_seconds=30,
+                gap_fill_tolerance=1.0,
+                or_breakout_buffer=0.1,
+            ),
         )
 
         # Setup mocks
@@ -151,7 +169,7 @@ class TestTradingBotDiscordIntegration:
         mock_gap_stock.gap_percent = 5.5
         mock_gap_stock.close_price = 45.20
 
-        mock_tv_scanner.return_value.scan_for_gaps.return_value = [
+        mock_ibkr_scanner.return_value.scan_for_gaps.return_value = [
             mock_gap_stock
         ]
 
@@ -170,16 +188,14 @@ class TestTradingBotDiscordIntegration:
         mock_requests_post.assert_called_once()
 
     @patch("skim.core.bot.ASXAnnouncementScanner")
-    @patch("skim.core.bot.TradingViewScanner")
+    @patch("skim.core.bot.IBKRGapScanner")
     @patch("skim.core.bot.Database")
     def test_scan_without_discord_webhook(
-        self, mock_db, mock_tv_scanner, mock_asx_scanner
+        self, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
         """Test scan method without Discord webhook configured"""
         # Setup config without Discord webhook
         config = Config(
-            ib_host="localhost",
-            ib_port=5000,
             ib_client_id=1,
             paper_trading=True,
             gap_threshold=3.0,
@@ -187,6 +203,14 @@ class TestTradingBotDiscordIntegration:
             max_positions=5,
             db_path="test.db",
             discord_webhook_url=None,
+            scanner_config=ScannerConfig(
+                volume_filter=50000,
+                price_filter=0.50,
+                or_duration_minutes=10,
+                or_poll_interval_seconds=30,
+                gap_fill_tolerance=1.0,
+                or_breakout_buffer=0.1,
+            ),
         )
 
         # Setup mocks
@@ -199,7 +223,7 @@ class TestTradingBotDiscordIntegration:
         mock_gap_stock.gap_percent = 5.5
         mock_gap_stock.close_price = 45.20
 
-        mock_tv_scanner.return_value.scan_for_gaps.return_value = [
+        mock_ibkr_scanner.return_value.scan_for_gaps.return_value = [
             mock_gap_stock
         ]
 

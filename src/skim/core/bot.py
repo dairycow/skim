@@ -23,7 +23,7 @@ from skim.data.database import Database
 from skim.data.models import Candidate
 from skim.notifications.discord import DiscordNotifier
 from skim.scanners.asx_announcements import ASXAnnouncementScanner
-from skim.scanners.tradingview import TradingViewScanner
+from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
 
 
 class TradingBot:
@@ -43,7 +43,7 @@ class TradingBot:
         self.db = Database(config.db_path)
 
         # Initialize scanners
-        self.tv_scanner = TradingViewScanner()
+        self.ibkr_scanner = IBKRGapScanner(paper_trading=config.paper_trading)
         self.asx_scanner = ASXAnnouncementScanner()
 
         # Initialize IB client (lazy connection)
@@ -81,16 +81,16 @@ class TradingBot:
         Returns:
             Number of new candidates found
         """
-        logger.info("Starting TradingView market scan for candidates...")
+        logger.info("Starting IBKR market scan for candidates...")
 
         # Fetch price-sensitive announcements first
         price_sensitive_tickers = (
             self.asx_scanner.fetch_price_sensitive_tickers()
         )
 
-        # Query TradingView for stocks with gaps > 2% (lower threshold for scanning)
+        # Query IBKR for stocks with gaps > 2% (lower threshold for scanning)
         scan_threshold = 2.0
-        gap_stocks = self.tv_scanner.scan_for_gaps(min_gap=scan_threshold)
+        gap_stocks = self.ibkr_scanner.scan_for_gaps(min_gap=scan_threshold)
 
         if not gap_stocks:
             logger.info("No stocks found in scan")
@@ -168,8 +168,8 @@ class TradingBot:
         """
         logger.info("Monitoring for gaps at market open...")
 
-        # Query TradingView for stocks with gaps >= threshold
-        gap_stocks = self.tv_scanner.scan_for_gaps(
+        # Query IBKR for stocks with gaps >= threshold
+        gap_stocks = self.ibkr_scanner.scan_for_gaps(
             min_gap=self.config.gap_threshold
         )
 
@@ -405,7 +405,8 @@ class TradingBot:
                         )
 
                         # Update position
-                        self.db.update_position_half_sold(position_id, True)
+                        if position_id is not None:
+                            self.db.update_position_half_sold(position_id, True)
                         self.db.update_candidate_status(ticker, "half_exited")
 
                         # Record trade
@@ -454,12 +455,13 @@ class TradingBot:
                     )
 
                     # Close position
-                    self.db.update_position_exit(
-                        position_id=position_id,
-                        status="closed",
-                        exit_price=fill_price,
-                        exit_date=datetime.now().isoformat(),
-                    )
+                    if position_id is not None:
+                        self.db.update_position_exit(
+                            position_id=position_id,
+                            status="closed",
+                            exit_price=fill_price,
+                            exit_date=datetime.now().isoformat(),
+                        )
 
                     # Record trade
                     self.db.create_trade(
@@ -511,6 +513,287 @@ class TradingBot:
         logger.info(f"Total PnL: ${total_pnl:.2f}")
 
         logger.info("=====================")
+
+    def scan_ibkr_gaps(self) -> int:
+        """Scan for ASX gap stocks using IBKR scanner and store candidates with OR tracking status
+
+        Returns:
+            Number of new candidates found and stored for OR tracking
+        """
+        logger.info("Starting IBKR gap scan for OR tracking candidates...")
+
+        try:
+            # Connect to IBKR if needed
+            if not self.ibkr_scanner.is_connected():
+                self._ensure_connection()
+                self.ibkr_scanner.connect()
+
+            # Scan for gaps > 3% (configured threshold)
+            gap_stocks = self.ibkr_scanner.scan_for_gaps(
+                min_gap=self.config.gap_threshold
+            )
+
+            if not gap_stocks:
+                logger.info("No gap stocks found in IBKR scan")
+                return 0
+
+            candidates_found = 0
+
+            for stock in gap_stocks:
+                try:
+                    logger.info(
+                        f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.2f}"
+                    )
+
+                    # Check if already exists
+                    existing = self.db.get_candidate(stock.ticker)
+
+                    if not existing or existing.status not in (
+                        "or_tracking",
+                        "orh_breakout",
+                    ):
+                        # Create candidate with OR tracking status
+                        candidate = Candidate(
+                            ticker=stock.ticker,
+                            headline=f"Gap detected: {stock.gap_percent:.2f}%",
+                            scan_date=datetime.now().isoformat(),
+                            status="or_tracking",
+                            gap_percent=stock.gap_percent,
+                            prev_close=stock.close_price,
+                            conid=stock.conid,
+                            source="ibkr",
+                        )
+                        self.db.save_candidate(candidate)
+                        candidates_found += 1
+                        logger.info(
+                            f"Added {stock.ticker} to OR tracking (gap: {stock.gap_percent:.2f}%)"
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"Error adding OR tracking candidate {stock.ticker}: {e}"
+                    )
+                    continue
+
+            logger.info(
+                f"IBKR gap scan complete. Found {candidates_found} OR tracking candidates"
+            )
+            return candidates_found
+
+        except Exception as e:
+            logger.error(f"Error in IBKR gap scan: {e}")
+            return 0
+
+    def track_or_breakouts(self) -> int:
+        """Track opening range for OR tracking candidates and detect breakouts
+
+        Returns:
+            Number of ORH breakout candidates detected
+        """
+        logger.info("Tracking opening range breakouts...")
+
+        try:
+            # Get OR tracking candidates
+            candidates = self.db.get_or_tracking_candidates()
+
+            if not candidates:
+                logger.info("No OR tracking candidates found")
+                return 0
+
+            # Convert to GapStock objects for scanner
+            gap_stocks = []
+            for candidate in candidates:
+                if candidate.conid and candidate.prev_close:
+                    from skim.scanners.ibkr_gap_scanner import GapStock
+
+                    gap_stock = GapStock(
+                        ticker=candidate.ticker,
+                        gap_percent=candidate.gap_percent or 0.0,
+                        close_price=candidate.prev_close,
+                        conid=candidate.conid,
+                    )
+                    gap_stocks.append(gap_stock)
+
+            if not gap_stocks:
+                logger.warning("No valid gap stocks for OR tracking")
+                return 0
+
+            # Connect scanner if needed
+            if not self.ibkr_scanner.is_connected():
+                self._ensure_connection()
+                self.ibkr_scanner.connect()
+
+            # Track opening range for 10 minutes
+            or_data = self.ibkr_scanner.track_opening_range(
+                gap_stocks, duration_seconds=600, poll_interval=30
+            )
+
+            # Filter for breakouts
+            breakouts = self.ibkr_scanner.filter_breakouts(or_data)
+
+            breakout_count = 0
+            for breakout in breakouts:
+                try:
+                    # Update candidate with OR data and breakout status
+                    self.db.update_candidate_or_data(
+                        ticker=breakout.ticker,
+                        or_high=breakout.or_high,
+                        or_low=breakout.or_low,
+                        or_timestamp=breakout.timestamp.isoformat(),
+                    )
+
+                    # Update status to ORH breakout
+                    self.db.update_candidate_status(
+                        breakout.ticker, "orh_breakout"
+                    )
+                    breakout_count += 1
+
+                    logger.info(
+                        f"ORH breakout detected: {breakout.ticker} @ ${breakout.current_price:.2f} (ORH: ${breakout.or_high:.2f})"
+                    )
+
+                except Exception as e:
+                    logger.error(
+                        f"Error updating ORH breakout {breakout.ticker}: {e}"
+                    )
+                    continue
+
+            logger.info(
+                f"OR tracking complete. Found {breakout_count} ORH breakouts"
+            )
+            return breakout_count
+
+        except Exception as e:
+            logger.error(f"Error in OR tracking: {e}")
+            return 0
+
+    def execute_orh_breakouts(self) -> int:
+        """Execute orders for ORH breakout candidates using existing breakout order logic
+
+        Returns:
+            Number of orders placed
+        """
+        logger.info("Executing orders for ORH breakout candidates...")
+
+        try:
+            # Get ORH breakout candidates
+            candidates = self.db.get_orh_breakout_candidates()
+
+            if not candidates:
+                logger.info("No ORH breakout candidates to execute")
+                return 0
+
+            # Use fallback execution logic
+            return self._execute_orh_orders_fallback(candidates)
+
+        except Exception as e:
+            logger.error(f"Error executing ORH breakout orders: {e}")
+            return 0
+
+    def _execute_orh_orders_fallback(self, candidates) -> int:
+        """Fallback method for executing ORH breakout orders
+
+        Args:
+            candidates: List of ORH breakout candidates
+
+        Returns:
+            Number of orders placed
+        """
+        logger.info("Using fallback ORH breakout execution...")
+
+        self._ensure_connection()
+
+        # Check position limits
+        position_count = self.db.count_open_positions()
+        if position_count >= self.config.max_positions:
+            logger.warning("Maximum positions reached, skipping ORH execution")
+            return 0
+
+        orders_placed = 0
+
+        for candidate in candidates:
+            ticker = candidate.ticker
+
+            try:
+                # Get current market data
+                market_data = self.ib_client.get_market_data(ticker)
+
+                if not market_data or not market_data.last_price:
+                    logger.warning(
+                        f"{ticker}: No valid market data for ORH execution"
+                    )
+                    continue
+
+                current_price = market_data.last_price
+
+                # Calculate position size
+                position_value = 5000  # $5000 per position
+                quantity = min(
+                    int(position_value / current_price),
+                    self.config.max_position_size,
+                )
+
+                if quantity < 1:
+                    logger.warning(f"{ticker}: Calculated quantity too small")
+                    continue
+
+                # Set stop loss at OR low or 5% below entry
+                stop_loss = (
+                    candidate.or_low
+                    if candidate.or_low and candidate.or_low > 0
+                    else current_price * 0.95
+                )
+
+                # Place market order
+                order_result = self.ib_client.place_order(
+                    ticker, "BUY", quantity
+                )
+
+                if not order_result:
+                    logger.warning(f"ORH order placement failed for {ticker}")
+                    continue
+
+                logger.info(
+                    f"ORH order placed: BUY {quantity} {ticker} @ market"
+                )
+
+                # Use filled price if available
+                fill_price = (
+                    order_result.filled_price
+                    if order_result.filled_price
+                    else current_price
+                )
+
+                # Record position
+                position_id = self.db.create_position(
+                    ticker=ticker,
+                    quantity=quantity,
+                    entry_price=fill_price,
+                    stop_loss=stop_loss,
+                    entry_date=datetime.now().isoformat(),
+                )
+
+                # Record trade
+                self.db.create_trade(
+                    ticker=ticker,
+                    action="BUY",
+                    quantity=quantity,
+                    price=fill_price,
+                    position_id=position_id,
+                    notes="ORH breakout entry",
+                )
+
+                # Update candidate status
+                self.db.update_candidate_status(ticker, "entered")
+
+                orders_placed += 1
+
+            except Exception as e:
+                logger.error(f"Error executing ORH order for {ticker}: {e}")
+                continue
+
+        logger.info(f"ORH execution complete. Placed {orders_placed} orders")
+        return orders_placed
 
     def run(self):
         """Main orchestration - run all workflows"""

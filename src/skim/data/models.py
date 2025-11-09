@@ -11,10 +11,15 @@ class Candidate:
     ticker: str
     headline: str
     scan_date: str
-    status: str  # watching, triggered, expired
+    status: str  # watching, triggered, expired, or_tracking, orh_breakout
     gap_percent: float | None = None
     prev_close: float | None = None
     created_at: str | None = None
+    or_high: float | None = None
+    or_low: float | None = None
+    or_timestamp: str | None = None
+    conid: int | None = None
+    source: str | None = None
 
     @classmethod
     def from_db_row(cls, row: dict) -> "Candidate":
@@ -27,6 +32,11 @@ class Candidate:
             gap_percent=row.get("gap_percent"),
             prev_close=row.get("prev_close"),
             created_at=row.get("created_at"),
+            or_high=row.get("or_high"),
+            or_low=row.get("or_low"),
+            or_timestamp=row.get("or_timestamp"),
+            conid=row.get("conid"),
+            source=row.get("source"),
         )
 
 

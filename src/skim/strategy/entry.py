@@ -11,12 +11,12 @@ def filter_candidates(
     """
     Filter gap stocks by price-sensitive announcements and minimum gap threshold
 
-    Combines TradingView gaps with ASX price-sensitive announcements to identify
+    Combines IBKR gaps with ASX price-sensitive announcements to identify
     high-quality entry candidates. Only stocks with both momentum (gap) and
     fundamental catalysts (announcements) are selected.
 
     Args:
-        gap_stocks: List of (ticker, gap_percent, close_price) from TradingView
+        gap_stocks: List of (ticker, gap_percent, close_price) from IBKR
         price_sensitive_tickers: Set of tickers with price-sensitive announcements today
         min_gap: Minimum gap percentage threshold (e.g., 3.0 for 3%)
 
