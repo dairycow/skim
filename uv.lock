@@ -573,7 +573,11 @@ dev = [
 [package.dev-dependencies]
 dev = [
     { name = "detect-secrets" },
+    { name = "freezegun" },
     { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-mock" },
+    { name = "responses" },
     { name = "types-requests" },
 ]
 
@@ -598,7 +602,11 @@ provides-extras = ["dev"]
 [package.metadata.requires-dev]
 dev = [
     { name = "detect-secrets", specifier = ">=1.5.0" },
+    { name = "freezegun", specifier = ">=1.5.5" },
     { name = "pre-commit", specifier = ">=4.3.0" },
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-mock", specifier = ">=3.15.1" },
+    { name = "responses", specifier = ">=0.25.8" },
     { name = "types-requests", specifier = ">=2.32.4.20250913" },
 ]
 
