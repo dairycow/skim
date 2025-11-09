@@ -862,7 +862,7 @@ def main():
         else:
             logger.error(f"Unknown method: {method}")
             logger.info(
-                "Available methods: scan, monitor, execute, manage_positions, status, run"
+                "Available methods: scan, monitor, execute, manage_positions, status, run, scan_ibkr_gaps, track_or_breakouts, execute_orh_breakouts"
             )
             sys.exit(1)
     else:

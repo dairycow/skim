@@ -11,26 +11,26 @@ graph TB
 
     subgraph "Cron Schedule (UTC Times)"
 
-        subgraph "Market Open - 23:15 UTC (10:15 AM AEDT)"
-            Scan[SCAN<br/>Sunday-Thursday 23:15]
-            Scan --> FetchASX[Fetch ASX<br/>Price-Sensitive<br/>Announcements]
-            FetchASX --> QueryIBKR[Query IBKR<br/>Gaps > 2%]
-            QueryTV --> FilterPS[Filter: Only stocks with<br/>price-sensitive announcements]
-            FilterPS --> SaveCandidates[Save to DB<br/>status: watching]
+        subgraph "Market Open - 00:00:30 UTC (10:00:30 AM AEDT)"
+            Scan[SCAN_IBKR_GAPS<br/>Monday-Friday 00:00:30]
+            Scan --> QueryIBKR[Query IBKR<br/>Gaps ≥ 3%]
+            QueryIBKR --> SaveCandidates[Save to DB<br/>status: or_tracking]
         end
 
-        subgraph "5 Min After Scan - 23:20 UTC (10:20 AM AEDT)"
-            Monitor[MONITOR<br/>Sunday-Thursday 23:20]
-            Monitor --> CheckGaps[Query IBKR<br/>Gaps ≥ 3%]
-            CheckGaps --> UpdateCandidates[Update candidates<br/>status: triggered]
+        subgraph "10 Min After Scan - 00:10:30 UTC (10:10:30 AM AEDT)"
+            Track[TRACK_OR_BREAKOUTS<br/>Monday-Friday 00:10:30]
+            Track --> GetTracking[Get OR tracking<br/>candidates]
+            GetTracking --> TrackOR[Track opening range<br/>for 10 minutes]
+            TrackOR --> FilterBreakouts[Filter ORH<br/>breakouts]
+            FilterBreakouts --> UpdateBreakouts[Update candidates<br/>status: orh_breakout]
         end
 
-        subgraph "10 Min After Scan - 23:25 UTC (10:25 AM AEDT)"
-            Execute[EXECUTE<br/>Sunday-Thursday 23:25]
+        subgraph "12 Min After Scan - 00:12:00 UTC (10:12:00 AM AEDT)"
+            Execute[EXECUTE_ORH_BREAKOUTS<br/>Monday-Friday 00:12:00]
             Execute --> CheckMax{Max positions<br/>reached?}
-            CheckMax -->|No| GetTriggered[Get triggered candidates]
+            CheckMax -->|No| GetBreakouts[Get ORH breakout candidates]
             CheckMax -->|Yes| SkipExec[Skip execution]
-            GetTriggered --> PlaceOrders[Place BUY orders via<br/>Custom IBKR Client<br/>OAuth 1.0a]
+            GetBreakouts --> PlaceOrders[Place BUY orders via<br/>Custom IBKR Client<br/>OAuth 1.0a]
             PlaceOrders --> RecordPos[Record position & trade<br/>status: entered]
         end
 
@@ -92,12 +92,11 @@ You can manually trigger any workflow step:
 
 ```bash
 # SSH into droplet
-ssh root@
 
 # Run any command manually
-docker exec skim-bot /usr/local/bin/python -m skim.core.bot scan
-docker exec skim-bot /usr/local/bin/python -m skim.core.bot monitor
-docker exec skim-bot /usr/local/bin/python -m skim.core.bot execute
+docker exec skim-bot /usr/local/bin/python -m skim.core.bot scan_ibkr_gaps
+docker exec skim-bot /usr/local/bin/python -m skim.core.bot track_or_breakouts
+docker exec skim-bot /usr/local/bin/python -m skim.core.bot execute_orh_breakouts
 docker exec skim-bot /usr/local/bin/python -m skim.core.bot manage_positions
 docker exec skim-bot /usr/local/bin/python -m skim.core.bot status
 ```
