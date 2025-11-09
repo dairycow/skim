@@ -36,7 +36,12 @@ class Database:
                 status TEXT NOT NULL,
                 gap_percent REAL,
                 prev_close REAL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                or_high REAL,
+                or_low REAL,
+                or_timestamp TEXT,
+                conid INTEGER,
+                source TEXT DEFAULT 'ibkr'
             )
         """)
 
@@ -87,8 +92,9 @@ class Database:
         cursor.execute(
             """
             INSERT OR REPLACE INTO candidates
-            (ticker, headline, scan_date, status, gap_percent, prev_close)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (ticker, headline, scan_date, status, gap_percent, prev_close,
+             or_high, or_low, or_timestamp, conid, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 candidate.ticker,
@@ -97,6 +103,11 @@ class Database:
                 candidate.status,
                 candidate.gap_percent,
                 candidate.prev_close,
+                candidate.or_high,
+                candidate.or_low,
+                candidate.or_timestamp,
+                candidate.conid,
+                candidate.source,
             ),
         )
         self.db.commit()
@@ -181,6 +192,66 @@ class Database:
         row = cursor.fetchone()
         return row["count"]
 
+    def get_or_tracking_candidates(self) -> list[Candidate]:
+        """Get all candidates with status='or_tracking'
+
+        Returns:
+            List of Candidate objects
+        """
+        cursor = self.db.cursor()
+        cursor.execute(
+            "SELECT * FROM candidates WHERE status = ?", ("or_tracking",)
+        )
+        rows = cursor.fetchall()
+        return [Candidate.from_db_row(dict(row)) for row in rows]
+
+    def get_orh_breakout_candidates(self) -> list[Candidate]:
+        """Get all candidates with status='orh_breakout'
+
+        Returns:
+            List of Candidate objects
+        """
+        cursor = self.db.cursor()
+        cursor.execute(
+            "SELECT * FROM candidates WHERE status = ?", ("orh_breakout",)
+        )
+        rows = cursor.fetchall()
+        return [Candidate.from_db_row(dict(row)) for row in rows]
+
+    def update_candidate_or_data(
+        self, ticker: str, or_high: float, or_low: float, or_timestamp: str
+    ) -> None:
+        """Update candidate OR tracking data
+
+        Args:
+            ticker: Stock ticker symbol
+            or_high: Opening range high price
+            or_low: Opening range low price
+            or_timestamp: Opening range timestamp
+
+        Raises:
+            ValueError: If or_high <= or_low or timestamp is invalid
+        """
+        # Validate inputs
+        if or_high <= or_low:
+            raise ValueError(
+                f"or_high ({or_high}) must be greater than or_low ({or_low})"
+            )
+
+        if not or_timestamp:
+            raise ValueError("or_timestamp cannot be empty")
+
+        cursor = self.db.cursor()
+        cursor.execute(
+            """
+            UPDATE candidates
+            SET or_high = ?, or_low = ?, or_timestamp = ?
+            WHERE ticker = ?
+        """,
+            (or_high, or_low, or_timestamp, ticker),
+        )
+        self.db.commit()
+
     # Position methods
 
     def create_position(
@@ -213,7 +284,7 @@ class Database:
             (ticker, quantity, entry_price, stop_loss, entry_date),
         )
         self.db.commit()
-        return cursor.lastrowid
+        return cursor.lastrowid or 0
 
     def get_open_positions(self) -> list[Position]:
         """Get all open and half-exited positions
@@ -325,7 +396,7 @@ class Database:
             ),
         )
         self.db.commit()
-        return cursor.lastrowid
+        return cursor.lastrowid or 0
 
     def get_total_pnl(self) -> float:
         """Get total profit/loss from all trades

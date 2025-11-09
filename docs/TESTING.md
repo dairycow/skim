@@ -277,17 +277,17 @@ import responses
 import pytest
 
 @responses.activate
-def test_tradingview_api():
-    """Test TradingView API with mocked responses."""
-    responses.add(
-        responses.GET,
-        "https://scanner.tradingview.com/australia/scan",
-        json={"data": [{"s": "ASX:BHP", "d": [3.5]}]},
-        status=200
-    )
+def test_ibkr_scanner():
+    """Test IBKR scanner with mocked responses."""
+    from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+    scanner = IBKRGapScanner(paper_trading=True)
     
-    # Test implementation
-    pass
+    # Mock connection and scan results
+    with patch.object(scanner, 'is_connected', return_value=True):
+        results = scanner.scan_for_gaps(min_gap=3.0)
+    
+    # Verify mock data structure (actual implementation will use real IBKR data)
+    assert isinstance(results, list)
 ```
 
 ### OAuth Mocking
@@ -378,10 +378,12 @@ import pytest
 
 def test_scanner_performance():
     """Test scanner performance under time limit."""
-    scanner = TradingViewScanner()
+    from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+    scanner = IBKRGapScanner(paper_trading=True)
     
     start_time = time.time()
-    gaps = scanner.scan_gaps(min_gap=3.0)
+    with patch.object(scanner, 'is_connected', return_value=True):
+        gaps = scanner.scan_for_gaps(min_gap=3.0)
     end_time = time.time()
     
     execution_time = end_time - start_time
