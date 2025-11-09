@@ -285,8 +285,19 @@ class TradingBot:
                     logger.warning(f"{ticker}: Calculated quantity too small")
                     continue
 
-                # Calculate stop loss at low of day (simplified: -5% for now)
-                stop_loss = current_price * 0.95
+                # Calculate stop loss at low of day
+                market_data = self.ib_client.get_market_data(ticker)
+                if market_data and market_data.low > 0:
+                    stop_loss = market_data.low
+                    logger.info(
+                        f"{ticker}: Using daily low stop loss: ${stop_loss:.2f}"
+                    )
+                else:
+                    # Fallback to -5% if daily low unavailable
+                    stop_loss = current_price * 0.95
+                    logger.warning(
+                        f"{ticker}: Using fallback stop loss: ${stop_loss:.2f} (daily low unavailable)"
+                    )
 
                 # Place market order
                 order_result = self.ib_client.place_order(
