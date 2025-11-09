@@ -64,8 +64,39 @@ class IBKRGapScanner:
         self.client = IBKRClient(paper_trading=paper_trading)
         self._connected = False
 
+    def _create_gap_scan_params(self, min_gap: float) -> dict:
+        """Create scanner parameters to find ASX gap stocks
+
+        Args:
+            min_gap: Minimum gap percentage to filter
+
+        Returns:
+            Scanner parameters dictionary for IBKR API
+        """
+        return {
+            "instrument": "STK",
+            "location": "ASX",
+            "filter": [
+                {
+                    "name": "change_percent",
+                    "value": f"{min_gap},100",
+                    "type": "change_percent",
+                },
+                {
+                    "name": "price",
+                    "value": "1,100",
+                    "type": "price",
+                },
+                {
+                    "name": "volume",
+                    "value": "50000",
+                    "type": "volume",
+                },
+            ],
+        }
+
     def scan_for_gaps(self, min_gap: float) -> list[GapStock]:
-        """Scan for ASX stocks with gaps using IBKR market data
+        """Scan for ASX stocks with gaps using IBKR market scanner
 
         Args:
             min_gap: Minimum gap percentage to filter
@@ -80,34 +111,59 @@ class IBKRGapScanner:
         try:
             logger.info(f"Scanning for ASX gaps > {min_gap}%")
 
-            # For now, use mock data for testing
-            # In a real implementation, this would use IBKR's market scanner API
-            # or manually scan through ASX stocks to find gaps
-            mock_scanner_results = [
-                {
-                    "ticker": "BHP",
-                    "gap_percent": 5.5,
-                    "close_price": 45.20,
-                    "conid": 8644,
-                },
-                {
-                    "ticker": "RIO",
-                    "gap_percent": 4.2,
-                    "close_price": 120.50,
-                    "conid": 8653,
-                },
-            ]
+            # Create gap scan parameters
+            scan_params = self._create_gap_scan_params(min_gap)
+            logger.debug(f"Scanner parameters: {scan_params}")
+
+            # Run IBKR scanner
+            scanner_results = self.client.run_scanner(scan_params)
+            logger.info(f"IBKR scanner returned {len(scanner_results)} results")
 
             gap_stocks = []
-            for result in mock_scanner_results:
+            for result in scanner_results:
                 try:
-                    gap_stock = GapStock(
-                        ticker=str(result.get("ticker", "")),
-                        gap_percent=float(result.get("gap_percent", 0)),
-                        close_price=float(result.get("close_price", 0)),
-                        conid=int(result.get("conid", 0)),
-                    )
-                    gap_stocks.append(gap_stock)
+                    # Extract required fields from scanner result
+                    symbol = result.get("symbol")
+                    conid = result.get("conid")
+                    today_open = result.get("today_open", 0.0)
+                    previous_close = result.get("previous_close", 0.0)
+
+                    # Validate required data
+                    if not symbol or not conid:
+                        logger.debug(
+                            f"Skipping result with missing symbol/conid: {result}"
+                        )
+                        continue
+
+                    if previous_close <= 0:
+                        logger.debug(
+                            f"Skipping {symbol} with invalid previous close: {previous_close}"
+                        )
+                        continue
+
+                    # Calculate actual gap percentage from open vs previous close
+                    actual_gap_pct = (
+                        (today_open - previous_close) / previous_close
+                    ) * 100
+
+                    # Filter by minimum gap requirement
+                    if actual_gap_pct >= min_gap:
+                        gap_stock = GapStock(
+                            ticker=str(symbol),
+                            gap_percent=float(actual_gap_pct),
+                            close_price=float(previous_close),
+                            conid=int(conid),
+                        )
+                        gap_stocks.append(gap_stock)
+                        logger.debug(
+                            f"Added gap stock: {symbol} gap={actual_gap_pct:.2f}% "
+                            f"(open={today_open}, prev_close={previous_close})"
+                        )
+                    else:
+                        logger.debug(
+                            f"Filtered {symbol}: gap={actual_gap_pct:.2f}% < min_gap={min_gap}%"
+                        )
+
                 except (KeyError, ValueError, TypeError) as e:
                     logger.warning(
                         f"Invalid scanner result: {result}, error: {e}"

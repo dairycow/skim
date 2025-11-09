@@ -241,10 +241,63 @@ class TestIBKRGapScanner:
         """Test successful scan for gap stocks using IBKR scanner"""
         from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
 
-        scanner = IBKRGapScanner()
-        scanner._connected = True  # Mock connected state
-
         mock_client = Mock()
+
+        # Mock IBKR scanner response with real field structure
+        mock_scanner_results = [
+            {
+                "conid": "8644",
+                "symbol": "BHP",
+                "today_open": 47.68,  # 5.5% gap from 45.20
+                "previous_close": 45.20,
+                "last_price": 48.00,
+                "change_percent": 6.19,
+                "volume": 1000000,
+            },
+            {
+                "conid": "8653",
+                "symbol": "RIO",
+                "today_open": 125.56,  # 4.2% gap from 120.50
+                "previous_close": 120.50,
+                "last_price": 126.00,
+                "change_percent": 4.56,
+                "volume": 750000,
+            },
+        ]
+
+        mock_client.run_scanner.return_value = mock_scanner_results
+
+        with mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        ):
+            scanner = IBKRGapScanner()
+            scanner._connected = True  # Mock connected state
+        mock_client = Mock()
+
+        # Mock IBKR scanner response with real field structure
+        mock_scanner_results = [
+            {
+                "conid": "8644",
+                "symbol": "BHP",
+                "today_open": 47.68,  # 5.5% gap from 45.20
+                "previous_close": 45.20,
+                "last_price": 48.00,
+                "change_percent": 6.19,
+                "volume": 1000000,
+            },
+            {
+                "conid": "8653",
+                "symbol": "RIO",
+                "today_open": 125.56,  # 4.2% gap from 120.50
+                "previous_close": 120.50,
+                "last_price": 126.00,
+                "change_percent": 4.56,
+                "volume": 750000,
+            },
+        ]
+
+        mock_client.run_scanner.return_value = mock_scanner_results
 
         mocker.patch(
             "skim.scanners.ibkr_gap_scanner.IBKRClient",
@@ -255,7 +308,9 @@ class TestIBKRGapScanner:
 
         assert len(results) == 2
         assert results[0].ticker == "BHP"
-        assert results[0].gap_percent == 5.5
+        assert (
+            abs(results[0].gap_percent - 5.49) < 0.01
+        )  # Calculated from open vs close
         assert results[0].close_price == 45.20
         assert results[0].conid == 8644
 
