@@ -75,7 +75,7 @@ class IBKRGapScanner:
         """
         return {
             "instrument": "STK",
-            "type": "TOP_GAINERS",
+            "scan_code": "TOP_PERC_GAIN",
             "location": "ASX",
             "filter": [
                 {
@@ -280,7 +280,7 @@ class IBKRGapScanner:
                 final_market_data.last_price
                 if final_market_data
                 and final_market_data.last_price is not None
-                else float(ticker_data.get("first_price", 0))
+                else float(ticker_data.get("first_price") or 0)
             )
 
             or_data = OpeningRangeData(
