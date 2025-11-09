@@ -678,18 +678,40 @@ class IBKRClient(IBInterface):
         if isinstance(response, list) and len(response) > 0:
             data = response[0]
             if isinstance(data, dict):
-                # IBKR uses field codes: 31=last, 84=bid, 86=ask, 87=volume
+                # IBKR uses field codes: 31=last, 84=bid, 86=ask, 87=volume, 7=low
                 last_price = data.get("31") or data.get("last") or 0.0
                 bid = data.get("84") or data.get("bid") or 0.0
                 ask = data.get("86") or data.get("ask") or 0.0
                 volume = data.get("87") or data.get("volume") or 0
+                low = data.get("7") or data.get("low") or 0.0
+
+                # Convert to float first
+                try:
+                    last_price_float = float(last_price)
+                    bid_float = float(bid)
+                    ask_float = float(ask)
+                    volume_int = int(volume)
+                    low_float = float(low)
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"Invalid market data values for {ticker}: {e}"
+                    )
+                    return None
+
+                # Validate that we have essential data
+                if not last_price_float or last_price_float <= 0:
+                    logger.warning(
+                        f"Invalid last price for {ticker}: {last_price_float}"
+                    )
+                    return None
 
                 return MarketData(
                     ticker=ticker,
-                    last_price=float(last_price),
-                    bid=float(bid),
-                    ask=float(ask),
-                    volume=int(volume),
+                    last_price=last_price_float,
+                    bid=bid_float,
+                    ask=ask_float,
+                    volume=volume_int,
+                    low=low_float,
                 )
 
         logger.warning(f"Could not get market data for {ticker}")

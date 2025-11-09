@@ -112,6 +112,7 @@ def mock_ibkr_client(mocker):
         bid=46.45,
         ask=46.55,
         volume=1_000_000,
+        low=45.80,
     )
     mock_client.get_market_data.return_value = mock_market_data
 

@@ -13,6 +13,7 @@ class MarketData:
     bid: float
     ask: float
     volume: int
+    low: float
 
 
 @dataclass
