@@ -547,6 +547,7 @@ def main():
         "logs/skim_{time}.log",
         rotation="1 day",
         retention="30 days",
+        compression="gz",
         level="INFO",
     )
 
