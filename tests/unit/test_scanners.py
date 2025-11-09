@@ -632,13 +632,13 @@ class TestIBKRGapScanner:
 
         # Verify required parameters are present
         assert "instrument" in params
-        assert "type" in params
+        assert "scan_code" in params
         assert "location" in params
         assert "filter" in params
 
         # Verify parameter values
         assert params["instrument"] == "STK"
-        assert params["type"] == "TOP_GAINERS"
+        assert params["scan_code"] == "TOP_PERC_GAIN"
         assert params["location"] == "ASX"
 
         # Verify filter structure

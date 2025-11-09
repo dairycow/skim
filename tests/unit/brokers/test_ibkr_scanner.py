@@ -88,7 +88,7 @@ class TestIBKRScanner:
 
         scan_params = {
             "instrument": "STK",
-            "type": "TOP_GAINERS",
+            "scan_code": "TOP_PERC_GAIN",
             "filter": [
                 {"name": "price", "value": "5", "type": "price"},
                 {"name": "volume", "value": "100000", "type": "volume"},
