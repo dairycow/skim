@@ -349,7 +349,7 @@ class TestIBKRGapScanner:
         ]
 
         # Mock market data responses for each ticker
-        def mock_get_market_data(ticker):
+        def mock_get_market_data_or_tracking(ticker):
             if ticker == "BHP":
                 mock_data = Mock()
                 mock_data.last_price = 47.80
@@ -361,7 +361,9 @@ class TestIBKRGapScanner:
             return None
 
         mock_client = Mock()
-        mock_client.get_market_data.side_effect = mock_get_market_data
+        mock_client.get_market_data.side_effect = (
+            mock_get_market_data_or_tracking
+        )
         mock_client.is_connected.return_value = True
 
         # Patch IBKRClient before creating scanner
@@ -442,7 +444,7 @@ class TestIBKRGapScanner:
         ]
 
         # Mock market data where price falls below previous close
-        def mock_get_market_data(ticker):
+        def mock_get_market_data_gap_fail(ticker):
             if ticker == "BHP":
                 mock_data = Mock()
                 mock_data.last_price = 44.80  # Below prev close
@@ -450,7 +452,7 @@ class TestIBKRGapScanner:
             return None
 
         mock_client = Mock()
-        mock_client.get_market_data.side_effect = mock_get_market_data
+        mock_client.get_market_data.side_effect = mock_get_market_data_gap_fail
         mock_client.is_connected.return_value = True
 
         # Patch IBKRClient before creating scanner
@@ -620,3 +622,32 @@ class TestIBKRGapScanner:
         )
         assert signal.ticker == "BHP"
         assert signal.entry_signal == "ORB_HIGH_BREAKOUT"
+
+    def test_create_gap_scan_params(self):
+        """Test that gap scan parameters include required type field"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner = IBKRGapScanner()
+        params = scanner._create_gap_scan_params(min_gap=3.0)
+
+        # Verify required parameters are present
+        assert "instrument" in params
+        assert "type" in params
+        assert "location" in params
+        assert "filter" in params
+
+        # Verify parameter values
+        assert params["instrument"] == "STK"
+        assert params["type"] == "GAP"
+        assert params["location"] == "ASX"
+
+        # Verify filter structure
+        assert isinstance(params["filter"], list)
+        assert len(params["filter"]) == 3
+
+        # Verify change_percent filter
+        change_filter = next(
+            f for f in params["filter"] if f["name"] == "change_percent"
+        )
+        assert change_filter["value"] == "3.0,100"
+        assert change_filter["type"] == "change_percent"

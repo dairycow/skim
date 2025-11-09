@@ -88,6 +88,7 @@ class TestIBKRScanner:
 
         scan_params = {
             "instrument": "STK",
+            "type": "GAP",
             "filter": [
                 {"name": "price", "value": "5", "type": "price"},
                 {"name": "volume", "value": "100000", "type": "volume"},
@@ -264,6 +265,30 @@ class TestIBKRScanner:
         """Test scanner execution with empty parameters"""
         with pytest.raises(ValueError, match="Scan parameters cannot be empty"):
             client.run_scanner({})
+
+    @responses.activate
+    def test_run_scanner_missing_required_params(self, client):
+        """Test scanner execution with missing required parameters"""
+        # Mock 400 response for missing parameters
+        responses.post(
+            f"{client.BASE_URL}/iserver/scanner/run",
+            json={
+                "error": "Bad Request: instrument and type params expected.",
+                "statusCode": 400,
+            },
+            status=400,
+        )
+
+        # Missing instrument and type parameters
+        scan_params = {
+            "filter": [
+                {"name": "price", "value": "5", "type": "price"},
+            ],
+            "location": "ASX",
+        }
+
+        with pytest.raises(RuntimeError, match="Request failed: 400"):
+            client.run_scanner(scan_params)
 
     def test_get_market_data_extended_empty_conid(self, client):
         """Test extended market data with empty contract ID"""
