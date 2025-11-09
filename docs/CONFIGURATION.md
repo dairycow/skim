@@ -35,6 +35,19 @@ MAX_POSITIONS=5
 DB_PATH=/app/data/skim.db
 ```
 
+#### IBKR Scanner Settings
+Scanner configuration is now managed in `src/skim/core/scanner_config.py` using the `ScannerConfig` dataclass. 
+
+Default values:
+- Volume filter: 50,000 shares
+- Price filter: $0.50
+- OR duration: 10 minutes
+- OR poll interval: 30 seconds
+- Gap fill tolerance: $1.0
+- OR breakout buffer: $0.1
+
+To customize scanner settings, modify the `ScannerConfig` dataclass in `src/skim/core/scanner_config.py`.
+
 #### Risk Management
 ```bash
 # Stop loss percentage (optional, defaults to low of day)
@@ -52,13 +65,8 @@ RISK_PER_TRADE=2.0
 
 ### Market Data Configuration
 
-#### TradingView API
-```bash
-# TradingView scanner configuration (if needed)
-TRADINGVIEW_API_KEY=your_api_key
-TRADINGVIEW_SCANNER=australia
-TRADINGVIEW_INTERVAL=1D
-```
+#### IBKR Scanner
+Scanner configuration is managed in `src/skim/core/scanner_config.py`. See the `ScannerConfig` dataclass for available parameters and default values.
 
 #### ASX Announcements
 ```bash
@@ -216,9 +224,6 @@ DEBUG_BROKERS=false
 IBKR_REQUESTS_PER_MINUTE=60
 IBKR_REQUESTS_PER_SECOND=1
 
-# TradingView API rate limits
-TV_REQUESTS_PER_MINUTE=120
-
 # ASX API rate limits
 ASX_REQUESTS_PER_MINUTE=30
 ```
@@ -257,12 +262,18 @@ SIGNATURE_VALIDITY=300
 
 ### Cron Schedule
 ```bash
-# Custom cron schedules (override defaults)
-SCAN_SCHEDULE="15 23 * * 0-4"
-MONITOR_SCHEDULE="20 23 * * 0-4"
-EXECUTE_SCHEDULE="25 23 * * 0-4"
-MANAGE_SCHEDULE="*/5 23-5 * * 0-4"
-STATUS_SCHEDULE="30 5 * * 1-5"
+# IBKR ORH-based schedule (UTC times)
+# IBKR gap scan (10:00:30 AEDT = 00:00:30 UTC)
+SCAN_IBKR_SCHEDULE="30 0 * * 1-5"
+
+# OR tracking and breakout detection (10:10:30 AEDT = 00:10:30 UTC)
+TRACK_OR_BREAKOUTS_SCHEDULE="30 0 * * 1-5"
+
+# Execute ORH breakout orders (10:12:00 AEDT = 00:12:00 UTC)
+EXECUTE_ORH_BREAKOUTS_SCHEDULE="0 1 * * 1-5"
+
+# Position management (every 5 minutes during market hours)
+MANAGE_POSITIONS_SCHEDULE="*/5 0,1,2,3,4,5 * * 1-5"
 ```
 
 ### Market Hours

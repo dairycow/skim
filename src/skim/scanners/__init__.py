@@ -1,1 +1,1 @@
-"""Market scanners (TradingView, ASX announcements)"""
+"""Market scanners (ASX announcements, IBKR gaps)"""

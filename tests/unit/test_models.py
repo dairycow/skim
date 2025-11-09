@@ -145,3 +145,54 @@ def test_market_data_mid_price():
     )
 
     assert data.mid_price == 46.05  # (46.00 + 46.10) / 2
+
+
+def test_candidate_from_db_row_with_or_fields():
+    """Test creating Candidate from database row with OR tracking fields"""
+    row = {
+        "ticker": "BHP",
+        "headline": "Strong earnings",
+        "scan_date": "2025-11-03",
+        "status": "or_tracking",
+        "gap_percent": 3.5,
+        "prev_close": 45.20,
+        "created_at": "2025-11-03T09:00:00",
+        "or_high": 47.50,
+        "or_low": 44.80,
+        "or_timestamp": "2025-11-03T10:30:00",
+        "conid": 8314,
+        "source": "ibkr",
+    }
+
+    candidate = Candidate.from_db_row(row)
+
+    assert candidate.ticker == "BHP"
+    assert candidate.status == "or_tracking"
+    assert candidate.or_high == 47.50
+    assert candidate.or_low == 44.80
+    assert candidate.or_timestamp == "2025-11-03T10:30:00"
+    assert candidate.conid == 8314
+    assert candidate.source == "ibkr"
+
+
+def test_candidate_from_db_row_missing_or_fields():
+    """Test creating Candidate from database row without OR tracking fields"""
+    row = {
+        "ticker": "BHP",
+        "headline": "Strong earnings",
+        "scan_date": "2025-11-03",
+        "status": "watching",
+        "gap_percent": 3.5,
+        "prev_close": 45.20,
+        "created_at": "2025-11-03T09:00:00",
+    }
+
+    candidate = Candidate.from_db_row(row)
+
+    assert candidate.ticker == "BHP"
+    assert candidate.status == "watching"
+    assert candidate.or_high is None
+    assert candidate.or_low is None
+    assert candidate.or_timestamp is None
+    assert candidate.conid is None
+    assert candidate.source is None

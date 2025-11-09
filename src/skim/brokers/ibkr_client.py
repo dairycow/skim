@@ -899,6 +899,234 @@ class IBKRClient(IBInterface):
 
         return orders
 
+    # ========== Scanner Methods ==========
+
+    def run_scanner(self, scan_params: dict) -> list[dict]:
+        """Run market scanner with specified parameters
+
+        Endpoint: POST /iserver/scanner/run
+
+        Args:
+            scan_params: Scanner parameters including instrument, filters, location
+
+        Returns:
+            List of scan results with mapped field names:
+            - conid: Contract ID
+            - symbol: Stock symbol
+            - companyHeader: Company description
+            - last_price: Field 31 (Last price)
+            - change_percent: Field 70 (Change % from close)
+            - previous_close: Field 86 (Previous close price)
+            - today_open: Field 88 (Today's open price)
+            - volume: Field 7295 (Volume)
+
+        Raises:
+            RuntimeError: If not connected or request fails
+        """
+        if not self._connected:
+            raise RuntimeError("Not connected - call connect() first")
+
+        if not scan_params:
+            raise ValueError("Scan parameters cannot be empty")
+
+        logger.info(f"Running scanner with parameters: {scan_params}")
+
+        try:
+            response = self._request(
+                "POST", "/iserver/scanner/run", data=scan_params
+            )
+        except Exception as e:
+            logger.error(f"Scanner request failed: {e}")
+            raise RuntimeError(f"Failed to run scanner: {e}") from e
+
+        # Map field codes to readable names for gap analysis
+        field_mapping = {
+            "31": "last_price",
+            "70": "change_percent",
+            "86": "previous_close",
+            "88": "today_open",
+            "7295": "volume",
+        }
+
+        results = []
+        if not isinstance(response, list):
+            logger.warning(
+                f"Unexpected scanner response format: {type(response)}"
+            )
+            return []
+
+        for item in response:
+            if not isinstance(item, dict):
+                logger.debug(f"Skipping non-dict scanner result: {item}")
+                continue
+
+            result = {
+                "conid": item.get("conid"),
+                "symbol": item.get("symbol"),
+                "companyHeader": item.get("companyHeader"),
+            }
+
+            # Map numeric fields to readable names with type conversion
+            for field_code, field_name in field_mapping.items():
+                if field_code in item:
+                    value = item[field_code]
+                    # Convert numeric fields to appropriate types
+                    if field_name == "volume":
+                        result[field_name] = (
+                            int(value) if value is not None else 0
+                        )
+                    elif field_name in [
+                        "last_price",
+                        "change_percent",
+                        "previous_close",
+                        "today_open",
+                    ]:
+                        result[field_name] = (
+                            float(value) if value is not None else 0.0
+                        )
+                    else:
+                        result[field_name] = value
+
+            # Only include results with essential data
+            if result.get("conid") and result.get("symbol"):
+                results.append(result)
+            else:
+                logger.debug(f"Skipping incomplete scanner result: {result}")
+
+        logger.info(f"Scanner returned {len(results)} valid results")
+        return results
+
+    def get_scanner_params(self) -> dict:
+        """Get available scanner parameters
+
+        Endpoint: POST /iserver/scanner/params
+
+        Returns:
+            Dictionary of scanner parameters for different instrument types
+
+        Raises:
+            RuntimeError: If not connected or request fails
+        """
+        if not self._connected:
+            raise RuntimeError("Not connected - call connect() first")
+
+        logger.info("Retrieving scanner parameters")
+
+        try:
+            response = self._request("POST", "/iserver/scanner/params")
+        except Exception as e:
+            logger.error(f"Failed to retrieve scanner parameters: {e}")
+            raise RuntimeError(f"Failed to get scanner parameters: {e}") from e
+
+        if not isinstance(response, dict):
+            logger.warning(
+                f"Unexpected scanner params response format: {type(response)}"
+            )
+            return {}
+
+        # Log available instrument types for debugging
+        instrument_types = list(response.keys())
+        logger.info(
+            f"Scanner parameters retrieved for instruments: {instrument_types}"
+        )
+
+        return response
+
+    def get_market_data_extended(self, conid: str) -> dict:
+        """Get extended market data for a contract
+
+        Endpoint: GET /iserver/marketdata/snapshot?conids={conid}&fields=31,70,86,88,7295
+
+        Args:
+            conid: IBKR contract ID
+
+        Returns:
+            Dictionary with extended market data:
+            - last_price: Field 31 (Last price)
+            - change_percent: Field 70 (Change % from close)
+            - previous_close: Field 86 (Previous close price)
+            - today_open: Field 88 (Today's open price)
+            - volume: Field 7295 (Volume)
+
+        Raises:
+            RuntimeError: If not connected or request fails
+            ValueError: If conid is invalid
+        """
+        if not self._connected:
+            raise RuntimeError("Not connected - call connect() first")
+
+        if not conid or not str(conid).strip():
+            raise ValueError("Contract ID (conid) cannot be empty")
+
+        logger.info(f"Getting extended market data for contract {conid}")
+
+        # Request specific fields for gap analysis
+        fields = "31,70,86,88,7295"
+        params = {"conids": conid, "fields": fields}
+
+        try:
+            response = self._request(
+                "GET", "/iserver/marketdata/snapshot", params=params
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve market data for {conid}: {e}")
+            raise RuntimeError(
+                f"Failed to get market data for contract {conid}: {e}"
+            ) from e
+
+        # Extract data for the specific contract
+        result = {}
+        field_mapping = {
+            "31": ("last_price", float),
+            "70": ("change_percent", float),
+            "86": ("previous_close", float),
+            "88": ("today_open", float),
+            "7295": ("volume", int),
+        }
+
+        if not isinstance(response, dict):
+            logger.warning(
+                f"Unexpected market data response format for {conid}: {type(response)}"
+            )
+            return {}
+
+        if conid not in response:
+            logger.warning(f"No market data returned for contract {conid}")
+            return {}
+
+        contract_data = response[conid]
+        if not isinstance(contract_data, dict):
+            logger.warning(
+                f"Invalid contract data format for {conid}: {type(contract_data)}"
+            )
+            return {}
+
+        # Map fields with type conversion and validation
+        for field_code, (field_name, field_type) in field_mapping.items():
+            if field_code in contract_data:
+                value = contract_data[field_code]
+                try:
+                    # Convert to appropriate type with null handling
+                    if value is not None:
+                        result[field_name] = field_type(value)
+                    else:
+                        result[field_name] = 0 if field_type is int else 0.0
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"Failed to convert {field_code}={value} to {field_type.__name__} for {conid}: {e}"
+                    )
+                    result[field_name] = 0 if field_type is int else 0.0
+            else:
+                logger.debug(
+                    f"Field {field_code} not available for contract {conid}"
+                )
+                result[field_name] = 0 if field_type is int else 0.0
+
+        logger.info(
+            f"Retrieved extended market data for {conid}: {len(result)} fields"
+        )
+        return result
+
     def cancel_order(self, order_id: str) -> bool:
         """Cancel specific order
 

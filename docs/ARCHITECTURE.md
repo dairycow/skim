@@ -41,7 +41,7 @@ skim/
 │   │   └── ibkr_oauth.py       # OAuth authentication logic
 │   ├── scanners/                # Market data sources
 │   │   ├── asx_announcements.py # ASX announcement scanner
-│   │   └── tradingview.py      # TradingView API integration
+│   │   └── ibkr_gap_scanner.py # IBKR gap scanner
 │   ├── strategy/                # Trading algorithms
 │   │   ├── entry.py            # Entry signal generation
 │   │   ├── exit.py             # Exit signal generation
@@ -99,7 +99,7 @@ skim/
 - ASX API integration
 - News sentiment analysis
 
-**tradingview.py** - TradingView API integration
+**ibkr_gap_scanner.py** - IBKR gap scanner
 - Market scanning
 - Gap detection
 - Technical indicator data
@@ -139,7 +139,7 @@ skim/
 
 1. **SCAN Phase** (23:15 UTC)
    ```
-   TradingView Scanner → Gap Detection → ASX Filter → Database Storage
+   IBKR Gap Scanner → Gap Detection → ASX Filter → Database Storage
    ```
 
 2. **MONITOR Phase** (23:20 UTC)
@@ -227,7 +227,7 @@ skim/
 
 ### External APIs
 - **Interactive Brokers** - Trading and market data
-- **TradingView** - Market scanning
+- **IBKR** - Market scanning
 - **ASX** - Company announcements
 
 ### Internal Systems
