@@ -75,7 +75,7 @@ class IBKRGapScanner:
         """
         return {
             "instrument": "STK",
-            "type": "GAP",
+            "type": "TOP_GAINERS",
             "location": "ASX",
             "filter": [
                 {
