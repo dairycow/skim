@@ -4,15 +4,18 @@
 # IBKR ORH-based scanning strategy
 
 # IBKR gap scan (10:00:30 AEDT = 00:00:30 UTC)
-30 0 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot scan_ibkr >> /var/log/cron.log 2>&1
+30 0 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot scan_ibkr_gaps >> /var/log/cron.log 2>&1
 
 # OR tracking and breakout detection (10:10:30 AEDT = 00:10:30 UTC)  
-30 0 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot track_or_breakouts >> /var/log/cron.log 2>&1
+0 1 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot track_or_breakouts >> /var/log/cron.log 2>&1
 
 # Execute ORH breakout orders (10:12:00 AEDT = 00:12:00 UTC)
-0 1 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot execute_orh_breakouts >> /var/log/cron.log 2>&1
+30 1 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot execute_orh_breakouts >> /var/log/cron.log 2>&1
 
-# Keep existing position management
-*/5 0,1,2,3,4,5 * * 1-5 cd /app && /usr/local/bin/python -m skim.core.bot manage_positions >> /var/log/cron.log 2>&1
+# Position management during market hours (includes market open at 23:00)
+*/5 23,0,1,2,3,4,5 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot manage_positions >> /var/log/cron.log 2>&1
+
+# Daily status report (4:30 PM AEDT = 05:30 UTC)
+30 5 * * 1-5 cd /app && /app/.venv/bin/python -m skim.core.bot status >> /var/log/cron.log 2>&1
 
 # Blank line required at end of cron file
