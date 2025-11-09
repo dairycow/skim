@@ -5,12 +5,6 @@ services:
     container_name: skim-bot
     restart: unless-stopped
     environment:
-      # Trading bot configuration
-      - PAPER_TRADING=${PAPER_TRADING:-true}
-      - GAP_THRESHOLD=${GAP_THRESHOLD:-3.0}
-      - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-1000}
-      - MAX_POSITIONS=${MAX_POSITIONS:-5}
-      - DB_PATH=${DB_PATH:-/app/data/skim.db}
       # OAuth 1.0a credentials for IBKR Client Portal API
       - OAUTH_CONSUMER_KEY=${OAUTH_CONSUMER_KEY}
       - OAUTH_ACCESS_TOKEN=${OAUTH_ACCESS_TOKEN}
