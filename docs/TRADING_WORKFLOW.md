@@ -94,11 +94,11 @@ You can manually trigger any workflow step:
 # SSH into droplet
 
 # Run any command manually
-docker exec skim-bot /usr/local/bin/python -m skim.core.bot scan_ibkr_gaps
-docker exec skim-bot /usr/local/bin/python -m skim.core.bot track_or_breakouts
-docker exec skim-bot /usr/local/bin/python -m skim.core.bot execute_orh_breakouts
-docker exec skim-bot /usr/local/bin/python -m skim.core.bot manage_positions
-docker exec skim-bot /usr/local/bin/python -m skim.core.bot status
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot scan_ibkr_gaps
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot track_or_breakouts
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot execute_orh_breakouts
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot manage_positions
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot status
 ```
 
 ## Data Flow

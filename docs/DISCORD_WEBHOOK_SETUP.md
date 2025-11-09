@@ -93,7 +93,7 @@ docker-compose exec bot printenv | grep DISCORD_WEBHOOK_URL
 ### Check 2: Test Notification
 ```bash
 # Trigger a manual scan to test Discord notification
-docker-compose exec bot python -m skim.core.bot scan
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot scan_ibkr_gaps
 ```
 
 ### Check 3: Monitor Logs
@@ -116,7 +116,7 @@ Wait for the next scheduled scan (check your crontab), or trigger manually:
 cat /etc/cron.d/skim-cron
 
 # Manually trigger if needed
-docker-compose exec bot python -m skim.core.bot run
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot run
 ```
 
 ## Expected Discord Notifications

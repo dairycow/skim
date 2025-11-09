@@ -11,7 +11,8 @@ When you push to GitHub:
 1. GitHub webhook triggers deploy/webhook.sh on your server
 2. Script runs: `git reset --hard origin/main` (pulls latest code)
 3. Script runs: `docker-compose down` (stops all containers)
-4. Script runs: `docker-compose up -d --build` (rebuilds and starts containers)
+4. Script runs: `docker-compose build --no-cache bot` (full rebuild with latest code)
+5. Script runs: `docker-compose up -d` (starts containers)
 
 ## Persistent Data
 
@@ -155,6 +156,9 @@ Wait 3-5 minutes for everything to stabilize, then check:
 cd /opt/skim
 docker-compose ps
 docker-compose logs bot | tail -50
+
+# Test bot functionality
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot status
 ```
 
 ## Manual Intervention Scenarios
@@ -208,6 +212,11 @@ Check server:
 sudo journalctl -u webhook -f
 cd /opt/skim
 docker-compose ps
+
+# Test new trading workflow methods
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot scan_ibkr_gaps
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot track_or_breakouts
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot execute_orh_breakouts
 ```
 
 ## Rollback Procedure
@@ -224,19 +233,46 @@ git reset --hard <commit-hash>
 
 # Rebuild
 docker-compose down
-docker-compose up -d --build
+docker-compose build --no-cache bot
+docker-compose up -d
 ```
 
 Or fix forward by pushing a new commit with the fix.
 
+## Available Bot Commands
+
+The updated webhook script provides these useful commands:
+
+```bash
+# Check bot status and positions
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot status
+
+# Scan for gap stocks (new OR tracking workflow)
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot scan_ibkr_gaps
+
+# Track opening range breakouts
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot track_or_breakouts
+
+# Execute orders for ORH breakouts
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot execute_orh_breakouts
+
+# Run full trading workflow
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot run
+
+# View logs
+docker-compose logs -f bot
+```
+
 ## Summary
 
 Your gitops setup is solid:
-- ✅ Auto-deploys on push to main
+- ✅ Auto-deploys on push to main with `--no-cache` rebuild
+- ✅ Uses correct Python module paths (`/app/.venv/bin/python -m skim.core.bot`)
 - ✅ Preserves trading data (./data/)
 - ✅ Preserves OAuth keys (./oauth_keys/)
 - ✅ Preserves OAuth credentials (.env)
-- ✅ Rebuilds application code
+- ✅ Rebuilds application code completely
 - ✅ Direct IBKR API connection via OAuth - no Gateway needed!
+- ✅ Includes new trading workflow methods
 
 Main consideration: Ensure OAuth credentials and .pem files are on server before first deploy.

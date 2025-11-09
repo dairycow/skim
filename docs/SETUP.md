@@ -141,7 +141,7 @@ uv run python -m skim.core.bot execute
 ### Check Bot Status
 ```bash
 # Docker
-docker exec skim-bot python -m skim.core.bot status
+docker-compose exec bot /app/.venv/bin/python -m skim.core.bot status
 
 # Local
 uv run python -m skim.core.bot status
