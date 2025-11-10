@@ -310,6 +310,8 @@ class TestTradingBotCoreMethods:
     @pytest.fixture
     def config(self):
         """Create test configuration"""
+        from skim.core.config import ScannerConfig
+
         config = Mock(spec=Config)
         config.gap_threshold = 3.0
         config.max_positions = 5
@@ -317,6 +319,7 @@ class TestTradingBotCoreMethods:
         config.paper_trading = True
         config.discord_webhook_url = "https://discord-webhook.com"
         config.db_path = ":memory:"
+        config.scanner_config = ScannerConfig()
         return config
 
     @pytest.fixture
@@ -675,9 +678,7 @@ class TestTradingBotCoreMethods:
 
         bot._connect_ib()
 
-        mock_ib_client.connect.assert_called_once_with(
-            host="", port=0, client_id=0, timeout=20
-        )
+        mock_ib_client.connect.assert_called_once_with(timeout=20)
 
     def test_connect_ib_when_already_connected(self, bot):
         """Test _connect_ib skips when already connected"""
@@ -695,6 +696,8 @@ class TestTradingBotWorkflowMethods:
     @pytest.fixture
     def config(self):
         """Create test configuration"""
+        from skim.core.config import ScannerConfig
+
         config = Mock(spec=Config)
         config.gap_threshold = 3.0
         config.max_positions = 5
@@ -702,6 +705,7 @@ class TestTradingBotWorkflowMethods:
         config.paper_trading = True
         config.discord_webhook_url = "https://discord-webhook.com"
         config.db_path = ":memory:"
+        config.scanner_config = ScannerConfig()
         return config
 
     @pytest.fixture
