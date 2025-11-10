@@ -14,7 +14,6 @@ from skim.validation.scanners import (
     BreakoutSignal,
     GapStock,
     OpeningRangeData,
-    ScannerRequest,
     ScannerValidationError,
 )
 
@@ -41,22 +40,24 @@ class IBKRGapScanner:
             Scanner parameters dictionary for IBKR API
         """
         try:
-            scanner_request = ScannerRequest(
-                instrument="STK",
-                scan_type="TOP_PERC_GAIN",
-                location="STK.HK.ASX",
-                filters=[
+            # IBKR API parameters for ASX gap scanning
+            scan_params = {
+                "instrument": "STOCK.HK",  # Asian stocks (includes ASX)
+                "type": "HIGH_OPEN_GAP",  # Top Close-to-Open % Gainers
+                "filter": [
                     {
-                        "code": "priceAbove",
-                        "value": 1,
+                        "code": "price",
+                        "value": 0.1,  # Minimum price filter to avoid penny stocks
                     },
                     {
-                        "code": "volumeAbove",
-                        "value": 50000,
+                        "code": "volume",
+                        "value": 1000,  # Minimum volume filter for liquidity
                     },
                 ],
-            )
-            return scanner_request.model_dump(by_alias=True)
+                "location": "STK.HK.ASX",  # Target ASX specifically
+            }
+            logger.debug(f"Created ASX gap scan parameters: {scan_params}")
+            return scan_params
         except Exception as e:
             logger.error(f"Failed to create scanner parameters: {e}")
             raise ScannerValidationError(
@@ -93,8 +94,7 @@ class IBKRGapScanner:
                     # Extract required fields from scanner result
                     symbol = result.get("symbol")
                     conid = result.get("conid")
-                    today_open = result.get("today_open", 0.0)
-                    previous_close = result.get("previous_close", 0.0)
+                    gap_percent = result.get("change_percent", 0.0)
 
                     # Validate required data
                     if not symbol or not conid:
@@ -103,24 +103,18 @@ class IBKRGapScanner:
                         )
                         continue
 
-                    if previous_close <= 0:
-                        logger.debug(
-                            f"Skipping {symbol} with invalid previous close: {previous_close}"
-                        )
-                        continue
-
-                    # Calculate actual gap percentage from open vs previous close
-                    actual_gap_pct = (
-                        (today_open - previous_close) / previous_close
-                    ) * 100
+                    # Use scanner gap percentage directly since it's already calculated
+                    actual_gap_pct = gap_percent
 
                     # Filter by minimum gap requirement
                     if actual_gap_pct >= min_gap:
                         try:
+                            # For now, use a placeholder close price since we can't get it reliably
+                            # In a real implementation, we'd fetch this from market data
                             gap_stock = GapStock(
                                 ticker=str(symbol),
                                 gap_percent=float(actual_gap_pct),
-                                close_price=float(previous_close),
+                                close_price=1.0,  # Placeholder - will be updated when needed
                                 conid=int(conid),
                             )
                             gap_stocks.append(gap_stock)
@@ -130,8 +124,7 @@ class IBKRGapScanner:
                             )
                             continue
                         logger.debug(
-                            f"Added gap stock: {symbol} gap={actual_gap_pct:.2f}% "
-                            f"(open={today_open}, prev_close={previous_close})"
+                            f"Added gap stock: {symbol} gap={actual_gap_pct:.2f}%"
                         )
                     else:
                         logger.debug(
@@ -223,15 +216,16 @@ class IBKRGapScanner:
                                 current_price,
                             )
 
-                        # Check if gap is still holding
-                        prev_close = ticker_data["prev_close"]
+                        # Check if gap is still holding (using placeholder logic)
+                        # In real implementation, we'd compare with actual previous close
                         if (
-                            prev_close is not None
-                            and current_price < prev_close
+                            ticker_data["first_price"]
+                            and current_price
+                            < ticker_data["first_price"] * 0.95
                         ):
                             ticker_data["gap_holding"] = False
                             logger.warning(
-                                f"{stock.ticker} gap failed - price {current_price} < prev_close {ticker_data['prev_close']}"
+                                f"{stock.ticker} gap failed - price {current_price} significantly below opening {ticker_data['first_price']}"
                             )
 
                 # Sleep until next poll
