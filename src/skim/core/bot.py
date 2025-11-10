@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
 """
-Skim - ASX Pivot Trading Bot
-iPhone-optimized indie trading system for paper trading on Interactive Brokers
-
-Strategy:
-1. Scan ASX for price-sensitive announcements
-2. Monitor opening auction for gaps >3%
-3. Enter on breakout above opening range high
-4. Stop loss at low of day
-5. Sell half position on day 3
-6. Trail remaining with 10-day SMA
+Skim - ASX Trading Bot
 """
 
 import sys
@@ -30,7 +21,7 @@ class TradingBot:
     """ASX Pivot Trading Bot"""
 
     def __init__(self, config: Config):
-        """Initialize the trading bot with configuration
+        """Initialise the trading bot with configuration
 
         Args:
             config: Configuration object with all settings
@@ -39,23 +30,23 @@ class TradingBot:
 
         self.config = config
 
-        # Initialize database
+        # Initialise database
         self.db = Database(config.db_path)
 
-        # Initialize scanners
+        # Initialise scanners
         self.ibkr_scanner = IBKRGapScanner(
             paper_trading=config.paper_trading,
             scanner_config=config.scanner_config,
         )
         self.asx_scanner = ASXAnnouncementScanner()
 
-        # Initialize IB client (lazy connection)
+        # Initialise IB client (lazy connection)
         self.ib_client = IBKRClient(paper_trading=config.paper_trading)
 
-        # Initialize Discord notifier
+        # Initialise Discord notifier
         self.discord_notifier = DiscordNotifier(config.discord_webhook_url)
 
-        logger.info("Bot initialized successfully")
+        logger.info("Bot initialised successfully")
 
     def _connect_ib(self):
         """Connect to IB Client Portal with safety checks and reconnection logic"""

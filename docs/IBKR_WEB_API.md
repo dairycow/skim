@@ -164,7 +164,7 @@ The IBKR Web API is a RESTful API that provides programmatic access to Interacti
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/` | Initialize Brokerage Session |
+| POST | `/` | Initialise Brokerage Session |
 | POST | `/` | Brokerage Session Auth Status |
 | GET | `/` | Re-authenticate Brokerage Session |
 | POST | `/` | Logout Of Current Session |

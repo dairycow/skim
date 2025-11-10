@@ -201,7 +201,7 @@ class TestTradingBotIBKRIntegration:
         ):
             bot = TradingBot(mock_bot_config)
 
-            # Verify IBKRGapScanner is initialized
+            # Verify IBKRGapScanner is initialised
             mock_scanner_class.assert_called_once()
 
             # Verify IBKR scanner is used
@@ -1112,7 +1112,7 @@ class TestTradingBotScannerConfig:
 
     def test_bot_initializes_scanner_with_config(self, bot, config):
         """Test TradingBot passes scanner_config to IBKRGapScanner"""
-        # The IBKRGapScanner should have been initialized with scanner_config
+        # The IBKRGapScanner should have been initialised with scanner_config
         # Since we're using mocks, we just verify the bot has the scanner
         assert bot.ibkr_scanner is not None
         assert hasattr(bot, "scanner_config") or hasattr(

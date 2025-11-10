@@ -11,7 +11,7 @@ class DiscordNotifier:
     """Discord webhook notification service"""
 
     def __init__(self, webhook_url: str | None):
-        """Initialize Discord notifier
+        """Initialise Discord notifier
 
         Args:
             webhook_url: Discord webhook URL for sending notifications
