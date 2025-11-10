@@ -143,8 +143,8 @@ class TestScannerParameters:
     @pytest.mark.parametrize(
         "field,expected_value",
         [
-            ("volume_filter", 50000),
-            ("price_filter", 0.50),
+            ("volume_filter", 10000),
+            ("price_filter", 0.05),
             ("or_duration_minutes", 10),
             ("or_poll_interval_seconds", 30),
             ("gap_fill_tolerance", 1.0),
@@ -170,33 +170,33 @@ class TestScannerParameters:
         assert getattr(config.scanner_config, field) == expected_value
 
     @pytest.mark.parametrize(
-        "env_var,env_value,field,expected_default",
+        "env_var,env_value,field,expected_value",
         [
-            ("SCANNER_VOLUME_FILTER", "75000", "volume_filter", 50000),
-            ("SCANNER_PRICE_FILTER", "0.75", "price_filter", 0.50),
-            ("OR_DURATION_MINUTES", "15", "or_duration_minutes", 10),
+            ("SCANNER_VOLUME_FILTER", "75000", "volume_filter", 75000),
+            ("SCANNER_PRICE_FILTER", "0.75", "price_filter", 0.75),
+            ("SCANNER_OR_DURATION", "15", "or_duration_minutes", 15),
             (
-                "OR_POLL_INTERVAL_SECONDS",
+                "SCANNER_OR_POLL_INTERVAL",
                 "45",
                 "or_poll_interval_seconds",
-                30,
+                45,
             ),
-            ("GAP_FILL_TOLERANCE", "1.5", "gap_fill_tolerance", 1.0),
-            ("OR_BREAKOUT_BUFFER", "0.2", "or_breakout_buffer", 0.1),
+            ("SCANNER_GAP_FILL_TOLERANCE", "1.5", "gap_fill_tolerance", 1.5),
+            ("SCANNER_OR_BREAKOUT_BUFFER", "0.2", "or_breakout_buffer", 0.2),
         ],
     )
-    def test_scanner_env_vars_ignored(
-        self, env_var, env_value, field, expected_default
+    def test_scanner_env_vars_used(
+        self, env_var, env_value, field, expected_value
     ):
-        """Test that scanner environment variables are ignored (parameterized)"""
+        """Test that scanner environment variables are used (parameterized)"""
         # Set environment variable to non-default value
         os.environ[env_var] = env_value
         os.environ["PAPER_TRADING"] = "true"
 
         config = Config.from_env()
 
-        # Should still use ScannerConfig default, not environment variable
-        assert getattr(config.scanner_config, field) == expected_default
+        # Should use environment variable value, not default
+        assert getattr(config.scanner_config, field) == expected_value
 
         # Clean up
         os.environ.pop(env_var, None)
@@ -251,8 +251,8 @@ class TestConfigLogging:
         log_output = log_capture.getvalue()
 
         # Should log scanner configuration values
-        assert "Scanner Volume Filter: 50,000 shares" in log_output
-        assert "Scanner Price Filter: $0.5" in log_output
+        assert "Scanner Volume Filter: 10,000 shares" in log_output
+        assert "Scanner Price Filter: $0.05" in log_output
         assert "OR Duration: 10 minutes" in log_output
         assert "OR Poll Interval: 30 seconds" in log_output
         assert "Gap Fill Tolerance: $1.0" in log_output

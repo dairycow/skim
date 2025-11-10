@@ -1006,13 +1006,13 @@ class TestIBKRGapScanner:
 
         # Verify price filter
         price_filter = next(f for f in params["filter"] if f["code"] == "price")
-        assert price_filter["value"] == 0.1
+        assert price_filter["value"] == 0.05
 
         # Verify volume filter
         volume_filter = next(
             f for f in params["filter"] if f["code"] == "volume"
         )
-        assert volume_filter["value"] == 1000
+        assert volume_filter["value"] == 10000
 
     def test_scan_for_gaps_not_connected(self, mocker):
         """Test scan for gaps when scanner is not connected"""
