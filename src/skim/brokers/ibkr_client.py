@@ -690,10 +690,20 @@ class IBKRClient(IBInterface):
         params = {"conids": conid}
         response = self._request("GET", endpoint, params=params)
 
+        # Debug: Log the full response
+        logger.debug(
+            f"Market data response for {ticker} (conid: {conid}): {response}"
+        )
+
         # Step 3: Parse response
         if isinstance(response, list) and len(response) > 0:
             data = response[0]
             if isinstance(data, dict):
+                # Debug: Log all available fields
+                logger.debug(
+                    f"Available fields in market data for {ticker}: {list(data.keys())}"
+                )
+
                 # IBKR uses field codes: 31=last, 84=bid, 86=ask, 87=volume, 7=low
                 last_price = data.get("31") or data.get("last") or 0.0
                 bid = data.get("84") or data.get("bid") or 0.0
@@ -701,13 +711,37 @@ class IBKRClient(IBInterface):
                 volume = data.get("87") or data.get("volume") or 0
                 low = data.get("7") or data.get("low") or 0.0
 
-                # Convert to float first
+                # Debug: Log extracted values
+                logger.debug(
+                    f"Extracted values for {ticker}: last={last_price}, bid={bid}, ask={ask}, volume={volume}, low={low}"
+                )
+
+                # Helper function to clean market data values
+                def clean_value(value, value_type=float):
+                    """Clean market data values by removing prefixes and converting type"""
+                    if isinstance(value, str):
+                        # Remove common prefixes like 'C' (Closed), 'H' (High), etc.
+                        cleaned = value.lstrip("CH")
+                        try:
+                            return value_type(cleaned)
+                        except ValueError:
+                            logger.warning(
+                                f"Could not convert {value} to {value_type.__name__}"
+                            )
+                            return value_type(0)
+                    return (
+                        value_type(value)
+                        if value is not None
+                        else (0.0 if value_type is float else 0)
+                    )
+
+                # Convert to proper types
                 try:
-                    last_price_float = float(last_price)
-                    bid_float = float(bid)
-                    ask_float = float(ask)
-                    volume_int = int(volume)
-                    low_float = float(low)
+                    last_price_float = clean_value(last_price, float)
+                    bid_float = clean_value(bid, float)
+                    ask_float = clean_value(ask, float)
+                    volume_int = int(clean_value(volume, float))
+                    low_float = clean_value(low, float)
                 except (ValueError, TypeError) as e:
                     logger.warning(
                         f"Invalid market data values for {ticker}: {e}"
