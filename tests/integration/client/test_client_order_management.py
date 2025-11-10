@@ -127,7 +127,7 @@ if __name__ == "__main__":
     validate_oauth_environment()
 
     test_client = IBKRClient(paper_trading=True)
-    test_client.connect(host="", port=0, client_id=0)
+    test_client.connect()
 
     try:
         test_get_open_orders_initial(test_client)

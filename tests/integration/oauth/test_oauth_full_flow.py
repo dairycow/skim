@@ -65,7 +65,7 @@ def test_oauth_connection_workflow(oauth_config):
 
     # Test connection (this will internally handle OAuth LST generation)
     logger.info("Connecting to IBKR using OAuth...")
-    client.connect(host="", port=0, client_id=0)
+    client.connect()
 
     assert client.is_connected(), "Failed to connect using OAuth"
 
@@ -102,7 +102,7 @@ def test_oauth_session_persistence(oauth_config):
     client = IBKRClient(paper_trading=True)
 
     # First connection
-    client.connect(host="", port=0, client_id=0)
+    client.connect()
     assert client.is_connected(), "Initial connection failed"
 
     account_id_1 = client.get_account()
@@ -112,7 +112,7 @@ def test_oauth_session_persistence(oauth_config):
     assert not client.is_connected(), "Disconnection failed"
 
     # Reconnect (should generate new LST)
-    client.connect(host="", port=0, client_id=0)
+    client.connect()
     assert client.is_connected(), "Reconnection failed"
 
     account_id_2 = client.get_account()

@@ -362,18 +362,14 @@ class IBKRGapScanner:
         logger.info(f"Found {len(breakouts)} valid breakouts")
         return breakouts
 
-    def connect(
-        self, host: str = "", port: int = 0, client_id: int = 0
-    ) -> None:
+    def connect(self, timeout: int = 20) -> None:
         """Connect to IBKR
 
         Args:
-            host: Ignored (OAuth uses api.ibkr.com)
-            port: Ignored (OAuth uses HTTPS)
-            client_id: Ignored (OAuth uses consumer key)
+            timeout: Connection timeout in seconds
         """
         try:
-            self.client.connect(host, port, client_id)
+            self.client.connect(timeout)
             self._connected = True
             logger.info("IBKR gap scanner connected successfully")
         except Exception as e:

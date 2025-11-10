@@ -401,7 +401,7 @@ def ibkr_client():
 
     # Create and connect client
     client = IBKRClient(paper_trading=True)
-    client.connect(host="", port=0, client_id=0)
+    client.connect()
 
     yield client
 

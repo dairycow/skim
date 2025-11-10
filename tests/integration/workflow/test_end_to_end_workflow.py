@@ -215,7 +215,7 @@ if __name__ == "__main__":
         test_client_initialization()
 
         # Connect for remaining tests
-        test_client.connect(host="", port=0, client_id=0)
+        test_client.connect()
 
         test_client_connection(test_client)
         test_account_operations(test_client)

@@ -53,13 +53,7 @@ class TradingBot:
         if self.ib_client.is_connected():
             return
 
-        # IBKRClient uses OAuth, host/port/client_id are not used
-        self.ib_client.connect(
-            host="",  # OAuth uses api.ibkr.com
-            port=0,  # OAuth uses HTTPS
-            client_id=0,  # OAuth uses consumer key
-            timeout=20,
-        )
+        self.ib_client.connect(timeout=20)
 
     def _ensure_connection(self):
         """Ensure IB connection is alive, reconnect if needed"""
