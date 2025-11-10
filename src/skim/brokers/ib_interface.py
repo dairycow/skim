@@ -31,15 +31,10 @@ class OrderResult:
 class IBInterface(Protocol):
     """Protocol defining the Interactive Brokers client interface"""
 
-    def connect(
-        self, host: str, port: int, client_id: int, timeout: int = 20
-    ) -> None:
+    def connect(self, timeout: int = 20) -> None:
         """Connect to IB Gateway/Client Portal API
 
         Args:
-            host: IB Gateway hostname or IP
-            port: IB Gateway port (5000 for Client Portal API)
-            client_id: Unique client ID
             timeout: Connection timeout in seconds
 
         Raises:

@@ -330,9 +330,7 @@ class IBKRClient(IBInterface):
 
     # ========== Connection & Session Management ==========
 
-    def connect(
-        self, host: str, port: int, client_id: int, timeout: int = 20
-    ) -> None:
+    def connect(self, timeout: int = 20) -> None:
         """Establish authenticated session with IBKR
 
         Steps:
@@ -342,9 +340,6 @@ class IBKRClient(IBInterface):
         4. Verify paper trading (account starts with 'DU')
 
         Args:
-            host: Ignored (OAuth uses api.ibkr.com)
-            port: Ignored (OAuth uses HTTPS)
-            client_id: Ignored (OAuth uses consumer key)
             timeout: Connection timeout in seconds
 
         Raises:

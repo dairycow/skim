@@ -39,7 +39,7 @@ def test_connection(ibkr_client):
     """Test connecting to IBKR."""
     logger.info("Testing connection to IBKR...")
 
-    ibkr_client.connect(host="", port=0, client_id=0)
+    ibkr_client.connect()
 
     assert ibkr_client.is_connected(), "Failed to connect to IBKR"
 
