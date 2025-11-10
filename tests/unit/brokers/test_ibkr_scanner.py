@@ -14,47 +14,8 @@ from skim.brokers.ibkr_client import IBKRClient
 class TestIBKRScanner:
     """Tests for IBKR scanner methods"""
 
-    @pytest.fixture
-    def client(self):
-        """Create IBKR client instance for testing"""
-        # Mock environment variables to avoid ValueError in __init__
-        import os
-
-        original_env = {}
-        required_vars = [
-            "OAUTH_CONSUMER_KEY",
-            "OAUTH_ACCESS_TOKEN",
-            "OAUTH_ACCESS_TOKEN_SECRET",
-            "OAUTH_DH_PRIME",
-            "OAUTH_SIGNATURE_PATH",
-            "OAUTH_ENCRYPTION_PATH",
-        ]
-
-        for var in required_vars:
-            original_env[var] = os.environ.get(var)
-            os.environ[var] = "test_value"
-
-        # Set dummy file paths for keys
-        os.environ["OAUTH_SIGNATURE_PATH"] = "/tmp/test_signature.pem"
-        os.environ["OAUTH_ENCRYPTION_PATH"] = "/tmp/test_encryption.pem"
-
-        try:
-            client = IBKRClient(paper_trading=True)
-            # Mock connection state
-            client._connected = True
-            client._lst = "test_lst_token"
-            client._account_id = "DU1234567"
-            yield client
-        finally:
-            # Restore original environment
-            for var, value in original_env.items():
-                if value is None:
-                    os.environ.pop(var, None)
-                else:
-                    os.environ[var] = value
-
     @responses.activate
-    def test_run_scanner_success(self, client):
+    def test_run_scanner_success(self, ibkr_client_mock_oauth):
         """Test successful scanner execution"""
         # Mock scanner run response
         scanner_response = [
@@ -81,7 +42,7 @@ class TestIBKRScanner:
         ]
 
         responses.post(
-            f"{client.BASE_URL}/iserver/scanner/run",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/scanner/run",
             json=scanner_response,
             status=200,
         )
@@ -96,7 +57,7 @@ class TestIBKRScanner:
             "location": "ASX",
         }
 
-        result = client.run_scanner(scan_params)
+        result = ibkr_client_mock_oauth.run_scanner(scan_params)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -109,10 +70,10 @@ class TestIBKRScanner:
         assert result[0]["volume"] == 1000000
 
     @responses.activate
-    def test_run_scanner_api_error(self, client):
+    def test_run_scanner_api_error(self, ibkr_client_mock_oauth):
         """Test scanner execution with API error"""
         responses.post(
-            f"{client.BASE_URL}/iserver/scanner/run",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/scanner/run",
             json={"error": "Invalid scan parameters"},
             status=400,
         )
@@ -120,17 +81,17 @@ class TestIBKRScanner:
         scan_params = {"instrument": "STK"}
 
         with pytest.raises(RuntimeError, match="Request failed: 400"):
-            client.run_scanner(scan_params)
+            ibkr_client_mock_oauth.run_scanner(scan_params)
 
-    def test_run_scanner_not_connected(self, client):
+    def test_run_scanner_not_connected(self, ibkr_client_mock_oauth):
         """Test scanner execution when not connected"""
-        client._connected = False
+        ibkr_client_mock_oauth._connected = False
 
         with pytest.raises(RuntimeError, match="Not connected"):
-            client.run_scanner({})
+            ibkr_client_mock_oauth.run_scanner({})
 
     @responses.activate
-    def test_get_scanner_params_success(self, client):
+    def test_get_scanner_params_success(self, ibkr_client_mock_oauth):
         """Test successful retrieval of scanner parameters"""
         params_response = {
             "STK": {
@@ -154,12 +115,12 @@ class TestIBKRScanner:
         }
 
         responses.get(
-            f"{client.BASE_URL}/iserver/scanner/params",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/scanner/params",
             json=params_response,
             status=200,
         )
 
-        result = client.get_scanner_params()
+        result = ibkr_client_mock_oauth.get_scanner_params()
 
         assert isinstance(result, dict)
         assert "STK" in result
@@ -168,26 +129,26 @@ class TestIBKRScanner:
         assert len(result["STK"]["filter"]) == 3
 
     @responses.activate
-    def test_get_scanner_params_api_error(self, client):
+    def test_get_scanner_params_api_error(self, ibkr_client_mock_oauth):
         """Test scanner parameters retrieval with API error"""
         responses.get(
-            f"{client.BASE_URL}/iserver/scanner/params",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/scanner/params",
             json={"error": "Service unavailable"},
             status=500,
         )
 
         with pytest.raises(RuntimeError):
-            client.get_scanner_params()
+            ibkr_client_mock_oauth.get_scanner_params()
 
-    def test_get_scanner_params_not_connected(self, client):
+    def test_get_scanner_params_not_connected(self, ibkr_client_mock_oauth):
         """Test scanner parameters retrieval when not connected"""
-        client._connected = False
+        ibkr_client_mock_oauth._connected = False
 
         with pytest.raises(RuntimeError, match="Not connected"):
-            client.get_scanner_params()
+            ibkr_client_mock_oauth.get_scanner_params()
 
     @responses.activate
-    def test_get_market_data_extended_success(self, client):
+    def test_get_market_data_extended_success(self, ibkr_client_mock_oauth):
         """Test successful extended market data retrieval"""
         market_data_response = {
             "6793599": {
@@ -200,12 +161,12 @@ class TestIBKRScanner:
         }
 
         responses.get(
-            f"{client.BASE_URL}/iserver/marketdata/snapshot",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=market_data_response,
             status=200,
         )
 
-        result = client.get_market_data_extended("6793599")
+        result = ibkr_client_mock_oauth.get_market_data_extended("6793599")
 
         assert isinstance(result, dict)
         assert result["last_price"] == 45.50
@@ -215,63 +176,63 @@ class TestIBKRScanner:
         assert result["volume"] == 1000000
 
     @responses.activate
-    def test_get_market_data_extended_not_found(self, client):
+    def test_get_market_data_extended_not_found(self, ibkr_client_mock_oauth):
         """Test extended market data retrieval for non-existent contract"""
         responses.get(
-            f"{client.BASE_URL}/iserver/marketdata/snapshot",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json={"error": "Contract not found"},
             status=404,
         )
 
         with pytest.raises(RuntimeError, match="Request failed: 404"):
-            client.get_market_data_extended("9999999")
+            ibkr_client_mock_oauth.get_market_data_extended("9999999")
 
-    def test_get_market_data_extended_not_connected(self, client):
+    def test_get_market_data_extended_not_connected(self, ibkr_client_mock_oauth):
         """Test extended market data retrieval when not connected"""
-        client._connected = False
+        ibkr_client_mock_oauth._connected = False
 
         with pytest.raises(RuntimeError, match="Not connected"):
-            client.get_market_data_extended("6793599")
+            ibkr_client_mock_oauth.get_market_data_extended("6793599")
 
     @responses.activate
-    def test_get_market_data_extended_empty_response(self, client):
+    def test_get_market_data_extended_empty_response(self, ibkr_client_mock_oauth):
         """Test extended market data retrieval with empty response"""
         responses.get(
-            f"{client.BASE_URL}/iserver/marketdata/snapshot",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json={},
             status=200,
         )
 
-        result = client.get_market_data_extended("6793599")
+        result = ibkr_client_mock_oauth.get_market_data_extended("6793599")
 
         # Should return empty dict when no data found
         assert result == {}
 
     @responses.activate
-    def test_run_scanner_empty_response(self, client):
+    def test_run_scanner_empty_response(self, ibkr_client_mock_oauth):
         """Test scanner execution with empty response"""
         responses.post(
-            f"{client.BASE_URL}/iserver/scanner/run",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/scanner/run",
             json=[],
             status=200,
         )
 
-        result = client.run_scanner({"instrument": "STK"})
+        result = ibkr_client_mock_oauth.run_scanner({"instrument": "STK"})
 
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_run_scanner_empty_params(self, client):
+    def test_run_scanner_empty_params(self, ibkr_client_mock_oauth):
         """Test scanner execution with empty parameters"""
         with pytest.raises(ValueError, match="Scan parameters cannot be empty"):
-            client.run_scanner({})
+            ibkr_client_mock_oauth.run_scanner({})
 
     @responses.activate
-    def test_run_scanner_missing_required_params(self, client):
+    def test_run_scanner_missing_required_params(self, ibkr_client_mock_oauth):
         """Test scanner execution with missing required parameters"""
         # Mock 400 response for missing parameters
         responses.post(
-            f"{client.BASE_URL}/iserver/scanner/run",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/scanner/run",
             json={
                 "error": "Bad Request: instrument and type params expected.",
                 "statusCode": 400,
@@ -288,32 +249,32 @@ class TestIBKRScanner:
         }
 
         with pytest.raises(RuntimeError, match="Request failed: 400"):
-            client.run_scanner(scan_params)
+            ibkr_client_mock_oauth.run_scanner(scan_params)
 
-    def test_get_market_data_extended_empty_conid(self, client):
+    def test_get_market_data_extended_empty_conid(self, ibkr_client_mock_oauth):
         """Test extended market data with empty contract ID"""
         with pytest.raises(ValueError, match="Contract ID .* cannot be empty"):
-            client.get_market_data_extended("")
+            ibkr_client_mock_oauth.get_market_data_extended("")
 
         with pytest.raises(ValueError, match="Contract ID .* cannot be empty"):
-            client.get_market_data_extended(None)
+            ibkr_client_mock_oauth.get_market_data_extended(None)
 
     @responses.activate
-    def test_run_scanner_invalid_response_format(self, client):
+    def test_run_scanner_invalid_response_format(self, ibkr_client_mock_oauth):
         """Test scanner with invalid response format"""
         responses.post(
-            f"{client.BASE_URL}/iserver/scanner/run",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/scanner/run",
             json={"invalid": "format"},
             status=200,
         )
 
-        result = client.run_scanner({"instrument": "STK"})
+        result = ibkr_client_mock_oauth.run_scanner({"instrument": "STK"})
 
         assert isinstance(result, list)
         assert len(result) == 0
 
     @responses.activate
-    def test_get_market_data_extended_type_conversion(self, client):
+    def test_get_market_data_extended_type_conversion(self, ibkr_client_mock_oauth):
         """Test extended market data with type conversion"""
         market_data_response = {
             "6793599": {
@@ -326,12 +287,12 @@ class TestIBKRScanner:
         }
 
         responses.get(
-            f"{client.BASE_URL}/iserver/marketdata/snapshot",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=market_data_response,
             status=200,
         )
 
-        result = client.get_market_data_extended("6793599")
+        result = ibkr_client_mock_oauth.get_market_data_extended("6793599")
 
         assert isinstance(result["last_price"], float)
         assert isinstance(result["change_percent"], float)
