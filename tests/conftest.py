@@ -184,6 +184,78 @@ def ibkr_client_mock_oauth():
 
 
 # ==============================================================================
+# TradingBot Testing Fixtures
+# ==============================================================================
+
+
+@pytest.fixture
+def mock_bot_config():
+    """Create mock configuration for TradingBot tests.
+
+    Returns a Mock object configured with standard trading bot parameters.
+    Tests can override specific attributes as needed.
+
+    Returns:
+        Mock: Mock config with standard bot parameters
+    """
+    from unittest.mock import Mock
+
+    from skim.core.config import Config
+
+    config = Mock(spec=Config)
+    config.gap_threshold = 3.0
+    config.max_positions = 5
+    config.max_position_size = 1000
+    config.stop_loss_pct = 5.0
+    config.paper_trading = True
+    config.discord_webhook_url = "https://discord-webhook.com"
+    config.db_path = ":memory:"
+    return config
+
+
+@pytest.fixture
+def mock_trading_bot(mock_bot_config):
+    """Create TradingBot instance with all dependencies mocked.
+
+    This fixture patches all external dependencies (Database, IBKRClient,
+    IBKRGapScanner, ASXAnnouncementScanner, DiscordNotifier) and returns
+    a TradingBot instance ready for testing.
+
+    The bot instance has access to mocked versions of:
+    - bot.db (Database)
+    - bot.ib_client (IBKRClient)
+    - bot.ibkr_scanner (IBKRGapScanner)
+    - bot.asx_scanner (ASXAnnouncementScanner)
+    - bot.discord (DiscordNotifier)
+
+    Args:
+        mock_bot_config: Mock configuration fixture
+
+    Returns:
+        TradingBot: Bot instance with all dependencies mocked
+
+    Example:
+        def test_something(mock_trading_bot):
+            mock_trading_bot.db.get_candidates.return_value = [...]
+            result = mock_trading_bot.scan()
+            assert result == expected
+    """
+    from unittest.mock import patch
+
+    from skim.core.bot import TradingBot
+
+    with (
+        patch("skim.core.bot.Database"),
+        patch("skim.core.bot.IBKRClient"),
+        patch("skim.core.bot.IBKRGapScanner"),
+        patch("skim.core.bot.ASXAnnouncementScanner"),
+        patch("skim.core.bot.DiscordNotifier"),
+    ):
+        bot = TradingBot(mock_bot_config)
+        yield bot
+
+
+# ==============================================================================
 # OAuth Testing Fixtures
 # ==============================================================================
 
