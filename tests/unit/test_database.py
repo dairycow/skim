@@ -1,5 +1,7 @@
 """Unit tests for database operations"""
 
+import pytest
+
 from skim.data.models import Candidate
 
 
@@ -26,9 +28,18 @@ def test_get_nonexistent_candidate(test_db):
     assert result is None
 
 
-def test_get_watching_candidates(test_db):
-    """Test retrieving candidates with status='watching'"""
-    # Create multiple candidates
+@pytest.mark.parametrize(
+    "target_status,method_name,expected_tickers",
+    [
+        ("watching", "get_watching_candidates", {"BHP", "FMG"}),
+        ("triggered", "get_triggered_candidates", {"RIO"}),
+    ],
+)
+def test_get_candidates_by_status(
+    test_db, target_status, method_name, expected_tickers
+):
+    """Test retrieving candidates by status (parameterized)"""
+    # Create multiple candidates with different statuses
     cand1 = Candidate(
         ticker="BHP",
         headline="Test 1",
@@ -58,28 +69,13 @@ def test_get_watching_candidates(test_db):
     test_db.save_candidate(cand2)
     test_db.save_candidate(cand3)
 
-    watching = test_db.get_watching_candidates()
-    assert len(watching) == 2
-    assert all(c.status == "watching" for c in watching)
-    assert {c.ticker for c in watching} == {"BHP", "FMG"}
+    # Call the appropriate method dynamically
+    method = getattr(test_db, method_name)
+    results = method()
 
-
-def test_get_triggered_candidates(test_db):
-    """Test retrieving candidates with status='triggered'"""
-    cand1 = Candidate(
-        ticker="BHP",
-        headline="Test",
-        scan_date="2025-11-03",
-        status="triggered",
-        gap_percent=3.5,
-        prev_close=45.20,
-    )
-    test_db.save_candidate(cand1)
-
-    triggered = test_db.get_triggered_candidates()
-    assert len(triggered) == 1
-    assert triggered[0].ticker == "BHP"
-    assert triggered[0].status == "triggered"
+    assert len(results) == len(expected_tickers)
+    assert all(c.status == target_status for c in results)
+    assert {c.ticker for c in results} == expected_tickers
 
 
 def test_update_candidate_status(test_db, sample_candidate):
@@ -289,8 +285,17 @@ def test_get_total_pnl_with_trades(test_db):
     assert total == 125.00  # 75 + 100 - 50
 
 
-def test_get_or_tracking_candidates(test_db):
-    """Test retrieving candidates with status='or_tracking'"""
+@pytest.mark.parametrize(
+    "target_status,method_name,expected_tickers",
+    [
+        ("or_tracking", "get_or_tracking_candidates", {"BHP", "FMG"}),
+        ("orh_breakout", "get_orh_breakout_candidates", {"RIO"}),
+    ],
+)
+def test_get_or_candidates_by_status(
+    test_db, target_status, method_name, expected_tickers
+):
+    """Test retrieving OR-related candidates by status (parameterized)"""
     # Create candidates with different statuses
     cand1 = Candidate(
         ticker="BHP",
@@ -304,7 +309,7 @@ def test_get_or_tracking_candidates(test_db):
         ticker="RIO",
         headline="Test 2",
         scan_date="2025-11-03",
-        status="watching",
+        status="orh_breakout",
         gap_percent=4.2,
         prev_close=120.50,
     )
@@ -321,28 +326,13 @@ def test_get_or_tracking_candidates(test_db):
     test_db.save_candidate(cand2)
     test_db.save_candidate(cand3)
 
-    or_tracking = test_db.get_or_tracking_candidates()
-    assert len(or_tracking) == 2
-    assert all(c.status == "or_tracking" for c in or_tracking)
-    assert {c.ticker for c in or_tracking} == {"BHP", "FMG"}
+    # Call the appropriate method dynamically
+    method = getattr(test_db, method_name)
+    results = method()
 
-
-def test_get_orh_breakout_candidates(test_db):
-    """Test retrieving candidates with status='orh_breakout'"""
-    cand1 = Candidate(
-        ticker="BHP",
-        headline="Test",
-        scan_date="2025-11-03",
-        status="orh_breakout",
-        gap_percent=3.5,
-        prev_close=45.20,
-    )
-    test_db.save_candidate(cand1)
-
-    breakout = test_db.get_orh_breakout_candidates()
-    assert len(breakout) == 1
-    assert breakout[0].ticker == "BHP"
-    assert breakout[0].status == "orh_breakout"
+    assert len(results) == len(expected_tickers)
+    assert all(c.status == target_status for c in results)
+    assert {c.ticker for c in results} == expected_tickers
 
 
 def test_update_candidate_or_data(test_db, sample_candidate):
