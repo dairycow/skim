@@ -1,112 +1,262 @@
-"""Test configuration loading for new scanner parameters and default values"""
+"""Comprehensive configuration tests for Config and ScannerConfig classes
 
+This test suite consolidates all configuration testing to avoid duplication.
+It covers:
+- Trading parameter defaults and environment variable overrides
+- ScannerConfig integration with Config class
+- Scanner parameter defaults and immutability from environment variables
+- Configuration logging
+- Custom configuration creation
+"""
+
+import io
 import os
 
-from skim.core.config import Config
+import pytest
+from loguru import logger
+
+from skim.core.config import Config, ScannerConfig
 
 
-def test_config_default_trading_parameters():
-    """Test that trading parameters have correct default values"""
-    # Clear any existing environment variables
-    for key in [
-        "PAPER_TRADING",
-        "GAP_THRESHOLD",
-        "MAX_POSITION_SIZE",
-        "MAX_POSITIONS",
-        "DB_PATH",
-    ]:
-        os.environ.pop(key, None)
+class TestTradingParameters:
+    """Tests for trading-related configuration parameters"""
 
-    config = Config.from_env()
+    def test_default_trading_parameters(self):
+        """Test that trading parameters have correct default values"""
+        # Clear any existing environment variables
+        for key in [
+            "PAPER_TRADING",
+            "GAP_THRESHOLD",
+            "MAX_POSITION_SIZE",
+            "MAX_POSITIONS",
+            "DB_PATH",
+        ]:
+            os.environ.pop(key, None)
 
-    # Test default values
-    assert config.paper_trading
-    assert config.gap_threshold == 3.0
-    assert config.max_position_size == 1000
-    assert config.max_positions == 5
-    assert config.db_path == "/app/data/skim.db"
+        config = Config.from_env()
 
+        # Test default values
+        assert config.paper_trading
+        assert config.gap_threshold == 3.0
+        assert config.max_position_size == 1000
+        assert config.max_positions == 5
+        assert config.db_path == "/app/data/skim.db"
 
-def test_config_trading_parameters_can_be_overridden():
-    """Test that trading parameters can be overridden via environment variables"""
-    # Set test environment variables
-    os.environ["PAPER_TRADING"] = "true"
-    os.environ["GAP_THRESHOLD"] = "5.0"
-    os.environ["MAX_POSITION_SIZE"] = "2000"
-    os.environ["MAX_POSITIONS"] = "10"
-    os.environ["DB_PATH"] = "/custom/path/db.sqlite"
+    def test_trading_parameters_can_be_overridden(self):
+        """Test that trading parameters can be overridden via environment variables"""
+        # Set test environment variables
+        os.environ["PAPER_TRADING"] = "true"
+        os.environ["GAP_THRESHOLD"] = "5.0"
+        os.environ["MAX_POSITION_SIZE"] = "2000"
+        os.environ["MAX_POSITIONS"] = "10"
+        os.environ["DB_PATH"] = "/custom/path/db.sqlite"
 
-    config = Config.from_env()
+        config = Config.from_env()
 
-    # Should use environment variable values
-    assert config.paper_trading
-    assert config.gap_threshold == 5.0
-    assert config.max_position_size == 2000
-    assert config.max_positions == 10
-    assert config.db_path == "/custom/path/db.sqlite"
+        # Should use environment variable values
+        assert config.paper_trading
+        assert config.gap_threshold == 5.0
+        assert config.max_position_size == 2000
+        assert config.max_positions == 10
+        assert config.db_path == "/custom/path/db.sqlite"
 
-    # Clean up
-    for key in [
-        "PAPER_TRADING",
-        "GAP_THRESHOLD",
-        "MAX_POSITION_SIZE",
-        "MAX_POSITIONS",
-        "DB_PATH",
-    ]:
-        os.environ.pop(key, None)
-
-
-def test_config_scanner_parameters_default_values():
-    """Test that scanner parameters have correct default values"""
-    # Clear any existing environment variables
-    for key in [
-        "SCANNER_VOLUME_FILTER",
-        "SCANNER_PRICE_FILTER",
-        "OR_DURATION_MINUTES",
-        "OR_POLL_INTERVAL_SECONDS",
-        "GAP_FILL_TOLERANCE",
-        "OR_BREAKOUT_BUFFER",
-    ]:
-        os.environ.pop(key, None)
-
-    config = Config.from_env()
-
-    # Test through scanner_config attribute
-    assert config.scanner_config.volume_filter == 50000
-    assert config.scanner_config.price_filter == 0.50
-    assert config.scanner_config.or_duration_minutes == 10
-    assert config.scanner_config.or_poll_interval_seconds == 30
-    assert config.scanner_config.gap_fill_tolerance == 1.0
-    assert config.scanner_config.or_breakout_buffer == 0.1
+        # Clean up
+        for key in [
+            "PAPER_TRADING",
+            "GAP_THRESHOLD",
+            "MAX_POSITION_SIZE",
+            "MAX_POSITIONS",
+            "DB_PATH",
+        ]:
+            os.environ.pop(key, None)
 
 
-def test_config_scanner_parameters_ignored_from_env():
-    """Test that scanner environment variables are ignored (using ScannerConfig defaults)"""
-    # Set test environment variables
-    os.environ["SCANNER_VOLUME_FILTER"] = "75000"
-    os.environ["SCANNER_PRICE_FILTER"] = "0.75"
-    os.environ["OR_DURATION_MINUTES"] = "15"
-    os.environ["OR_POLL_INTERVAL_SECONDS"] = "45"
-    os.environ["GAP_FILL_TOLERANCE"] = "1.5"
-    os.environ["OR_BREAKOUT_BUFFER"] = "0.2"
+class TestScannerConfigIntegration:
+    """Tests for ScannerConfig integration with Config class"""
 
-    config = Config.from_env()
+    def test_config_has_scanner_config_attribute(self):
+        """Test that Config class has scanner_config attribute instead of individual scanner fields"""
+        config = Config(
+            ib_client_id=1,
+            discord_webhook_url=None,
+            scanner_config=ScannerConfig(),
+        )
 
-    # Should still use ScannerConfig defaults, not environment variables
-    assert config.scanner_config.volume_filter == 50000
-    assert config.scanner_config.price_filter == 0.50
-    assert config.scanner_config.or_duration_minutes == 10
-    assert config.scanner_config.or_poll_interval_seconds == 30
-    assert config.scanner_config.gap_fill_tolerance == 1.0
-    assert config.scanner_config.or_breakout_buffer == 0.1
+        # Should have scanner_config attribute
+        assert hasattr(config, "scanner_config")
 
-    # Clean up
-    for key in [
-        "SCANNER_VOLUME_FILTER",
-        "SCANNER_PRICE_FILTER",
-        "OR_DURATION_MINUTES",
-        "OR_POLL_INTERVAL_SECONDS",
-        "GAP_FILL_TOLERANCE",
-        "OR_BREAKOUT_BUFFER",
-    ]:
-        os.environ.pop(key, None)
+        # Should NOT have individual scanner fields
+        assert not hasattr(config, "scanner_volume_filter")
+        assert not hasattr(config, "scanner_price_filter")
+        assert not hasattr(config, "or_duration_minutes")
+        assert not hasattr(config, "or_poll_interval_seconds")
+        assert not hasattr(config, "gap_fill_tolerance")
+        assert not hasattr(config, "or_breakout_buffer")
+
+    def test_scanner_config_type(self):
+        """Test that Config.scanner_config is of correct type"""
+        config = Config(
+            ib_client_id=1,
+            discord_webhook_url=None,
+            scanner_config=ScannerConfig(),
+        )
+
+        assert isinstance(config.scanner_config, ScannerConfig)
+
+    def test_from_env_creates_scanner_config(self):
+        """Test that Config.from_env() creates scanner_config from ScannerConfig"""
+        # Clear any existing scanner environment variables
+        for key in [
+            "SCANNER_VOLUME_FILTER",
+            "SCANNER_PRICE_FILTER",
+            "OR_DURATION_MINUTES",
+            "OR_POLL_INTERVAL_SECONDS",
+            "GAP_FILL_TOLERANCE",
+            "OR_BREAKOUT_BUFFER",
+        ]:
+            os.environ.pop(key, None)
+
+        # Set required non-scanner environment variables
+        os.environ["PAPER_TRADING"] = "true"
+
+        config = Config.from_env()
+
+        # Should have scanner_config attribute
+        assert hasattr(config, "scanner_config")
+        assert config.scanner_config is not None
+
+        # Should not have individual scanner attributes
+        assert not hasattr(config, "scanner_volume_filter")
+        assert not hasattr(config, "scanner_price_filter")
+        assert not hasattr(config, "or_duration_minutes")
+        assert not hasattr(config, "or_poll_interval_seconds")
+        assert not hasattr(config, "gap_fill_tolerance")
+        assert not hasattr(config, "or_breakout_buffer")
+
+        # Clean up
+        os.environ.pop("PAPER_TRADING", None)
+
+
+class TestScannerParameters:
+    """Tests for scanner configuration parameters"""
+
+    @pytest.mark.parametrize(
+        "field,expected_value",
+        [
+            ("volume_filter", 50000),
+            ("price_filter", 0.50),
+            ("or_duration_minutes", 10),
+            ("or_poll_interval_seconds", 30),
+            ("gap_fill_tolerance", 1.0),
+            ("or_breakout_buffer", 0.1),
+        ],
+    )
+    def test_scanner_default_values(self, field, expected_value):
+        """Test that scanner parameters have correct default values (parameterized)"""
+        # Clear any existing environment variables
+        for key in [
+            "SCANNER_VOLUME_FILTER",
+            "SCANNER_PRICE_FILTER",
+            "OR_DURATION_MINUTES",
+            "OR_POLL_INTERVAL_SECONDS",
+            "GAP_FILL_TOLERANCE",
+            "OR_BREAKOUT_BUFFER",
+        ]:
+            os.environ.pop(key, None)
+
+        config = Config.from_env()
+
+        # Test through scanner_config attribute
+        assert getattr(config.scanner_config, field) == expected_value
+
+    @pytest.mark.parametrize(
+        "env_var,env_value,field,expected_default",
+        [
+            ("SCANNER_VOLUME_FILTER", "75000", "volume_filter", 50000),
+            ("SCANNER_PRICE_FILTER", "0.75", "price_filter", 0.50),
+            ("OR_DURATION_MINUTES", "15", "or_duration_minutes", 10),
+            (
+                "OR_POLL_INTERVAL_SECONDS",
+                "45",
+                "or_poll_interval_seconds",
+                30,
+            ),
+            ("GAP_FILL_TOLERANCE", "1.5", "gap_fill_tolerance", 1.0),
+            ("OR_BREAKOUT_BUFFER", "0.2", "or_breakout_buffer", 0.1),
+        ],
+    )
+    def test_scanner_env_vars_ignored(
+        self, env_var, env_value, field, expected_default
+    ):
+        """Test that scanner environment variables are ignored (parameterized)"""
+        # Set environment variable to non-default value
+        os.environ[env_var] = env_value
+        os.environ["PAPER_TRADING"] = "true"
+
+        config = Config.from_env()
+
+        # Should still use ScannerConfig default, not environment variable
+        assert getattr(config.scanner_config, field) == expected_default
+
+        # Clean up
+        os.environ.pop(env_var, None)
+        os.environ.pop("PAPER_TRADING", None)
+
+
+class TestCustomScannerConfig:
+    """Tests for custom ScannerConfig creation"""
+
+    def test_custom_scanner_config(self):
+        """Test that Config can be created with custom ScannerConfig"""
+        custom_scanner_config = ScannerConfig(
+            volume_filter=75000,
+            price_filter=0.75,
+            or_duration_minutes=15,
+            or_poll_interval_seconds=45,
+            gap_fill_tolerance=1.5,
+            or_breakout_buffer=0.2,
+        )
+
+        config = Config(
+            ib_client_id=1,
+            discord_webhook_url=None,
+            scanner_config=custom_scanner_config,
+        )
+
+        # Should use custom values
+        assert config.scanner_config.volume_filter == 75000
+        assert config.scanner_config.price_filter == 0.75
+        assert config.scanner_config.or_duration_minutes == 15
+        assert config.scanner_config.or_poll_interval_seconds == 45
+        assert config.scanner_config.gap_fill_tolerance == 1.5
+        assert config.scanner_config.or_breakout_buffer == 0.2
+
+
+class TestConfigLogging:
+    """Tests for configuration logging output"""
+
+    def test_logging_uses_scanner_config(self):
+        """Test that configuration logging uses scanner_config values"""
+        # Set required non-scanner environment variables
+        os.environ["PAPER_TRADING"] = "true"
+
+        # Capture log output
+        log_capture = io.StringIO()
+        logger.remove()
+        logger.add(log_capture, format="{message}")
+
+        Config.from_env()
+
+        # Get log output
+        log_output = log_capture.getvalue()
+
+        # Should log scanner configuration values
+        assert "Scanner Volume Filter: 50,000 shares" in log_output
+        assert "Scanner Price Filter: $0.5" in log_output
+        assert "OR Duration: 10 minutes" in log_output
+        assert "OR Poll Interval: 30 seconds" in log_output
+        assert "Gap Fill Tolerance: $1.0" in log_output
+        assert "OR Breakout Buffer: $0.1" in log_output
+
+        # Clean up
+        os.environ.pop("PAPER_TRADING", None)
