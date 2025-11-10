@@ -130,6 +130,131 @@ def mock_ibkr_client(mocker):
     return mock_client
 
 
+@pytest.fixture
+def ibkr_client_mock_oauth():
+    """Create real IBKRClient instance with mocked OAuth environment.
+
+    This fixture is used for unit tests that need to test actual IBKRClient
+    methods without requiring real OAuth credentials. It sets up dummy OAuth
+    environment variables and returns a client instance with mocked connection
+    state.
+
+    Returns:
+        IBKRClient: Client instance with mocked OAuth env and connection state
+
+    Note:
+        This is different from `mock_ibkr_client` which returns a MagicMock.
+        Use this when you need to test actual IBKRClient methods.
+    """
+    from skim.brokers.ibkr_client import IBKRClient
+
+    # Store original environment values
+    original_env = {}
+    required_vars = [
+        "OAUTH_CONSUMER_KEY",
+        "OAUTH_ACCESS_TOKEN",
+        "OAUTH_ACCESS_TOKEN_SECRET",
+        "OAUTH_DH_PRIME",
+        "OAUTH_SIGNATURE_PATH",
+        "OAUTH_ENCRYPTION_PATH",
+    ]
+
+    for var in required_vars:
+        original_env[var] = os.environ.get(var)
+        os.environ[var] = "test_value"
+
+    # Set dummy file paths for keys
+    os.environ["OAUTH_SIGNATURE_PATH"] = "/tmp/test_signature.pem"
+    os.environ["OAUTH_ENCRYPTION_PATH"] = "/tmp/test_encryption.pem"
+
+    try:
+        client = IBKRClient(paper_trading=True)
+        # Mock connection state to avoid actual API calls
+        client._connected = True
+        client._lst = "test_lst_token"
+        client._account_id = "DU1234567"
+        yield client
+    finally:
+        # Restore original environment
+        for var, value in original_env.items():
+            if value is None:
+                os.environ.pop(var, None)
+            else:
+                os.environ[var] = value
+
+
+# ==============================================================================
+# TradingBot Testing Fixtures
+# ==============================================================================
+
+
+@pytest.fixture
+def mock_bot_config():
+    """Create mock configuration for TradingBot tests.
+
+    Returns a Mock object configured with standard trading bot parameters.
+    Tests can override specific attributes as needed.
+
+    Returns:
+        Mock: Mock config with standard bot parameters
+    """
+    from unittest.mock import Mock
+
+    from skim.core.config import Config
+
+    config = Mock(spec=Config)
+    config.gap_threshold = 3.0
+    config.max_positions = 5
+    config.max_position_size = 1000
+    config.stop_loss_pct = 5.0
+    config.paper_trading = True
+    config.discord_webhook_url = "https://discord-webhook.com"
+    config.db_path = ":memory:"
+    return config
+
+
+@pytest.fixture
+def mock_trading_bot(mock_bot_config):
+    """Create TradingBot instance with all dependencies mocked.
+
+    This fixture patches all external dependencies (Database, IBKRClient,
+    IBKRGapScanner, ASXAnnouncementScanner, DiscordNotifier) and returns
+    a TradingBot instance ready for testing.
+
+    The bot instance has access to mocked versions of:
+    - bot.db (Database)
+    - bot.ib_client (IBKRClient)
+    - bot.ibkr_scanner (IBKRGapScanner)
+    - bot.asx_scanner (ASXAnnouncementScanner)
+    - bot.discord (DiscordNotifier)
+
+    Args:
+        mock_bot_config: Mock configuration fixture
+
+    Returns:
+        TradingBot: Bot instance with all dependencies mocked
+
+    Example:
+        def test_something(mock_trading_bot):
+            mock_trading_bot.db.get_candidates.return_value = [...]
+            result = mock_trading_bot.scan()
+            assert result == expected
+    """
+    from unittest.mock import patch
+
+    from skim.core.bot import TradingBot
+
+    with (
+        patch("skim.core.bot.Database"),
+        patch("skim.core.bot.IBKRClient"),
+        patch("skim.core.bot.IBKRGapScanner"),
+        patch("skim.core.bot.ASXAnnouncementScanner"),
+        patch("skim.core.bot.DiscordNotifier"),
+    ):
+        bot = TradingBot(mock_bot_config)
+        yield bot
+
+
 # ==============================================================================
 # OAuth Testing Fixtures
 # ==============================================================================
