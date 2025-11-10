@@ -36,3 +36,9 @@ repos:
         types: [python]
         pass_filenames: false
         stages: [pre-push]
+
+      - id: check-env-example
+        name: Check .env.example changes
+        entry: scripts/check-env-example.sh
+        language: script
+        files: '^\.env\.example$'
