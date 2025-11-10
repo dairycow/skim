@@ -15,44 +15,6 @@ from skim.brokers.ibkr_client import IBKRClient
 class TestIBKRMarketDataWithLow:
     """Tests for IBKR client market data methods with daily low field"""
 
-    @pytest.fixture
-    def client(self):
-        """Create IBKR client instance for testing"""
-        import os
-
-        original_env = {}
-        required_vars = [
-            "OAUTH_CONSUMER_KEY",
-            "OAUTH_ACCESS_TOKEN",
-            "OAUTH_ACCESS_TOKEN_SECRET",
-            "OAUTH_DH_PRIME",
-            "OAUTH_SIGNATURE_PATH",
-            "OAUTH_ENCRYPTION_PATH",
-        ]
-
-        for var in required_vars:
-            original_env[var] = os.environ.get(var)
-            os.environ[var] = "test_value"
-
-        # Set dummy file paths for keys
-        os.environ["OAUTH_SIGNATURE_PATH"] = "/tmp/test_signature.pem"
-        os.environ["OAUTH_ENCRYPTION_PATH"] = "/tmp/test_encryption.pem"
-
-        try:
-            client = IBKRClient(paper_trading=True)
-            # Mock connection state
-            client._connected = True
-            client._lst = "test_lst_token"
-            client._account_id = "DU1234567"
-            yield client
-        finally:
-            # Restore original environment
-            for var, value in original_env.items():
-                if value is None:
-                    os.environ.pop(var, None)
-                else:
-                    os.environ[var] = value
-
     def test_market_data_dataclass_includes_low_field(self):
         """Test that MarketData dataclass includes low field"""
         # This test should fail initially because low field doesn't exist yet
@@ -73,12 +35,12 @@ class TestIBKRMarketDataWithLow:
         assert market_data.low == 148.0  # This assertion should fail initially
 
     @responses.activate
-    def test_get_market_data_includes_daily_low(self, client):
+    def test_get_market_data_includes_daily_low(self, ibkr_client_mock_oauth):
         """Test that get_market_data returns daily low price (field 7)"""
         # Mock the contract ID lookup
         responses.add(
             responses.GET,
-            f"{client.BASE_URL}/iserver/secdef/search",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/secdef/search",
             json=[
                 {
                     "conid": "265598",
@@ -92,7 +54,7 @@ class TestIBKRMarketDataWithLow:
         # Mock the market data snapshot with field 7 (daily low)
         responses.add(
             responses.GET,
-            f"{client.BASE_URL}/iserver/marketdata/snapshot",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=[
                 {
                     "31": "150.0",  # last price
@@ -104,7 +66,7 @@ class TestIBKRMarketDataWithLow:
             ],
         )
 
-        result = client.get_market_data("AAPL")
+        result = ibkr_client_mock_oauth.get_market_data("AAPL")
 
         assert result is not None
         assert result.ticker == "AAPL"
@@ -115,12 +77,12 @@ class TestIBKRMarketDataWithLow:
         assert result.low == 148.0  # This should fail initially
 
     @responses.activate
-    def test_get_market_data_handles_missing_daily_low(self, client):
+    def test_get_market_data_handles_missing_daily_low(self, ibkr_client_mock_oauth):
         """Test that get_market_data handles missing daily low gracefully"""
         # Mock the contract ID lookup
         responses.add(
             responses.GET,
-            f"{client.BASE_URL}/iserver/secdef/search",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/secdef/search",
             json=[
                 {
                     "conid": "265598",
@@ -134,7 +96,7 @@ class TestIBKRMarketDataWithLow:
         # Mock the market data snapshot WITHOUT field 7
         responses.add(
             responses.GET,
-            f"{client.BASE_URL}/iserver/marketdata/snapshot",
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=[
                 {
                     "31": "150.0",  # last price
@@ -146,7 +108,7 @@ class TestIBKRMarketDataWithLow:
             ],
         )
 
-        result = client.get_market_data("AAPL")
+        result = ibkr_client_mock_oauth.get_market_data("AAPL")
 
         assert result is not None
         assert result.ticker == "AAPL"

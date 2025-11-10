@@ -130,6 +130,59 @@ def mock_ibkr_client(mocker):
     return mock_client
 
 
+@pytest.fixture
+def ibkr_client_mock_oauth():
+    """Create real IBKRClient instance with mocked OAuth environment.
+
+    This fixture is used for unit tests that need to test actual IBKRClient
+    methods without requiring real OAuth credentials. It sets up dummy OAuth
+    environment variables and returns a client instance with mocked connection
+    state.
+
+    Returns:
+        IBKRClient: Client instance with mocked OAuth env and connection state
+
+    Note:
+        This is different from `mock_ibkr_client` which returns a MagicMock.
+        Use this when you need to test actual IBKRClient methods.
+    """
+    from skim.brokers.ibkr_client import IBKRClient
+
+    # Store original environment values
+    original_env = {}
+    required_vars = [
+        "OAUTH_CONSUMER_KEY",
+        "OAUTH_ACCESS_TOKEN",
+        "OAUTH_ACCESS_TOKEN_SECRET",
+        "OAUTH_DH_PRIME",
+        "OAUTH_SIGNATURE_PATH",
+        "OAUTH_ENCRYPTION_PATH",
+    ]
+
+    for var in required_vars:
+        original_env[var] = os.environ.get(var)
+        os.environ[var] = "test_value"
+
+    # Set dummy file paths for keys
+    os.environ["OAUTH_SIGNATURE_PATH"] = "/tmp/test_signature.pem"
+    os.environ["OAUTH_ENCRYPTION_PATH"] = "/tmp/test_encryption.pem"
+
+    try:
+        client = IBKRClient(paper_trading=True)
+        # Mock connection state to avoid actual API calls
+        client._connected = True
+        client._lst = "test_lst_token"
+        client._account_id = "DU1234567"
+        yield client
+    finally:
+        # Restore original environment
+        for var, value in original_env.items():
+            if value is None:
+                os.environ.pop(var, None)
+            else:
+                os.environ[var] = value
+
+
 # ==============================================================================
 # OAuth Testing Fixtures
 # ==============================================================================
