@@ -36,7 +36,7 @@ DB_PATH=/app/data/skim.db
 ```
 
 #### IBKR Scanner Settings
-Scanner configuration is now managed in `src/skim/core/scanner_config.py` using the `ScannerConfig` dataclass. 
+Scanner configuration is now managed in `src/skim/core/config.py` using the `ScannerConfig` dataclass.
 
 Default values:
 - Volume filter: 50,000 shares
@@ -46,7 +46,7 @@ Default values:
 - Gap fill tolerance: $1.0
 - OR breakout buffer: $0.1
 
-To customize scanner settings, modify the `ScannerConfig` dataclass in `src/skim/core/scanner_config.py`.
+To customize scanner settings, modify the `ScannerConfig` dataclass in `src/skim/core/config.py`.
 
 #### Risk Management
 ```bash
@@ -66,7 +66,7 @@ RISK_PER_TRADE=2.0
 ### Market Data Configuration
 
 #### IBKR Scanner
-Scanner configuration is managed in `src/skim/core/scanner_config.py`. See the `ScannerConfig` dataclass for available parameters and default values.
+Scanner configuration is managed in `src/skim/core/config.py`. See the `ScannerConfig` dataclass for available parameters and default values.
 
 #### ASX Announcements
 ```bash

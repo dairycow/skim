@@ -46,9 +46,17 @@ skim/
 │   │   ├── entry.py            # Entry signal generation
 │   │   ├── exit.py             # Exit signal generation
 │   │   └── position_manager.py # Position and risk management
-│   └── data/                    # Data layer
-│       ├── database.py         # Database operations
-│       └── models.py           # Data models
+│   ├── data/                    # Data layer
+│   │   ├── database.py         # Database operations
+│   │   └── models.py           # Data models
+│   ├── notifications/           # Notification services
+│   │   └── discord.py          # Discord webhook integration
+│   └── validation/              # Data validation
+│       ├── accounts.py         # Account data validation
+│       ├── contracts.py        # Contract data validation
+│       ├── market_data.py      # Market data validation
+│       ├── orders.py           # Order data validation
+│       └── scanners.py         # Scanner response validation
 ├── tests/                       # Test suite
 │   ├── unit/                   # Unit tests
 │   ├── integration/            # Integration tests
@@ -132,6 +140,36 @@ skim/
 - SQLAlchemy models
 - Database schema
 - Data validation
+
+### 6. Notifications Module (`src/skim/notifications/`)
+
+**discord.py** - Discord webhook integration
+- Trading alert notifications
+- Scan result reporting
+- Error notifications
+- Rich embed formatting
+
+### 7. Validation Module (`src/skim/validation/`)
+
+**accounts.py** - Account data validation
+- Account information validation
+- Balance validation
+
+**contracts.py** - Contract data validation
+- Contract search validation
+- Security definition validation
+
+**market_data.py** - Market data validation
+- Historical data validation
+- Live data snapshot validation
+
+**orders.py** - Order data validation
+- Order placement validation
+- Order status validation
+
+**scanners.py** - Scanner response validation
+- Market scanner validation
+- Scanner parameter validation
 
 ## Data Flow
 
