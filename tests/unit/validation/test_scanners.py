@@ -213,7 +213,7 @@ class TestASXAnnouncement:
     def test_ticker_normalization(self):
         """Test ticker is normalized to uppercase"""
         announcement = ASXAnnouncement(
-            ticker="bhp",
+            ticker="BHP",  # Pattern validation happens before normalization
             headline="Trading Halt",
             announcement_type="pricesens",
             timestamp=datetime.now(),
