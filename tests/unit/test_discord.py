@@ -2,6 +2,7 @@
 
 from unittest.mock import Mock
 
+import pytest
 import requests
 
 from skim.notifications.discord import DiscordNotifier
@@ -68,44 +69,40 @@ class TestDiscordNotifier:
 
         assert result is False
 
-    def test_send_scan_results_network_error(self, mocker):
-        """Test scan results notification with network error"""
+    @pytest.mark.parametrize(
+        "exception_type,exception_msg,test_description",
+        [
+            (
+                requests.exceptions.ConnectionError,
+                "Network error",
+                "network error",
+            ),
+            (
+                requests.exceptions.HTTPError,
+                "500 Server Error",
+                "HTTP error",
+            ),
+            (requests.exceptions.Timeout, "Timeout", "timeout"),
+        ],
+    )
+    def test_send_scan_results_error_handling(
+        self, mocker, exception_type, exception_msg, test_description
+    ):
+        """Test scan results notification handles various errors (parameterized)"""
         webhook_url = "https://discord.com/api/webhooks/test/webhook"
         notifier = DiscordNotifier(webhook_url)
 
-        mocker.patch(
-            "requests.post",
-            side_effect=requests.exceptions.ConnectionError("Network error"),
-        )
-
-        result = notifier.send_scan_results(candidates_found=1, candidates=[])
-
-        assert result is False
-
-    def test_send_scan_results_http_error(self, mocker):
-        """Test scan results notification with HTTP error"""
-        webhook_url = "https://discord.com/api/webhooks/test/webhook"
-        notifier = DiscordNotifier(webhook_url)
-
-        mock_response = Mock()
-        mock_response.raise_for_status.side_effect = (
-            requests.exceptions.HTTPError("500 Server Error")
-        )
-
-        mocker.patch("requests.post", return_value=mock_response)
-
-        result = notifier.send_scan_results(candidates_found=1, candidates=[])
-
-        assert result is False
-
-    def test_send_scan_results_timeout(self, mocker):
-        """Test scan results notification with timeout"""
-        webhook_url = "https://discord.com/api/webhooks/test/webhook"
-        notifier = DiscordNotifier(webhook_url)
-
-        mocker.patch(
-            "requests.post", side_effect=requests.exceptions.Timeout("Timeout")
-        )
+        # For HTTPError, we need to mock the response object differently
+        if exception_type == requests.exceptions.HTTPError:
+            mock_response = Mock()
+            mock_response.raise_for_status.side_effect = exception_type(
+                exception_msg
+            )
+            mocker.patch("requests.post", return_value=mock_response)
+        else:
+            mocker.patch(
+                "requests.post", side_effect=exception_type(exception_msg)
+            )
 
         result = notifier.send_scan_results(candidates_found=1, candidates=[])
 
