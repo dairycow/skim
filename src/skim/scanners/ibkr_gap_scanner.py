@@ -5,51 +5,18 @@ and real-time market data to identify opening range breakouts.
 """
 
 import time
-from dataclasses import dataclass
 from datetime import datetime
-from typing import NamedTuple
 
 from loguru import logger
 
 from skim.brokers.ibkr_client import IBKRClient
-
-
-class GapStock(NamedTuple):
-    """Stock with gap data from IBKR scanner"""
-
-    ticker: str
-    gap_percent: float
-    close_price: float
-    conid: int
-
-
-@dataclass
-class OpeningRangeData:
-    """Opening range tracking data for a gap stock"""
-
-    ticker: str
-    conid: int
-    or_high: float
-    or_low: float
-    open_price: float
-    prev_close: float
-    current_price: float
-    gap_holding: bool
-
-
-@dataclass
-class BreakoutSignal:
-    """Breakout signal for gap stock holding and ORH breakout"""
-
-    ticker: str
-    conid: int
-    gap_pct: float
-    or_high: float
-    or_low: float
-    or_size_pct: float
-    current_price: float
-    entry_signal: str  # "ORB_HIGH_BREAKOUT"
-    timestamp: datetime
+from skim.validation.scanners import (
+    BreakoutSignal,
+    GapStock,
+    OpeningRangeData,
+    ScannerRequest,
+    ScannerValidationError,
+)
 
 
 class IBKRGapScanner:
@@ -73,21 +40,28 @@ class IBKRGapScanner:
         Returns:
             Scanner parameters dictionary for IBKR API
         """
-        return {
-            "instrument": "STK",
-            "type": "TOP_PERC_GAIN",
-            "location": "STK.HK.ASX",
-            "filter": [
-                {
-                    "code": "priceAbove",
-                    "value": 1,
-                },
-                {
-                    "code": "volumeAbove",
-                    "value": 50000,
-                },
-            ],
-        }
+        try:
+            scanner_request = ScannerRequest(
+                instrument="STK",
+                scan_type="TOP_PERC_GAIN",
+                location="STK.HK.ASX",
+                filters=[
+                    {
+                        "code": "priceAbove",
+                        "value": 1,
+                    },
+                    {
+                        "code": "volumeAbove",
+                        "value": 50000,
+                    },
+                ],
+            )
+            return scanner_request.model_dump(by_alias=True)
+        except Exception as e:
+            logger.error(f"Failed to create scanner parameters: {e}")
+            raise ScannerValidationError(
+                f"Invalid scanner parameters: {e}"
+            ) from e
 
     def scan_for_gaps(self, min_gap: float) -> list[GapStock]:
         """Scan for ASX stocks with gaps using IBKR market scanner
@@ -142,13 +116,19 @@ class IBKRGapScanner:
 
                     # Filter by minimum gap requirement
                     if actual_gap_pct >= min_gap:
-                        gap_stock = GapStock(
-                            ticker=str(symbol),
-                            gap_percent=float(actual_gap_pct),
-                            close_price=float(previous_close),
-                            conid=int(conid),
-                        )
-                        gap_stocks.append(gap_stock)
+                        try:
+                            gap_stock = GapStock(
+                                ticker=str(symbol),
+                                gap_percent=float(actual_gap_pct),
+                                close_price=float(previous_close),
+                                conid=int(conid),
+                            )
+                            gap_stocks.append(gap_stock)
+                        except Exception as validation_error:
+                            logger.warning(
+                                f"Gap stock validation failed for {symbol}: {validation_error}"
+                            )
+                            continue
                         logger.debug(
                             f"Added gap stock: {symbol} gap={actual_gap_pct:.2f}% "
                             f"(open={today_open}, prev_close={previous_close})"
@@ -276,17 +256,23 @@ class IBKRGapScanner:
                 else float(ticker_data.get("first_price") or 0)
             )
 
-            or_data = OpeningRangeData(
-                ticker=stock.ticker,
-                conid=stock.conid,
-                or_high=float(ticker_data["high"] or 0),
-                or_low=float(ticker_data["low"] or 0),
-                open_price=float(ticker_data["first_price"] or 0),
-                prev_close=float(ticker_data["prev_close"] or 0),
-                current_price=float(current_price),
-                gap_holding=bool(ticker_data["gap_holding"]),
-            )
-            results.append(or_data)
+            try:
+                or_data = OpeningRangeData(
+                    ticker=stock.ticker,
+                    conid=stock.conid,
+                    or_high=float(ticker_data["high"] or 0),
+                    or_low=float(ticker_data["low"] or 0),
+                    open_price=float(ticker_data["first_price"] or 0),
+                    prev_close=float(ticker_data["prev_close"] or 0),
+                    current_price=float(current_price),
+                    gap_holding=bool(ticker_data["gap_holding"]),
+                )
+                results.append(or_data)
+            except Exception as validation_error:
+                logger.warning(
+                    f"Opening range data validation failed for {stock.ticker}: {validation_error}"
+                )
+                continue
 
         gap_holding_count = sum(1 for r in results if r.gap_holding)
         logger.info(
@@ -346,19 +332,24 @@ class IBKRGapScanner:
                     gap_pct = 0
 
                 # Create breakout signal
-                signal = BreakoutSignal(
-                    ticker=data.ticker,
-                    conid=data.conid,
-                    gap_pct=gap_pct,
-                    or_high=data.or_high,
-                    or_low=data.or_low,
-                    or_size_pct=or_size_pct,
-                    current_price=data.current_price,
-                    entry_signal="ORB_HIGH_BREAKOUT",
-                    timestamp=datetime.now(),
-                )
-
-                breakouts.append(signal)
+                try:
+                    signal = BreakoutSignal(
+                        ticker=data.ticker,
+                        conid=data.conid,
+                        gap_pct=gap_pct,
+                        or_high=data.or_high,
+                        or_low=data.or_low,
+                        or_size_pct=or_size_pct,
+                        current_price=data.current_price,
+                        entry_signal="ORB_HIGH_BREAKOUT",
+                        timestamp=datetime.now(),
+                    )
+                    breakouts.append(signal)
+                except Exception as validation_error:
+                    logger.warning(
+                        f"Breakout signal validation failed for {data.ticker}: {validation_error}"
+                    )
+                    continue
                 logger.info(
                     f"Breakout detected: {data.ticker} @ {data.current_price} (ORH: {data.or_high})"
                 )
@@ -387,7 +378,9 @@ class IBKRGapScanner:
         except Exception as e:
             logger.error(f"Failed to connect IBKR gap scanner: {e}")
             self._connected = False
-            raise
+            raise ConnectionError(
+                f"Failed to connect IBKR gap scanner: {e}"
+            ) from e
 
     def disconnect(self) -> None:
         """Disconnect from IBKR"""

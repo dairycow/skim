@@ -333,10 +333,8 @@ class TestIBKRGapScanner:
 
     def test_track_opening_range_success(self, mocker):
         """Test successful opening range tracking"""
-        from skim.scanners.ibkr_gap_scanner import (
-            GapStock,
-            IBKRGapScanner,
-        )
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+        from skim.validation.scanners import GapStock
 
         # Mock gap stocks
         gap_stocks = [
