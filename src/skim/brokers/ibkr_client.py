@@ -45,7 +45,7 @@ class IBKRClient(IBInterface):
     REALM = "limited_poa"
 
     def __init__(self, paper_trading: bool = True):
-        """Initialize IBKR client
+        """Initialise IBKR client
 
         Args:
             paper_trading: If True, verify connected to paper account (DU prefix)
@@ -337,7 +337,7 @@ class IBKRClient(IBInterface):
 
         Steps:
         1. Generate LST via OAuth flow
-        2. POST /iserver/auth/ssodh/init - Initialize brokerage session
+        2. POST /iserver/auth/ssodh/init - Initialise brokerage session
         3. GET /iserver/account - Get account ID
         4. Verify paper trading (account starts with 'DU')
 
@@ -356,14 +356,14 @@ class IBKRClient(IBInterface):
         # Step 1: Generate LST
         self._generate_lst()
 
-        # Step 2: Initialize brokerage session
+        # Step 2: Initialise brokerage session
         logger.info("Initializing brokerage session...")
         # Note: Paper trading requires compete: True to fully authenticate
         init_data = {"publish": True, "compete": True}
         init_response = self._request(
             "POST", "/iserver/auth/ssodh/init", data=init_data
         )
-        logger.info(f"Session initialized: {init_response}")
+        logger.info(f"Session initialised: {init_response}")
 
         # Step 3: Poll for authentication status if needed
         # If response contains 'wait': True, we need to poll until authenticated
@@ -398,7 +398,7 @@ class IBKRClient(IBInterface):
                             f"Session did not authenticate after {max_poll_attempts} attempts"
                         ) from e
         else:
-            # Session initialized immediately, give it a brief moment
+            # Session initialised immediately, give it a brief moment
             time.sleep(2)
 
         # Step 4: Get account ID

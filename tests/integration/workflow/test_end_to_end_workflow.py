@@ -30,7 +30,7 @@ def test_client_initialization():
     assert hasattr(client, "disconnect")
     assert hasattr(client, "is_connected")
 
-    logger.info("✓ Client initialized successfully")
+    logger.info("✓ Client initialised successfully")
 
 
 @pytest.mark.integration

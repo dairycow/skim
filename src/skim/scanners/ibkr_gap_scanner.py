@@ -27,7 +27,7 @@ class IBKRGapScanner:
         paper_trading: bool = True,
         scanner_config: ScannerConfig | None = None,
     ):
-        """Initialize IBKR gap scanner
+        """Initialise IBKR gap scanner
 
         Args:
             paper_trading: If True, connect to paper trading account
@@ -182,7 +182,7 @@ class IBKRGapScanner:
             f"Tracking opening range for {len(candidates)} candidates for {duration_seconds}s"
         )
 
-        # Initialize tracking data
+        # Initialise tracking data
         tracking_data = {}
         for stock in candidates:
             tracking_data[stock.ticker] = {

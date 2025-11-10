@@ -12,7 +12,7 @@ class Database:
     """SQLite database manager for trading bot"""
 
     def __init__(self, db_path: str):
-        """Initialize database connection and create schema
+        """Initialise database connection and create schema
 
         Args:
             db_path: Path to SQLite database file or ":memory:" for in-memory DB
@@ -21,7 +21,7 @@ class Database:
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row  # Enable dict-like row access
         self._create_schema()
-        logger.info(f"Database initialized: {db_path}")
+        logger.info(f"Database initialised: {db_path}")
 
     def _create_schema(self):
         """Create database tables if they don't exist"""
