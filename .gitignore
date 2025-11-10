@@ -70,3 +70,9 @@ docker-compose.override.yml
 
 # Git worktrees
 .worktrees/
+
+# Live testing files (temporary)
+LIVE_TESTS_QUICKSTART.md
+run_live_tests.py
+tests/integration/README_LIVE_TESTS.md
+tests/integration/workflow/test_live_*.py

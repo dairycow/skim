@@ -1200,17 +1200,34 @@ class IBKRClient(IBInterface):
             "7295": ("volume", int),
         }
 
-        if not isinstance(response, dict):
+        # Handle both dict and list response formats
+        # When fields parameter is used, IBKR returns a list instead of dict
+        if isinstance(response, list):
+            # Find the contract data in the list
+            contract_data = None
+            for item in response:
+                if isinstance(item, dict) and str(item.get("conid")) == str(
+                    conid
+                ):
+                    contract_data = item
+                    break
+
+            if contract_data is None:
+                logger.warning(
+                    f"No market data returned for contract {conid} in list response"
+                )
+                return {}
+        elif isinstance(response, dict):
+            if conid not in response:
+                logger.warning(f"No market data returned for contract {conid}")
+                return {}
+            contract_data = response[conid]
+        else:
             logger.warning(
                 f"Unexpected market data response format for {conid}: {type(response)}"
             )
             return {}
 
-        if conid not in response:
-            logger.warning(f"No market data returned for contract {conid}")
-            return {}
-
-        contract_data = response[conid]
         if not isinstance(contract_data, dict):
             logger.warning(
                 f"Invalid contract data format for {conid}: {type(contract_data)}"
@@ -1224,7 +1241,30 @@ class IBKRClient(IBInterface):
                 try:
                     # Convert to appropriate type with null handling
                     if value is not None:
-                        result[field_name] = field_type(value)
+                        if field_type is int:
+                            # Handle comma-separated numbers and decimals for int fields
+                            if isinstance(value, str):
+                                # Remove commas and convert, handling decimal values
+                                clean_value = value.replace(",", "")
+                                if "." in clean_value:
+                                    result[field_name] = int(float(clean_value))
+                                else:
+                                    result[field_name] = int(clean_value)
+                            elif isinstance(value, (int, float)):
+                                result[field_name] = int(value)
+                            else:
+                                result[field_name] = 0
+                        elif field_type is float:
+                            # Handle comma-separated numbers for float fields
+                            if isinstance(value, str):
+                                clean_value = value.replace(",", "")
+                                result[field_name] = float(clean_value)
+                            elif isinstance(value, (int, float)):
+                                result[field_name] = float(value)
+                            else:
+                                result[field_name] = 0.0
+                        else:
+                            result[field_name] = field_type(value)
                     else:
                         result[field_name] = 0 if field_type is int else 0.0
                 except (ValueError, TypeError) as e:

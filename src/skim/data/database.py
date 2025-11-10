@@ -5,7 +5,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from .models import Candidate, Position
+from .models import Candidate, Position, Trade
 
 
 class Database:
@@ -397,6 +397,26 @@ class Database:
         )
         self.db.commit()
         return cursor.lastrowid or 0
+
+    def get_recent_trades(self, hours: int = 24) -> list[Trade]:
+        """Get trades from the last specified hours
+
+        Args:
+            hours: Number of hours to look back
+
+        Returns:
+            List of recent trades
+        """
+        cursor = self.db.cursor()
+        cursor.execute(
+            f"""
+            SELECT * FROM trades
+            WHERE timestamp >= datetime('now', '-{hours} hours')
+            ORDER BY TIMESTAMP DESC
+            """
+        )
+        rows = cursor.fetchall()
+        return [Trade(**row) for row in rows]
 
     def get_total_pnl(self) -> float:
         """Get total profit/loss from all trades
