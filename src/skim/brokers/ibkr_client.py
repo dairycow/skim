@@ -982,22 +982,58 @@ class IBKRClient(IBInterface):
             logger.error(f"Scanner request failed: {e}")
             raise RuntimeError(f"Failed to run scanner: {e}") from e
 
-        # Map field codes to readable names for gap analysis
-        field_mapping = {
-            "31": "last_price",
-            "70": "change_percent",
-            "86": "previous_close",
-            "88": "today_open",
-            "7295": "volume",
-        }
+        # Handle different response formats from IBKR scanner
+        if isinstance(response, dict):
+            # New format: {"contracts": [...], "scan_data_column_name": "..."}
+            if "contracts" in response:
+                contracts = response["contracts"]
+                logger.info(f"Scanner returned {len(contracts)} contracts")
 
-        results: list[dict] = []
+                # Convert contract format to expected scanner result format
+                results = []
+                for contract in contracts:
+                    if isinstance(contract, dict):
+                        result = {
+                            "conid": contract.get("con_id"),
+                            "symbol": contract.get("symbol"),
+                            "companyHeader": contract.get("company_name"),
+                        }
+
+                        # Extract scan data (gap percentage)
+                        scan_data = contract.get("scan_data")
+                        if scan_data and isinstance(scan_data, str):
+                            # Parse percentage like "+50.00%" to float
+                            try:
+                                gap_pct = float(
+                                    scan_data.replace("+", "").replace("%", "")
+                                )
+                                result["change_percent"] = gap_pct
+                            except ValueError:
+                                logger.debug(
+                                    f"Could not parse gap percentage: {scan_data}"
+                                )
+
+                        # Map other fields if available
+                        # Note: IBKR scanner response may not include all fields we want
+                        # We may need to fetch additional market data for complete info
+                        results.append(result)
+
+                return results
+            else:
+                logger.warning(
+                    f"Unexpected scanner response format: {response}"
+                )
+                return []
+
+        # Original format: direct list of results
         if not isinstance(response, list):
             logger.warning(
                 f"Unexpected scanner response format: {type(response)}"
             )
+            logger.info(f"Actual response: {response}")
             return []
 
+        results = []
         for item in response:
             if not isinstance(item, dict):
                 logger.debug(f"Skipping non-dict scanner result: {item}")
@@ -1010,6 +1046,14 @@ class IBKRClient(IBInterface):
             }
 
             # Map numeric fields to readable names with type conversion
+            field_mapping = {
+                "31": "last_price",
+                "70": "change_percent",
+                "86": "previous_close",
+                "88": "today_open",
+                "7295": "volume",
+            }
+
             for field_code, field_name in field_mapping.items():
                 if field_code in item:
                     value = item[field_code]
