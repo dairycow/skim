@@ -30,8 +30,6 @@ ENV PATH="/root/.local/bin:/app/.venv/bin:$PATH"
 COPY scripts/startup.sh .
 RUN chmod +x /app/startup.sh
 
-
-
 # Create log file to be able to run tail
 RUN touch /var/log/cron.log
 
