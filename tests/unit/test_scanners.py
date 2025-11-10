@@ -3,6 +3,7 @@
 from datetime import datetime
 from unittest.mock import Mock, patch
 
+import pytest
 import requests
 
 from skim.scanners.asx_announcements import ASXAnnouncementScanner
@@ -232,6 +233,341 @@ class TestASXAnnouncementScanner:
         # Should only include valid ticker
         assert len(results) == 1
         assert "BHP" in results
+
+    def test_fetch_price_sensitive_announcements_detailed_success(self, mocker):
+        """Test successful fetch of detailed price-sensitive announcements"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(include_only_tickers=None)
+
+        mock_html = """
+        <html>
+        <body>
+            <table>
+                <tr class="pricesens">
+                    <td>BHP</td>
+                    <td>Strong earnings report expected</td>
+                    <td>10:30</td>
+                </tr>
+                <tr class="pricesens">
+                    <td>RIO</td>
+                    <td>Major acquisition announcement</td>
+                    <td>11:00</td>
+                </tr>
+                <tr>
+                    <td>FMG</td>
+                    <td>Regular dividend announcement</td>
+                    <td>12:00</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+        mock_response = Mock()
+        mock_response.text = mock_html
+        mock_response.raise_for_status = Mock()
+
+        mocker.patch("requests.get", return_value=mock_response)
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        assert len(results) == 2
+        assert results[0].ticker == "BHP"
+        assert results[0].headline == "Strong earnings report expected"
+        assert results[0].announcement_type == "pricesens"
+        assert results[1].ticker == "RIO"
+        assert results[1].headline == "Major acquisition announcement"
+
+    def test_fetch_price_sensitive_announcements_with_custom_filter(
+        self, mocker
+    ):
+        """Test detailed fetch with custom filter configuration"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(
+            min_ticker_length=3,
+            max_ticker_length=3,
+            min_headline_length=15,
+            max_headline_length=50,
+            include_only_tickers=["BHP"],
+            exclude_tickers=[],
+        )
+
+        mock_html = """
+        <html>
+        <body>
+            <table>
+                <tr class="pricesens">
+                    <td>BHP</td>
+                    <td>This is a good headline length</td>
+                    <td>10:30</td>
+                </tr>
+                <tr class="pricesens">
+                    <td>RIO123</td>
+                    <td>Too long headline that exceeds maximum length</td>
+                    <td>11:00</td>
+                </tr>
+                <tr class="pricesens">
+                    <td>FM</td>
+                    <td>Short</td>
+                    <td>12:00</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+        mock_response = Mock()
+        mock_response.text = mock_html
+        mock_response.raise_for_status = Mock()
+
+        mocker.patch("requests.get", return_value=mock_response)
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        # Only BHP should pass all filters
+        assert len(results) == 1
+        assert results[0].ticker == "BHP"
+
+    def test_fetch_price_sensitive_announcements_with_exclude_filter(
+        self, mocker
+    ):
+        """Test detailed fetch with exclude ticker filter"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(
+            exclude_tickers=["BHP", "RIO"], include_only_tickers=None
+        )
+
+        mock_html = """
+        <html>
+        <body>
+            <table>
+                <tr class="pricesens">
+                    <td>BHP</td>
+                    <td>Earnings announcement</td>
+                    <td>10:30</td>
+                </tr>
+                <tr class="pricesens">
+                    <td>RIO</td>
+                    <td>Acquisition news</td>
+                    <td>11:00</td>
+                </tr>
+                <tr class="pricesens">
+                    <td>FMG</td>
+                    <td>Project update</td>
+                    <td>12:00</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+        mock_response = Mock()
+        mock_response.text = mock_html
+        mock_response.raise_for_status = Mock()
+
+        mocker.patch("requests.get", return_value=mock_response)
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        # Only FMG should remain (BHP and RIO excluded)
+        assert len(results) == 1
+        assert results[0].ticker == "FMG"
+
+    def test_fetch_price_sensitive_announcements_insufficient_cells(
+        self, mocker
+    ):
+        """Test detailed fetch with insufficient table cells"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(include_only_tickers=None)
+
+        mock_html = """
+        <html>
+        <body>
+            <table>
+                <tr class="pricesens">
+                    <td>BHP</td>
+                    <!-- Missing headline cell -->
+                </tr>
+                <tr class="pricesens">
+                    <td>RIO</td>
+                    <td>Valid announcement</td>
+                    <td>11:00</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+        mock_response = Mock()
+        mock_response.text = mock_html
+        mock_response.raise_for_status = Mock()
+
+        mocker.patch("requests.get", return_value=mock_response)
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        # Only RIO should be valid (BHP has insufficient cells)
+        assert len(results) == 1
+        assert results[0].ticker == "RIO"
+
+    def test_fetch_price_sensitive_announcements_validation_error_handling(
+        self, mocker
+    ):
+        """Test detailed fetch handles individual validation errors gracefully"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(include_only_tickers=None)
+
+        mock_html = """
+        <html>
+        <body>
+            <table>
+                <tr class="pricesens">
+                    <td>BHP</td>
+                    <td>Valid announcement</td>
+                    <td>10:30</td>
+                </tr>
+                <tr class="pricesens">
+                    <td></td>
+                    <td>Invalid empty ticker</td>
+                    <td>11:00</td>
+                </tr>
+                <tr class="pricesens">
+                    <td>RIO</td>
+                    <td>Another valid announcement</td>
+                    <td>12:00</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+        mock_response = Mock()
+        mock_response.text = mock_html
+        mock_response.raise_for_status = Mock()
+
+        mocker.patch("requests.get", return_value=mock_response)
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        # Should skip invalid ticker but include valid ones
+        assert len(results) == 2
+        assert all(
+            announcement.ticker in ["BHP", "RIO"] for announcement in results
+        )
+
+    def test_fetch_price_sensitive_announcements_detailed_timeout(self, mocker):
+        """Test detailed fetch with timeout error"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(include_only_tickers=None)
+
+        mocker.patch(
+            "requests.get", side_effect=requests.exceptions.Timeout("Timeout")
+        )
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        assert len(results) == 0
+        assert isinstance(results, list)
+
+    def test_fetch_price_sensitive_announcements_detailed_request_error(
+        self, mocker
+    ):
+        """Test detailed fetch with general request error"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(include_only_tickers=None)
+
+        mocker.patch(
+            "requests.get",
+            side_effect=requests.exceptions.ConnectionError("Network error"),
+        )
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        assert len(results) == 0
+        assert isinstance(results, list)
+
+    def test_fetch_price_sensitive_announcements_detailed_http_error(
+        self, mocker
+    ):
+        """Test detailed fetch with HTTP error"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(include_only_tickers=None)
+
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = (
+            requests.exceptions.HTTPError("500 Server Error")
+        )
+
+        mocker.patch("requests.get", return_value=mock_response)
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        assert len(results) == 0
+        assert isinstance(results, list)
+
+    def test_fetch_price_sensitive_announcements_default_filter(self, mocker):
+        """Test detailed fetch uses default filter when none provided"""
+        scanner = ASXAnnouncementScanner()
+
+        mock_html = """
+        <html>
+        <body>
+            <table>
+                <tr class="pricesens">
+                    <td>BHP</td>
+                    <td>Valid announcement with proper length</td>
+                    <td>10:30</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+        mock_response = Mock()
+        mock_response.text = mock_html
+        mock_response.raise_for_status = Mock()
+
+        mocker.patch("requests.get", return_value=mock_response)
+
+        # Call without filter parameter
+        results = scanner.fetch_price_sensitive_announcements()
+
+        assert len(results) == 1
+        assert results[0].ticker == "BHP"
+
+    def test_fetch_price_sensitive_announcements_unexpected_error(self, mocker):
+        """Test detailed fetch handles unexpected parsing errors"""
+        from skim.validation.scanners import PriceSensitiveFilter
+
+        scanner = ASXAnnouncementScanner()
+        filter_config = PriceSensitiveFilter(include_only_tickers=None)
+
+        # Mock BeautifulSoup to raise an exception
+        mocker.patch(
+            "skim.scanners.asx_announcements.BeautifulSoup",
+            side_effect=Exception("Parsing error"),
+        )
+
+        results = scanner.fetch_price_sensitive_announcements(filter_config)
+
+        assert len(results) == 0
+        assert isinstance(results, list)
 
 
 class TestIBKRGapScanner:
@@ -677,3 +1013,365 @@ class TestIBKRGapScanner:
             f for f in params["filter"] if f["code"] == "volume"
         )
         assert volume_filter["value"] == 1000
+
+    def test_scan_for_gaps_not_connected(self, mocker):
+        """Test scan for gaps when scanner is not connected"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner = IBKRGapScanner()
+        scanner._connected = False  # Ensure not connected
+
+        results = scanner.scan_for_gaps(min_gap=3.0)
+
+        assert len(results) == 0
+
+    def test_scan_for_gaps_missing_symbol_conid(self, mocker):
+        """Test scan for gaps with missing symbol or conid in results"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+
+        # Mock scanner results with missing data
+        mock_scanner_results = [
+            {
+                "symbol": None,
+                "conid": "8644",
+                "change_percent": 5.5,
+            },  # Missing symbol
+            {
+                "symbol": "BHP",
+                "conid": None,
+                "change_percent": 4.2,
+            },  # Missing conid
+            {"symbol": "RIO", "conid": "8653", "change_percent": 6.0},  # Valid
+        ]
+
+        mock_client.run_scanner.return_value = mock_scanner_results
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+        scanner._connected = True
+
+        results = scanner.scan_for_gaps(min_gap=3.0)
+
+        # Should only include valid result (RIO)
+        assert len(results) == 1
+        assert results[0].ticker == "RIO"
+
+    def test_scan_for_gaps_validation_error(self, mocker):
+        """Test scan for gaps with validation error"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+
+        # Mock scanner results that will cause validation error
+        mock_scanner_results = [
+            {
+                "symbol": "",
+                "conid": "8644",
+                "change_percent": 5.5,
+            },  # Empty symbol
+        ]
+
+        mock_client.run_scanner.return_value = mock_scanner_results
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+        scanner._connected = True
+
+        results = scanner.scan_for_gaps(min_gap=3.0)
+
+        # Should handle validation error gracefully
+        assert len(results) == 0
+
+    def test_scan_for_gaps_invalid_result_format(self, mocker):
+        """Test scan for gaps with invalid result format"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+
+        # Mock scanner results with invalid format
+        mock_scanner_results = [
+            {"invalid": "data"},  # Missing required fields
+            {"symbol": "BHP", "conid": "8644"},  # Missing change_percent
+        ]
+
+        mock_client.run_scanner.return_value = mock_scanner_results
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+        scanner._connected = True
+
+        results = scanner.scan_for_gaps(min_gap=3.0)
+
+        # Should handle invalid format gracefully
+        assert len(results) == 0
+
+    def test_scan_for_gaps_below_minimum_gap(self, mocker):
+        """Test scan for gaps filters out results below minimum gap"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+
+        # Mock scanner results with gaps below minimum
+        mock_scanner_results = [
+            {
+                "symbol": "BHP",
+                "conid": "8644",
+                "change_percent": 2.0,
+            },  # Below 3.0%
+            {
+                "symbol": "RIO",
+                "conid": "8653",
+                "change_percent": 4.5,
+            },  # Above 3.0%
+        ]
+
+        mock_client.run_scanner.return_value = mock_scanner_results
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+        scanner._connected = True
+
+        results = scanner.scan_for_gaps(min_gap=3.0)
+
+        # Should only include RIO (above minimum)
+        assert len(results) == 1
+        assert results[0].ticker == "RIO"
+
+    def test_scan_for_gaps_exception_handling(self, mocker):
+        """Test scan for gaps handles exceptions gracefully"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+        mock_client.run_scanner.side_effect = Exception("Scanner error")
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+        scanner._connected = True
+
+        results = scanner.scan_for_gaps(min_gap=3.0)
+
+        # Should handle exception and return empty list
+        assert len(results) == 0
+
+    def test_track_opening_range_not_connected(self, mocker):
+        """Test opening range tracking when scanner is not connected"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+        from skim.validation.scanners import GapStock
+
+        scanner = IBKRGapScanner()
+        scanner._connected = False
+
+        gap_stocks = [
+            GapStock(
+                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+            )
+        ]
+
+        results = scanner.track_opening_range(gap_stocks)
+
+        assert len(results) == 0
+
+    def test_track_opening_range_no_candidates(self, mocker):
+        """Test opening range tracking with no candidates"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner = IBKRGapScanner()
+        scanner._connected = True
+
+        results = scanner.track_opening_range([])
+
+        assert len(results) == 0
+
+    def test_track_opening_range_validation_error(self, mocker):
+        """Test opening range tracking handles validation errors"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+        from skim.validation.scanners import GapStock
+
+        gap_stocks = [
+            GapStock(
+                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+            )
+        ]
+
+        # Mock market data
+        mock_market_data = Mock()
+        mock_market_data.last_price = 47.80
+
+        mock_client = Mock()
+        mock_client.get_market_data.return_value = mock_market_data
+        mock_client.is_connected.return_value = True
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+        scanner._connected = True
+
+        # Mock time to control loop duration
+        mocker.patch("time.sleep")
+        start_time = 1000.0
+        mocker.patch("time.time", side_effect=[start_time, start_time + 61])
+
+        # Mock OpeningRangeData creation to raise validation error
+        with mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.OpeningRangeData",
+            side_effect=Exception("Validation error"),
+        ):
+            results = scanner.track_opening_range(
+                gap_stocks, duration_seconds=60
+            )
+
+            # Should handle validation error and skip invalid data
+            assert len(results) == 0
+
+    def test_filter_breakouts_empty_data(self, mocker):
+        """Test filter breakouts with empty opening range data"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner = IBKRGapScanner()
+
+        results = scanner.filter_breakouts([])
+
+        assert len(results) == 0
+
+    def test_filter_breakouts_validation_error(self, mocker):
+        """Test filter breakouts handles validation errors"""
+        from skim.scanners.ibkr_gap_scanner import (
+            IBKRGapScanner,
+            OpeningRangeData,
+        )
+
+        scanner = IBKRGapScanner()
+
+        or_data = [
+            OpeningRangeData(
+                ticker="BHP",
+                conid=8644,
+                or_high=47.80,
+                or_low=47.50,
+                open_price=47.00,
+                prev_close=45.20,
+                current_price=48.00,
+                gap_holding=True,
+            ),
+        ]
+
+        # Mock BreakoutSignal creation to raise validation error
+        with mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.BreakoutSignal",
+            side_effect=Exception("Validation error"),
+        ):
+            results = scanner.filter_breakouts(or_data)
+
+            # Should handle validation error and skip invalid data
+            assert len(results) == 0
+
+    def test_connect_success(self, mocker):
+        """Test successful connection to IBKR"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+
+        scanner.connect()
+
+        assert scanner._connected is True
+        mock_client.connect.assert_called_once()
+
+    def test_connect_failure(self, mocker):
+        """Test connection failure to IBKR"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+        mock_client.connect.side_effect = Exception("Connection failed")
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+
+        with pytest.raises(
+            ConnectionError, match="Failed to connect IBKR gap scanner"
+        ):
+            scanner.connect()
+
+        assert scanner._connected is False
+
+    def test_disconnect_success(self, mocker):
+        """Test successful disconnection from IBKR"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+        scanner._connected = True
+
+        scanner.disconnect()
+
+        assert scanner._connected is False
+        mock_client.disconnect.assert_called_once()
+
+    def test_is_connected(self, mocker):
+        """Test is_connected method"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        mock_client = Mock()
+
+        mocker.patch(
+            "skim.scanners.ibkr_gap_scanner.IBKRClient",
+            return_value=mock_client,
+        )
+
+        scanner = IBKRGapScanner()
+
+        # Test when not connected
+        scanner._connected = False
+        mock_client.is_connected.return_value = False
+        assert scanner.is_connected() is False
+
+        # Test when scanner connected but client not
+        scanner._connected = True
+        mock_client.is_connected.return_value = False
+        assert scanner.is_connected() is False
+
+        # Test when both connected
+        scanner._connected = True
+        mock_client.is_connected.return_value = True
+        assert scanner.is_connected() is True
