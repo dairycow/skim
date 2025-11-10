@@ -12,9 +12,3 @@ services:
       - ./oauth_keys:/opt/skim/oauth_keys:ro
       - ./scripts:/app/scripts:ro
       - ./crontab:/etc/cron.d/skim-cron:ro
-    networks:
-      - skim-network
-
-networks:
-  skim-network:
-    driver: bridge
