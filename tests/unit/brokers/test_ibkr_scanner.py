@@ -153,7 +153,7 @@ class TestIBKRScanner:
             }
         }
 
-        responses.post(
+        responses.get(
             f"{client.BASE_URL}/iserver/scanner/params",
             json=params_response,
             status=200,
@@ -170,7 +170,7 @@ class TestIBKRScanner:
     @responses.activate
     def test_get_scanner_params_api_error(self, client):
         """Test scanner parameters retrieval with API error"""
-        responses.post(
+        responses.get(
             f"{client.BASE_URL}/iserver/scanner/params",
             json={"error": "Service unavailable"},
             status=500,
