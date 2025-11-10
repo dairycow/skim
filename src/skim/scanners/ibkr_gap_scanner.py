@@ -116,12 +116,55 @@ class IBKRGapScanner:
                     # Filter by minimum gap requirement
                     if actual_gap_pct >= min_gap:
                         try:
-                            # For now, use a placeholder close price since we can't get it reliably
-                            # In a real implementation, we'd fetch this from market data
+                            # Try to get real market data
+                            close_price = 1.0  # Default fallback
+                            try:
+                                # Try symbol lookup with common ASX formats
+                                for test_symbol in [
+                                    symbol,
+                                    f"{symbol}.AX",
+                                    f"{symbol}.ASX",
+                                ]:
+                                    try:
+                                        data = self.client.get_market_data(
+                                            test_symbol
+                                        )
+                                        if (
+                                            data
+                                            and hasattr(data, "last_price")
+                                            and data.last_price
+                                        ):
+                                            close_price = float(data.last_price)
+                                            break
+                                    except Exception:
+                                        # Continue to next symbol format
+                                        continue
+
+                                # If symbol lookup failed, try conid lookup
+                                if close_price == 1.0:
+                                    try:
+                                        conid_data = self.client.get_market_data_extended(
+                                            str(conid)
+                                        )
+                                        if conid_data and conid_data.get(
+                                            "last_price"
+                                        ):
+                                            close_price = float(
+                                                conid_data["last_price"]
+                                            )
+                                    except Exception:
+                                        # Keep default fallback price
+                                        pass
+
+                            except Exception as e:
+                                logger.warning(
+                                    f"Market data lookup failed for {symbol}: {e}"
+                                )
+
                             gap_stock = GapStock(
                                 ticker=str(symbol),
                                 gap_percent=float(actual_gap_pct),
-                                close_price=1.0,  # Placeholder - will be updated when needed
+                                close_price=close_price,
                                 conid=int(conid),
                             )
                             gap_stocks.append(gap_stock)
