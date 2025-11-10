@@ -200,7 +200,7 @@ def mock_bot_config():
     """
     from unittest.mock import Mock
 
-    from skim.core.config import Config
+    from skim.core.config import Config, ScannerConfig
 
     config = Mock(spec=Config)
     config.gap_threshold = 3.0
@@ -210,6 +210,7 @@ def mock_bot_config():
     config.paper_trading = True
     config.discord_webhook_url = "https://discord-webhook.com"
     config.db_path = ":memory:"
+    config.scanner_config = ScannerConfig()
     return config
 
 

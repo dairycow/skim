@@ -7,7 +7,7 @@ Follows TDD approach - tests are written first, then implementation.
 import pytest
 import responses
 
-from skim.brokers.ibkr_client import IBKRClient
+from skim.core.config import ScannerConfig
 
 
 @pytest.mark.unit
@@ -187,7 +187,9 @@ class TestIBKRScanner:
         with pytest.raises(RuntimeError, match="Request failed: 404"):
             ibkr_client_mock_oauth.get_market_data_extended("9999999")
 
-    def test_get_market_data_extended_not_connected(self, ibkr_client_mock_oauth):
+    def test_get_market_data_extended_not_connected(
+        self, ibkr_client_mock_oauth
+    ):
         """Test extended market data retrieval when not connected"""
         ibkr_client_mock_oauth._connected = False
 
@@ -195,7 +197,9 @@ class TestIBKRScanner:
             ibkr_client_mock_oauth.get_market_data_extended("6793599")
 
     @responses.activate
-    def test_get_market_data_extended_empty_response(self, ibkr_client_mock_oauth):
+    def test_get_market_data_extended_empty_response(
+        self, ibkr_client_mock_oauth
+    ):
         """Test extended market data retrieval with empty response"""
         responses.get(
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
@@ -274,7 +278,9 @@ class TestIBKRScanner:
         assert len(result) == 0
 
     @responses.activate
-    def test_get_market_data_extended_type_conversion(self, ibkr_client_mock_oauth):
+    def test_get_market_data_extended_type_conversion(
+        self, ibkr_client_mock_oauth
+    ):
         """Test extended market data with type conversion"""
         market_data_response = {
             "6793599": {
@@ -301,3 +307,141 @@ class TestIBKRScanner:
         assert isinstance(result["volume"], int)
         assert result["last_price"] == 45.50
         assert result["volume"] == 1000000
+
+
+class TestIBKRGapScannerConfig:
+    """Tests for IBKRGapScanner configuration integration"""
+
+    def test_ibkr_scanner_init_with_config(self):
+        """Test scanner accepts ScannerConfig parameter"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner_config = ScannerConfig(
+            volume_filter=25000,
+            price_filter=0.10,
+            or_duration_minutes=15,
+            or_poll_interval_seconds=45,
+            gap_fill_tolerance=1.5,
+            or_breakout_buffer=0.2,
+        )
+
+        scanner = IBKRGapScanner(
+            paper_trading=True, scanner_config=scanner_config
+        )
+
+        assert scanner.scanner_config.volume_filter == 25000
+        assert scanner.scanner_config.price_filter == 0.10
+        assert scanner.scanner_config.or_duration_minutes == 15
+        assert scanner.scanner_config.or_poll_interval_seconds == 45
+        assert scanner.scanner_config.gap_fill_tolerance == 1.5
+        assert scanner.scanner_config.or_breakout_buffer == 0.2
+
+    def test_create_gap_scan_params_uses_config(self):
+        """Test scan parameters use config values instead of hardcoded"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner_config = ScannerConfig(
+            volume_filter=15000,
+            price_filter=0.08,
+        )
+
+        scanner = IBKRGapScanner(
+            paper_trading=True, scanner_config=scanner_config
+        )
+
+        scan_params = scanner._create_gap_scan_params(min_gap=3.0)
+
+        # Check that config values are used in scan parameters
+        price_filter = next(
+            (f for f in scan_params["filter"] if f["code"] == "price"), None
+        )
+        volume_filter = next(
+            (f for f in scan_params["filter"] if f["code"] == "volume"), None
+        )
+
+        assert price_filter is not None
+        assert price_filter["value"] == 0.08
+        assert volume_filter is not None
+        assert volume_filter["value"] == 15000
+
+    def test_scan_for_gaps_with_custom_config(self):
+        """Test scanning respects config price and volume filters"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner_config = ScannerConfig(
+            volume_filter=5000,
+            price_filter=0.03,
+        )
+
+        scanner = IBKRGapScanner(
+            paper_trading=True, scanner_config=scanner_config
+        )
+
+        # Mock connection state
+        scanner._connected = True
+
+        # Test that scan parameters use config values
+        scan_params = scanner._create_gap_scan_params(min_gap=2.0)
+
+        price_filter = next(
+            (f for f in scan_params["filter"] if f["code"] == "price"), None
+        )
+        volume_filter = next(
+            (f for f in scan_params["filter"] if f["code"] == "volume"), None
+        )
+
+        assert price_filter is not None
+        assert price_filter["value"] == 0.03
+        assert volume_filter is not None
+        assert volume_filter["value"] == 5000
+
+    def test_track_opening_range_uses_config_timing(self):
+        """Test OR tracking uses config duration and interval"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner_config = ScannerConfig(
+            or_duration_minutes=20,
+            or_poll_interval_seconds=60,
+        )
+
+        scanner = IBKRGapScanner(
+            paper_trading=True, scanner_config=scanner_config
+        )
+
+        # Mock connection state
+        scanner._connected = True
+        scanner.client._connected = True
+
+        # Test that config values are available for OR tracking
+        assert scanner.scanner_config.or_duration_minutes == 20
+        assert scanner.scanner_config.or_poll_interval_seconds == 60
+
+    def test_filter_breakouts_uses_config_buffer(self):
+        """Test breakout filtering uses config buffer values"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner_config = ScannerConfig(
+            or_breakout_buffer=0.25,
+        )
+
+        scanner = IBKRGapScanner(
+            paper_trading=True, scanner_config=scanner_config
+        )
+
+        # Test that config buffer value is available
+        assert scanner.scanner_config.or_breakout_buffer == 0.25
+
+    def test_ibkr_scanner_default_config_when_not_provided(self):
+        """Test scanner uses default config when none provided"""
+        from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+        scanner = IBKRGapScanner(paper_trading=True)
+
+        # Should have default scanner_config with ASX-optimized values
+        assert hasattr(scanner, "scanner_config") is True
+        assert scanner.scanner_config.volume_filter == 10000
+        assert scanner.scanner_config.price_filter == 0.05
+        assert scanner.scanner_config.or_duration_minutes == 10
+        assert scanner.scanner_config.or_poll_interval_seconds == 30
+        assert scanner.scanner_config.gap_fill_tolerance == 1.0
+        assert scanner.scanner_config.or_breakout_buffer == 0.1

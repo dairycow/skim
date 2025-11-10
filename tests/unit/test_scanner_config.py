@@ -1,6 +1,10 @@
 """Test ScannerConfig dataclass structure and functionality"""
 
+import os
 from dataclasses import is_dataclass
+from unittest.mock import patch
+
+from loguru import logger
 
 
 def test_scanner_config_import():
@@ -34,14 +38,14 @@ def test_scanner_config_has_required_fields():
 
 
 def test_scanner_config_default_values():
-    """Test that ScannerConfig has correct default values matching current env defaults"""
+    """Test that ScannerConfig has correct ASX-optimized default values"""
     from skim.core.config import ScannerConfig
 
     config = ScannerConfig()
 
-    # These should match the current defaults from config.py
-    assert config.volume_filter == 50000
-    assert config.price_filter == 0.50
+    # These should match the ASX-optimized defaults from config.py
+    assert config.volume_filter == 10000
+    assert config.price_filter == 0.05
     assert config.or_duration_minutes == 10
     assert config.or_poll_interval_seconds == 30
     assert config.gap_fill_tolerance == 1.0
@@ -85,3 +89,137 @@ def test_scanner_config_type_annotations():
     assert hints["or_poll_interval_seconds"] is int
     assert hints["gap_fill_tolerance"] is float
     assert hints["or_breakout_buffer"] is float
+
+
+def test_scanner_config_asx_optimized_defaults():
+    """Test that ScannerConfig has ASX-optimized defaults for 4c+ stocks"""
+    from skim.core.config import ScannerConfig
+
+    config = ScannerConfig()
+
+    # ASX-optimized defaults for low-priced stocks
+    assert (
+        config.volume_filter == 10000
+    )  # Lower volume threshold for ASX small caps
+    assert config.price_filter == 0.05  # 5c minimum for 4c+ stock opportunities
+    assert config.or_duration_minutes == 10
+    assert config.or_poll_interval_seconds == 30
+    assert config.gap_fill_tolerance == 1.0
+    assert config.or_breakout_buffer == 0.1
+
+
+@patch.dict(
+    os.environ,
+    {
+        "IB_CLIENT_ID": "1",
+        "PAPER_TRADING": "true",
+    },
+)
+def test_config_from_env_with_scanner_config_defaults():
+    """Test Config.from_env loads scanner config with ASX-appropriate defaults"""
+    from skim.core.config import Config
+
+    config = Config.from_env()
+
+    # Check scanner config has ASX-optimized defaults
+    assert config.scanner_config.volume_filter == 10000
+    assert config.scanner_config.price_filter == 0.05
+    assert config.scanner_config.or_duration_minutes == 10
+    assert config.scanner_config.or_poll_interval_seconds == 30
+    assert config.scanner_config.gap_fill_tolerance == 1.0
+    assert config.scanner_config.or_breakout_buffer == 0.1
+
+
+@patch.dict(
+    os.environ,
+    {
+        "IB_CLIENT_ID": "1",
+        "PAPER_TRADING": "true",
+        "SCANNER_VOLUME_FILTER": "25000",
+        "SCANNER_PRICE_FILTER": "0.10",
+        "SCANNER_OR_DURATION": "15",
+        "SCANNER_OR_POLL_INTERVAL": "45",
+        "SCANNER_GAP_FILL_TOLERANCE": "1.5",
+        "SCANNER_OR_BREAKOUT_BUFFER": "0.2",
+    },
+)
+def test_config_from_env_scanner_config_env_overrides():
+    """Test environment variables override scanner config defaults"""
+    from skim.core.config import Config
+
+    config = Config.from_env()
+
+    # Check environment overrides are applied
+    assert config.scanner_config.volume_filter == 25000
+    assert config.scanner_config.price_filter == 0.10
+    assert config.scanner_config.or_duration_minutes == 15
+    assert config.scanner_config.or_poll_interval_seconds == 45
+    assert config.scanner_config.gap_fill_tolerance == 1.5
+    assert config.scanner_config.or_breakout_buffer == 0.2
+
+
+@patch.dict(
+    os.environ,
+    {
+        "IB_CLIENT_ID": "1",
+        "PAPER_TRADING": "true",
+    },
+)
+def test_config_from_env_scanner_config_logging():
+    """Test scanner config values are logged correctly"""
+    import sys
+    from io import StringIO
+
+    from skim.core.config import Config
+
+    # Capture loguru output
+    log_capture = StringIO()
+    logger.remove()
+    logger.add(log_capture, level="INFO")
+
+    try:
+        Config.from_env()
+        log_output = log_capture.getvalue()
+
+        # Check that scanner config values are logged
+        assert "Scanner Volume Filter: 10,000 shares" in log_output
+        assert "Scanner Price Filter: $0.05" in log_output
+        assert "OR Duration: 10 minutes" in log_output
+        assert "OR Poll Interval: 30 seconds" in log_output
+        assert "Gap Fill Tolerance: $1.0" in log_output
+        assert "OR Breakout Buffer: $0.1" in log_output
+    finally:
+        # Restore default logger
+        logger.remove()
+        logger.add(sys.stderr, level="INFO")
+
+
+def test_scanner_config_integration_with_config():
+    """Test integration between ScannerConfig and Config classes"""
+    from skim.core.config import Config, ScannerConfig
+
+    # Create custom scanner config
+    custom_scanner_config = ScannerConfig(
+        volume_filter=50000,
+        price_filter=0.25,
+        or_duration_minutes=20,
+        or_poll_interval_seconds=60,
+        gap_fill_tolerance=2.0,
+        or_breakout_buffer=0.3,
+    )
+
+    # Create config with custom scanner config
+    config = Config(
+        ib_client_id=1,
+        paper_trading=True,
+        scanner_config=custom_scanner_config,
+        discord_webhook_url=None,
+    )
+
+    # Verify integration
+    assert config.scanner_config.volume_filter == 50000
+    assert config.scanner_config.price_filter == 0.25
+    assert config.scanner_config.or_duration_minutes == 20
+    assert config.scanner_config.or_poll_interval_seconds == 60
+    assert config.scanner_config.gap_fill_tolerance == 2.0
+    assert config.scanner_config.or_breakout_buffer == 0.3

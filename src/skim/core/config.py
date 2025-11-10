@@ -10,11 +10,11 @@ from loguru import logger
 class ScannerConfig:
     """Configuration for IBKR gap scanner parameters"""
 
-    # Minimum volume filter for gap scanning (shares)
-    volume_filter: int = 50000
+    # Minimum volume filter for gap scanning (shares) - ASX optimized
+    volume_filter: int = 10000
 
-    # Minimum price filter for gap scanning (dollars)
-    price_filter: float = 0.50
+    # Minimum price filter for gap scanning (dollars) - ASX optimized for 4c+ stocks
+    price_filter: float = 0.05
 
     # Opening Range duration in minutes
     or_duration_minutes: int = 10
@@ -80,7 +80,20 @@ class Config:
             ),
             db_path=os.getenv("DB_PATH", cls.db_path),
             discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL"),
-            scanner_config=ScannerConfig(),
+            scanner_config=ScannerConfig(
+                volume_filter=int(os.getenv("SCANNER_VOLUME_FILTER", "10000")),
+                price_filter=float(os.getenv("SCANNER_PRICE_FILTER", "0.05")),
+                or_duration_minutes=int(os.getenv("SCANNER_OR_DURATION", "10")),
+                or_poll_interval_seconds=int(
+                    os.getenv("SCANNER_OR_POLL_INTERVAL", "30")
+                ),
+                gap_fill_tolerance=float(
+                    os.getenv("SCANNER_GAP_FILL_TOLERANCE", "1.0")
+                ),
+                or_breakout_buffer=float(
+                    os.getenv("SCANNER_OR_BREAKOUT_BUFFER", "0.1")
+                ),
+            ),
         )
 
         logger.info("Configuration loaded:")

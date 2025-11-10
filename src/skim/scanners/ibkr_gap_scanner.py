@@ -10,6 +10,7 @@ from datetime import datetime
 from loguru import logger
 
 from skim.brokers.ibkr_client import IBKRClient
+from skim.core.config import ScannerConfig
 from skim.validation.scanners import (
     BreakoutSignal,
     GapStock,
@@ -21,14 +22,20 @@ from skim.validation.scanners import (
 class IBKRGapScanner:
     """Scanner for ASX gap stocks using IBKR API with opening range breakout detection"""
 
-    def __init__(self, paper_trading: bool = True):
+    def __init__(
+        self,
+        paper_trading: bool = True,
+        scanner_config: ScannerConfig | None = None,
+    ):
         """Initialize IBKR gap scanner
 
         Args:
             paper_trading: If True, connect to paper trading account
+            scanner_config: Scanner configuration parameters
         """
         self.client = IBKRClient(paper_trading=paper_trading)
         self._connected = False
+        self.scanner_config = scanner_config or ScannerConfig()
 
     def _create_gap_scan_params(self, min_gap: float) -> dict:
         """Create scanner parameters to find ASX gap stocks
@@ -47,11 +54,11 @@ class IBKRGapScanner:
                 "filter": [
                     {
                         "code": "price",
-                        "value": 0.1,  # Minimum price filter to avoid penny stocks
+                        "value": self.scanner_config.price_filter,
                     },
                     {
                         "code": "volume",
-                        "value": 1000,  # Minimum volume filter for liquidity
+                        "value": self.scanner_config.volume_filter,
                     },
                 ],
                 "location": "STK.HK.ASX",  # Target ASX specifically
