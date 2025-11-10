@@ -10,10 +10,11 @@ When you push code to GitHub, a webhook will trigger automatic deployment on you
 
 - Server with Docker and docker-compose installed
 - Repository cloned to `/opt/skim`
-- Port 9000 available on your server
+- Domain name configured with A record pointing to your server
+- Port 9000 available on your server (internal only)
 - Root or sudo access
 
-## Option 1: Using webhook (Recommended)
+## Webhook Setup (Recommended)
 
 We'll use the lightweight `webhook` tool written in Go.
 
@@ -120,32 +121,108 @@ sudo systemctl start webhook
 sudo systemctl status webhook
 ```
 
-### Step 4: Configure firewall
+### Step 4: Configure DNS and SSL
 
-Allow webhook traffic:
+**DNS Configuration:**
+1. Create A record: `webhook.yourdomain.com → YOUR_SERVER_IP`
+2. Wait for DNS propagation (use `nslookup webhook.yourdomain.com` to verify)
 
+**Install nginx and certbot:**
 ```bash
-# If using ufw
-sudo ufw allow 9000/tcp
-
-# If using iptables
-sudo iptables -A INPUT -p tcp --dport 9000 -j ACCEPT
+sudo apt-get install -y nginx certbot python3-certbot-nginx
 ```
 
-### Step 5: Configure GitHub webhook
+**Configure nginx reverse proxy:**
+```bash
+sudo vim /etc/nginx/sites-available/webhook
+```
+
+Add this configuration:
+```nginx
+server {
+    listen 80;
+    server_name webhook.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name webhook.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/webhook.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/webhook.yourdomain.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    location /hooks/ {
+        proxy_pass http://127.0.0.1:9000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Security headers
+        add_header X-Frame-Options DENY;
+        add_header X-Content-Type-Options nosniff;
+        add_header X-XSS-Protection "1; mode=block";
+    }
+}
+```
+
+**Enable site and obtain SSL certificate:**
+```bash
+sudo rm /etc/nginx/sites-enabled/default
+sudo ln -s /etc/nginx/sites-available/webhook /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+sudo certbot --nginx -d webhook.yourdomain.com
+```
+
+### Step 5: Configure firewall with GitHub IP restrictions
+
+**Get current GitHub webhook IPs:**
+```bash
+curl https://api.github.com/meta | jq .hooks
+```
+
+**Configure UFW firewall:**
+```bash
+# Allow SSH
+sudo ufw allow 22
+
+# Allow GitHub webhook IPs (IPv4)
+sudo ufw allow from 192.30.252.0/22 to any port 443
+sudo ufw allow from 185.199.108.0/22 to any port 443
+sudo ufw allow from 140.82.112.0/20 to any port 443
+sudo ufw allow from 143.55.64.0/20 to any port 443
+
+# Allow GitHub webhook IPs (IPv6)
+sudo ufw allow from 2a0a:a440::/29 to any port 443
+sudo ufw allow from 2606:50c0::/32 to any port 443
+
+# Deny all other traffic to HTTPS
+sudo ufw deny 443
+
+# Enable firewall
+sudo ufw enable
+```
+
+**Note:** Port 9000 should NOT be exposed externally - nginx handles all external traffic.
+
+### Step 6: Configure GitHub webhook
 
 1. Go to your GitHub repository
 2. Navigate to: Settings > Webhooks > Add webhook
 3. Configure:
-   - **Payload URL**: `http://YOUR_SERVER_IP:9000/hooks/skim-deploy`
+   - **Payload URL**: `https://webhook.yourdomain.com/hooks/skim-deploy`
    - **Content type**: `application/json`
    - **Secret**: The secret you generated in Step 2
-   - **SSL verification**: Disable (since we're using HTTP)
+   - **SSL verification**: Enable (HTTPS with valid certificate)
    - **Events**: Select "Just the push event"
    - **Active**: Check this box
 4. Click "Add webhook"
 
-### Step 6: Test the webhook
+### Step 7: Test the webhook
 
 Push a change to your main branch:
 
@@ -166,172 +243,51 @@ sudo tail -f /var/log/syslog | grep webhook
 
 On GitHub, go to Settings > Webhooks and check the "Recent Deliveries" to see if the webhook was delivered successfully.
 
-## Option 2: Using Python webhook receiver
 
-If you prefer a Python-based solution:
 
-### Step 1: Create webhook receiver script
+## SSL Certificate Management
 
+### Monitor certificate expiry
 ```bash
-sudo vim /opt/skim/deploy/webhook_receiver.py
+# Check certbot auto-renewal is configured
+sudo systemctl status certbot.timer
+
+# Test renewal process
+sudo certbot renew --dry-run
+
+# Check certificate expiry date
+sudo certbot certificates
 ```
 
-```python
-#!/usr/bin/env python3
-import hmac
-import hashlib
-import subprocess
-import sys
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import json
-
-WEBHOOK_SECRET = "YOUR_SECRET_HERE"  # Same secret as in GitHub
-PORT = 9000
-
-class WebhookHandler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        if self.path != '/webhook':
-            self.send_response(404)
-            self.end_headers()
-            return
-
-        content_length = int(self.headers['Content-Length'])
-        body = self.rfile.read(content_length)
-
-        # Verify signature
-        signature = self.headers.get('X-Hub-Signature-256', '')
-        expected_signature = 'sha256=' + hmac.new(
-            WEBHOOK_SECRET.encode(),
-            body,
-            hashlib.sha256
-        ).hexdigest()
-
-        if not hmac.compare_digest(signature, expected_signature):
-            self.send_response(401)
-            self.end_headers()
-            self.wfile.write(b'Unauthorized')
-            return
-
-        # Parse payload
-        payload = json.loads(body)
-
-        # Only deploy on push to main branch
-        if payload.get('ref') != 'refs/heads/main':
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'Skipped - not main branch')
-            return
-
-        # Run deployment script
-        try:
-            subprocess.Popen(['/opt/skim/deploy/webhook.sh'])
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'Deployment triggered')
-        except Exception as e:
-            self.send_response(500)
-            self.end_headers()
-            self.wfile.write(f'Error: {str(e)}'.encode())
-
-if __name__ == '__main__':
-    server = HTTPServer(('0.0.0.0', PORT), WebhookHandler)
-    print(f'Webhook receiver listening on port {PORT}')
-    server.serve_forever()
-```
-
-Make it executable:
-
+### Manual certificate renewal
 ```bash
-sudo chmod +x /opt/skim/deploy/webhook_receiver.py
+# Renew all certificates
+sudo certbot renew
+
+# Renew specific certificate
+sudo certbot renew --cert-name webhook.yourdomain.com
 ```
 
-### Step 2: Create systemd service
+## Security Hardening (Recommended)
 
+### Current GitHub webhook IP ranges
+As of the latest update, GitHub's webhook IPs are:
+- **IPv4:** 192.30.252.0/22, 185.199.108.0/22, 140.82.112.0/20, 143.55.64.0/20
+- **IPv6:** 2a0a:a440::/29, 2606:50c0::/32
+
+**Always verify current IPs:** `curl https://api.github.com/meta | jq .hooks`
+
+### Additional security measures
 ```bash
-sudo vim /etc/systemd/system/skim-webhook.service
-```
+# Install fail2ban for nginx protection
+sudo apt-get install fail2ban
+sudo systemctl enable fail2ban
 
-```ini
-[Unit]
-Description=Skim Trading Bot Webhook Receiver
-After=network.target
+# Monitor nginx access logs for suspicious activity
+sudo tail -f /var/log/nginx/access.log
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/skim
-ExecStart=/usr/bin/python3 /opt/skim/deploy/webhook_receiver.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable skim-webhook
-sudo systemctl start skim-webhook
-sudo systemctl status skim-webhook
-```
-
-Configure GitHub webhook as described in Option 1, Step 5, but use:
-- **Payload URL**: `http://YOUR_SERVER_IP:9000/webhook`
-
-## Security Improvements (Optional but Recommended)
-
-### Use nginx as reverse proxy with HTTPS
-
-Instead of exposing the webhook directly, use nginx with Let's Encrypt:
-
-1. Install nginx and certbot:
-```bash
-sudo apt-get install -y nginx certbot python3-certbot-nginx
-```
-
-2. Configure nginx:
-```bash
-sudo vim /etc/nginx/sites-available/webhook
-```
-
-```nginx
-server {
-    listen 80;
-    server_name webhook.yourdomain.com;
-
-    location /hooks/ {
-        proxy_pass http://127.0.0.1:9000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-3. Enable site and get SSL certificate:
-```bash
-sudo ln -s /etc/nginx/sites-available/webhook /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-sudo certbot --nginx -d webhook.yourdomain.com
-```
-
-4. Update GitHub webhook URL to: `https://webhook.yourdomain.com/hooks/skim-deploy`
-
-### Restrict webhook to GitHub IPs
-
-Add firewall rules to only allow GitHub's webhook IPs:
-
-```bash
-# Get GitHub's hook IPs from their meta API
-curl https://api.github.com/meta | jq .hooks
-
-# Add rules (example)
-sudo ufw allow from 192.30.252.0/22 to any port 9000
-sudo ufw allow from 185.199.108.0/22 to any port 9000
+# Check SSL certificate configuration
+sudo nginx -t | grep -i ssl
 ```
 
 ## Troubleshooting
@@ -340,18 +296,13 @@ sudo ufw allow from 185.199.108.0/22 to any port 9000
 
 ```bash
 sudo systemctl status webhook
-# or
-sudo systemctl status skim-webhook
 ```
 
 ### View logs
 
 ```bash
-# For webhook (Option 1)
+# For webhook service
 sudo journalctl -u webhook -f
-
-# For Python receiver (Option 2)
-sudo journalctl -u skim-webhook -f
 
 # Deployment script logs
 sudo tail -f /var/log/syslog | grep skim
@@ -360,9 +311,16 @@ sudo tail -f /var/log/syslog | grep skim
 ### Test webhook locally
 
 ```bash
+# Test local webhook service
 curl -X POST http://localhost:9000/hooks/skim-deploy \
   -H "Content-Type: application/json" \
   -d '{"ref":"refs/heads/main"}'
+
+# Test HTTPS endpoint (from server)
+curl -I https://webhook.yourdomain.com/hooks/skim-deploy
+
+# Test that direct port 9000 access is blocked (should timeout/fail)
+curl -I http://YOUR_SERVER_IP:9000/hooks/skim-deploy
 ```
 
 ### GitHub webhook delivery issues
@@ -385,9 +343,9 @@ sudo ss -tlnp | grep 9000
 Check firewall:
 
 ```bash
-sudo ufw status
+sudo ufw status verbose
 # or
-sudo iptables -L -n | grep 9000
+sudo iptables -L -n | grep 443
 ```
 
 ## Update deployment branch
@@ -419,11 +377,19 @@ sudo ./deploy/webhook.sh
 
 ## Summary
 
-You now have automated GitOps deployments. When you push to your main branch:
+You now have secure automated GitOps deployments with HTTPS and IP restrictions. When you push to your main branch:
 
-1. GitHub sends a webhook to your server
-2. Webhook receiver verifies the signature
-3. Deployment script runs automatically
-4. Bot is rebuilt and restarted with new code
+1. GitHub sends a webhook to your secure HTTPS endpoint
+2. Nginx reverse proxy forwards to local webhook service
+3. Webhook receiver verifies the signature
+4. Deployment script runs automatically
+5. Bot is rebuilt and restarted with new code
+
+**Security features implemented:**
+- HTTPS with Let's Encrypt SSL certificates
+- Domain-based access (webhook.yourdomain.com)
+- GitHub IP restrictions via firewall
+- Nginx reverse proxy with security headers
+- Internal-only webhook service (port 9000 not exposed)
 
 Monitor deployments via logs and check bot status after deployments.
