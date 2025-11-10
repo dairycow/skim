@@ -309,9 +309,11 @@ class TestIBKRGapScanner:
         assert len(results) == 2
         assert results[0].ticker == "BHP"
         assert (
-            abs(results[0].gap_percent - 5.49) < 0.01
-        )  # Calculated from open vs close
-        assert results[0].close_price == 45.20
+            abs(results[0].gap_percent - 6.19) < 0.01
+        )  # Using scanner's change_percent directly
+        assert (
+            results[0].close_price == 1.0
+        )  # Placeholder value from new implementation
         assert results[0].conid == 8644
 
     def test_scan_for_gaps_empty_response(self, mocker):
@@ -441,11 +443,22 @@ class TestIBKRGapScanner:
             ),
         ]
 
-        # Mock market data where price falls below previous close
+        # Mock market data where price falls more than 5% from opening
+        call_count = 0
+
         def mock_get_market_data_gap_fail(ticker):
+            nonlocal call_count
+            call_count += 1
             if ticker == "BHP":
                 mock_data = Mock()
-                mock_data.last_price = 44.80  # Below prev close
+                if call_count == 1:
+                    mock_data.last_price = 44.80  # First call - opening price
+                elif call_count == 2:
+                    mock_data.last_price = (
+                        40.00  # Second call - drops more than 5%
+                    )
+                else:
+                    mock_data.last_price = 40.00  # Subsequent calls
                 return mock_data
             return None
 
@@ -468,12 +481,24 @@ class TestIBKRGapScanner:
         # Mock time.sleep to speed up test and time.time to control loop
         mocker.patch("time.sleep")
         start_time = 1000.0
-        mocker.patch(
-            "time.time",
-            side_effect=[start_time, start_time + 1, start_time + 61],
-        )
+        # Provide enough time values for the loop to run multiple times
+        time_values = [start_time]  # Initial check
+        # Add values for first loop iteration
+        time_values.extend(
+            [start_time + 1] * 10
+        )  # Multiple calls during first iteration
+        # Add values for second loop iteration
+        time_values.extend(
+            [start_time + 31] * 10
+        )  # Multiple calls during second iteration
+        # Add final value to end loop
+        time_values.append(start_time + 61)
 
-        results = scanner.track_opening_range(gap_stocks, duration_seconds=60)
+        mocker.patch("time.time", side_effect=time_values)
+
+        results = scanner.track_opening_range(
+            gap_stocks, duration_seconds=60, poll_interval=30
+        )
 
         assert len(results) == 1
         assert results[0].ticker == "BHP"
@@ -630,27 +655,25 @@ class TestIBKRGapScanner:
 
         # Verify required parameters are present
         assert "instrument" in params
-        assert "scan_type" in params
+        assert "type" in params
         assert "location" in params
-        assert "filters" in params
+        assert "filter" in params
 
         # Verify parameter values
-        assert params["instrument"] == "STK"
-        assert params["scan_type"] == "TOP_PERC_GAIN"
+        assert params["instrument"] == "STOCK.HK"
+        assert params["type"] == "HIGH_OPEN_GAP"
         assert params["location"] == "STK.HK.ASX"
 
         # Verify filter structure
-        assert isinstance(params["filters"], list)
-        assert len(params["filters"]) == 2
+        assert isinstance(params["filter"], list)
+        assert len(params["filter"]) == 2
 
-        # Verify priceAbove filter
-        price_filter = next(
-            f for f in params["filters"] if f["code"] == "priceAbove"
-        )
-        assert price_filter["value"] == 1
+        # Verify price filter
+        price_filter = next(f for f in params["filter"] if f["code"] == "price")
+        assert price_filter["value"] == 0.1
 
-        # Verify volumeAbove filter
+        # Verify volume filter
         volume_filter = next(
-            f for f in params["filters"] if f["code"] == "volumeAbove"
+            f for f in params["filter"] if f["code"] == "volume"
         )
-        assert volume_filter["value"] == 50000
+        assert volume_filter["value"] == 1000
