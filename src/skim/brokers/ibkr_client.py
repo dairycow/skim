@@ -23,6 +23,7 @@ import threading
 import time
 from datetime import datetime
 from hashlib import sha256
+from typing import cast
 from urllib.parse import quote, quote_plus
 
 import requests
@@ -93,21 +94,30 @@ class IBKRClient(IBInterface):
         """
         logger.info("Generating new Live Session Token...")
 
-        # Type casting - these should never be None due to validation in __init__
-        consumer_key: str = self._consumer_key or ""
-        access_token: str = self._access_token or ""
-        access_token_secret: str = self._access_token_secret or ""
-        dh_prime_hex: str = self._dh_prime_hex or ""
-        signature_key_path: str = self._signature_key_path or ""
-        encryption_key_path: str = self._encryption_key_path or ""
+        # Validate required OAuth config is present
+        required_vars = {
+            "consumer_key": self._consumer_key,
+            "access_token": self._access_token,
+            "access_token_secret": self._access_token_secret,
+            "dh_prime_hex": self._dh_prime_hex,
+            "signature_key_path": self._signature_key_path,
+            "encryption_key_path": self._encryption_key_path,
+        }
 
+        missing = [
+            name for name, value in required_vars.items() if value is None
+        ]
+        if missing:
+            raise RuntimeError(f"Missing OAuth configuration: {missing}")
+
+        # Type: ignore is safe here because we validated above
         self._lst, self._lst_expiration = generate_lst(
-            consumer_key=consumer_key,
-            access_token=access_token,
-            access_token_secret=access_token_secret,
-            dh_prime_hex=dh_prime_hex,
-            signature_key_path=signature_key_path,
-            encryption_key_path=encryption_key_path,
+            cast(str, self._consumer_key),
+            cast(str, self._access_token),
+            cast(str, self._access_token_secret),
+            cast(str, self._dh_prime_hex),
+            cast(str, self._signature_key_path),
+            cast(str, self._encryption_key_path),
             realm=self.REALM,
         )
         expiration_dt = datetime.fromtimestamp(self._lst_expiration / 1000)
@@ -167,9 +177,10 @@ class IBKRClient(IBInterface):
                 )
 
                 # Sign with HMAC-SHA256 using LST
-                lst: str = self._lst or ""
+                if self._lst is None:
+                    raise RuntimeError("LST is None, cannot sign request")
                 bytes_hmac_hash = hmac.new(
-                    key=base64.b64decode(lst),
+                    key=base64.b64decode(cast(str, self._lst)),
                     msg=base_string.encode("utf-8"),
                     digestmod=sha256,
                 ).digest()
@@ -1031,7 +1042,7 @@ class IBKRClient(IBInterface):
     def get_scanner_params(self) -> dict:
         """Get available scanner parameters
 
-        Endpoint: POST /iserver/scanner/params
+        Endpoint: GET /iserver/scanner/params
 
         Returns:
             Dictionary of scanner parameters for different instrument types
@@ -1045,7 +1056,7 @@ class IBKRClient(IBInterface):
         logger.info("Retrieving scanner parameters")
 
         try:
-            response = self._request("POST", "/iserver/scanner/params")
+            response = self._request("GET", "/iserver/scanner/params")
         except Exception as e:
             logger.error(f"Failed to retrieve scanner parameters: {e}")
             raise RuntimeError(f"Failed to get scanner parameters: {e}") from e

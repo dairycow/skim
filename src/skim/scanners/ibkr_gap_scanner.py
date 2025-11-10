@@ -76,7 +76,7 @@ class IBKRGapScanner:
         return {
             "instrument": "STK",
             "type": "TOP_PERC_GAIN",
-            "location": "STK.AU.MAJOR",
+            "location": "STK.HK.ASX",
             "filter": [
                 {
                     "code": "priceAbove",
