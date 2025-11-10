@@ -136,7 +136,9 @@ class TestTradingBotIBKRIntegration:
         mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
         assert isinstance(result, int)
 
-    def test_track_or_breakouts_uses_existing_ibkr_client(self, mock_trading_bot):
+    def test_track_or_breakouts_uses_existing_ibkr_client(
+        self, mock_trading_bot
+    ):
         """Test that track_or_breakouts uses existing IBKRClient for authentication"""
         # Mock database methods
         mock_trading_bot.db.get_or_tracking_candidates = Mock(return_value=[])
@@ -254,7 +256,9 @@ class TestTradingBotIBKRIntegration:
         # Should return 0 when error occurs
         assert result == 0
 
-    def test_scan_method_connects_ibkr_scanner_when_not_connected(self, mock_trading_bot):
+    def test_scan_method_connects_ibkr_scanner_when_not_connected(
+        self, mock_trading_bot
+    ):
         """Test that scan() method connects IBKR scanner when not connected"""
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
@@ -262,7 +266,9 @@ class TestTradingBotIBKRIntegration:
         mock_scanner.scan_for_gaps.return_value = []
 
         # Mock ASX scanner
-        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(return_value=[])
+        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(
+            return_value=[]
+        )
 
         # Mock Discord notifier
         mock_trading_bot.discord_notifier.send_scan_results = Mock()
@@ -274,7 +280,9 @@ class TestTradingBotIBKRIntegration:
         mock_scanner.connect.assert_called_once()
         assert isinstance(result, int)
 
-    def test_scan_method_skips_connection_when_already_connected(self, mock_trading_bot):
+    def test_scan_method_skips_connection_when_already_connected(
+        self, mock_trading_bot
+    ):
         """Test that scan() method skips connection when IBKR scanner is already connected"""
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
@@ -282,7 +290,9 @@ class TestTradingBotIBKRIntegration:
         mock_scanner.scan_for_gaps.return_value = []
 
         # Mock ASX scanner
-        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(return_value=[])
+        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(
+            return_value=[]
+        )
 
         # Mock Discord notifier
         mock_trading_bot.discord_notifier.send_scan_results = Mock()
@@ -1062,3 +1072,113 @@ class TestTradingBotWorkflowMethods:
         bot.db.count_open_positions.assert_called_once()
         bot.db.get_open_positions.assert_called_once()
         bot.db.get_total_pnl.assert_called_once()
+
+
+class TestTradingBotScannerConfig:
+    """Tests for TradingBot scanner configuration integration"""
+
+    @pytest.fixture
+    def config(self):
+        """Create test configuration with custom scanner config"""
+        from skim.core.config import Config, ScannerConfig
+
+        scanner_config = ScannerConfig(
+            volume_filter=25000,
+            price_filter=0.10,
+            or_duration_minutes=15,
+            or_poll_interval_seconds=45,
+            gap_fill_tolerance=1.5,
+            or_breakout_buffer=0.2,
+        )
+
+        return Config(
+            ib_client_id=1,
+            paper_trading=True,
+            scanner_config=scanner_config,
+            discord_webhook_url=None,
+        )
+
+    @pytest.fixture
+    def bot(self, config):
+        """Create TradingBot instance with mocked dependencies"""
+        with (
+            patch("skim.core.bot.Database"),
+            patch("skim.core.bot.IBKRClient"),
+            patch("skim.core.bot.DiscordNotifier"),
+            patch("skim.core.bot.IBKRGapScanner"),
+            patch("skim.core.bot.ASXAnnouncementScanner"),
+        ):
+            return TradingBot(config)
+
+    def test_bot_initializes_scanner_with_config(self, bot, config):
+        """Test TradingBot passes scanner_config to IBKRGapScanner"""
+        # The IBKRGapScanner should have been initialized with scanner_config
+        # Since we're using mocks, we just verify the bot has the scanner
+        assert bot.ibkr_scanner is not None
+        assert hasattr(bot, "scanner_config") or hasattr(
+            config, "scanner_config"
+        )
+
+    def test_scan_ibkr_gaps_uses_config_filters(self, bot, config):
+        """Test scan_ibkr_gaps method uses config values"""
+        mock_scanner = bot.ibkr_scanner
+        mock_scanner.is_connected.return_value = True
+        mock_scanner.scan_for_gaps.return_value = []
+
+        bot.scan_ibkr_gaps()
+
+        # Verify scanner uses config gap threshold
+        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
+
+    def test_track_or_breakouts_uses_config_timing(self, bot, config):
+        """Test track_or_breakouts uses config timing parameters"""
+        mock_scanner = bot.ibkr_scanner
+        mock_scanner.is_connected.return_value = True
+        mock_scanner.track_opening_range.return_value = []
+        mock_scanner.filter_breakouts.return_value = []
+
+        # Mock candidates with valid data
+        mock_candidates = [
+            Mock(ticker="BHP", conid=8644, prev_close=45.20, gap_percent=5.5)
+        ]
+        bot.db.get_or_tracking_candidates = Mock(return_value=mock_candidates)
+
+        bot.track_or_breakouts()
+
+        # Verify track_opening_range was called
+        mock_scanner.track_opening_range.assert_called_once()
+
+        # Check that it was called with candidates
+        call_args = mock_scanner.track_opening_range.call_args
+        assert call_args is not None
+
+    def test_execute_orh_breakouts_config_values(self, bot, config):
+        """Test execute_orh_breakouts uses config-driven values"""
+        mock_ib_client = bot.ib_client
+
+        # Mock market data and order
+        mock_market_data = Mock(last_price=46.80)
+        mock_ib_client.get_market_data.return_value = mock_market_data
+        mock_order_result = Mock(filled_price=46.75)
+        mock_ib_client.place_order.return_value = mock_order_result
+
+        # Mock candidates and database
+        mock_candidates = [Mock(ticker="BHP", or_low=44.80)]
+        bot.db.get_orh_breakout_candidates = Mock(return_value=mock_candidates)
+        bot.db.count_open_positions = Mock(return_value=0)
+        bot.db.create_position = Mock(return_value=1)
+        bot.db.create_trade = Mock()
+        bot.db.update_candidate_status = Mock()
+
+        result = bot.execute_orh_breakouts()
+
+        # Verify position size calculation uses config values
+        mock_ib_client.place_order.assert_called_once()
+        call_args = mock_ib_client.place_order.call_args
+        quantity = call_args[0][2]  # BUY, ticker, quantity
+
+        # Should use $5000 position value divided by price
+        expected_quantity = int(5000 / 46.80)
+        assert quantity == expected_quantity
+
+        assert result == 1

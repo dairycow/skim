@@ -8,7 +8,6 @@ import pytest
 import responses
 
 from skim.brokers.ib_interface import MarketData
-from skim.brokers.ibkr_client import IBKRClient
 
 
 @pytest.mark.unit
@@ -77,7 +76,9 @@ class TestIBKRMarketDataWithLow:
         assert result.low == 148.0  # This should fail initially
 
     @responses.activate
-    def test_get_market_data_handles_missing_daily_low(self, ibkr_client_mock_oauth):
+    def test_get_market_data_handles_missing_daily_low(
+        self, ibkr_client_mock_oauth
+    ):
         """Test that get_market_data handles missing daily low gracefully"""
         # Mock the contract ID lookup
         responses.add(

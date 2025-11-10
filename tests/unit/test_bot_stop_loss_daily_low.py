@@ -9,16 +9,13 @@ from unittest.mock import Mock, patch
 import pytest
 
 from skim.brokers.ib_interface import MarketData
-from skim.core.bot import TradingBot
 
 
 @pytest.mark.unit
 class TestBotStopLossWithDailyLow:
     """Tests for TradingBot stop loss calculation with daily low"""
 
-    def test_stop_loss_uses_daily_low_when_available(
-        self, mock_trading_bot
-    ):
+    def test_stop_loss_uses_daily_low_when_available(self, mock_trading_bot):
         """Test that stop loss uses real daily low instead of hardcoded -5%"""
         # Mock market data with daily low
         mock_market_data = MarketData(
@@ -29,10 +26,14 @@ class TestBotStopLossWithDailyLow:
             volume=1000,
             low=145.0,  # Daily low is $145
         )
-        mock_trading_bot.ib_client.get_market_data.return_value = mock_market_data
+        mock_trading_bot.ib_client.get_market_data.return_value = (
+            mock_market_data
+        )
 
         # Mock successful order placement
-        mock_trading_bot.ib_client.place_order.return_value = Mock(order_id="12345")
+        mock_trading_bot.ib_client.place_order.return_value = Mock(
+            order_id="12345"
+        )
 
         # Mock candidate data
         candidate = Mock()
@@ -44,9 +45,13 @@ class TestBotStopLossWithDailyLow:
         # Mock database to return our candidate
         with (
             patch.object(
-                mock_trading_bot.db, "get_triggered_candidates", return_value=[candidate]
+                mock_trading_bot.db,
+                "get_triggered_candidates",
+                return_value=[candidate],
             ),
-            patch.object(mock_trading_bot.db, "count_open_positions", return_value=0),
+            patch.object(
+                mock_trading_bot.db, "count_open_positions", return_value=0
+            ),
         ):
             mock_trading_bot.execute()
 
@@ -72,10 +77,14 @@ class TestBotStopLossWithDailyLow:
             volume=1000,
             low=0.0,  # Daily low unavailable
         )
-        mock_trading_bot.ib_client.get_market_data.return_value = mock_market_data
+        mock_trading_bot.ib_client.get_market_data.return_value = (
+            mock_market_data
+        )
 
         # Mock successful order placement
-        mock_trading_bot.ib_client.place_order.return_value = Mock(order_id="12345")
+        mock_trading_bot.ib_client.place_order.return_value = Mock(
+            order_id="12345"
+        )
 
         # Mock candidate data
         candidate = Mock()
@@ -87,9 +96,13 @@ class TestBotStopLossWithDailyLow:
         # This should fall back to -5% ($142.50) when daily low is unavailable
         with (
             patch.object(
-                mock_trading_bot.db, "get_triggered_candidates", return_value=[candidate]
+                mock_trading_bot.db,
+                "get_triggered_candidates",
+                return_value=[candidate],
             ),
-            patch.object(mock_trading_bot.db, "count_open_positions", return_value=0),
+            patch.object(
+                mock_trading_bot.db, "count_open_positions", return_value=0
+            ),
             patch("skim.core.bot.logger") as mock_logger,
         ):
             mock_trading_bot.execute()
@@ -107,7 +120,9 @@ class TestBotStopLossWithDailyLow:
         mock_trading_bot.ib_client.get_market_data.return_value = None
 
         # Mock successful order placement
-        mock_trading_bot.ib_client.place_order.return_value = Mock(order_id="12345")
+        mock_trading_bot.ib_client.place_order.return_value = Mock(
+            order_id="12345"
+        )
 
         # Mock candidate data
         candidate = Mock()
@@ -119,9 +134,13 @@ class TestBotStopLossWithDailyLow:
         # This should fall back to -5% when market data is None
         with (
             patch.object(
-                mock_trading_bot.db, "get_triggered_candidates", return_value=[candidate]
+                mock_trading_bot.db,
+                "get_triggered_candidates",
+                return_value=[candidate],
             ),
-            patch.object(mock_trading_bot.db, "count_open_positions", return_value=0),
+            patch.object(
+                mock_trading_bot.db, "count_open_positions", return_value=0
+            ),
             patch("skim.core.bot.logger") as mock_logger,
         ):
             mock_trading_bot.execute()

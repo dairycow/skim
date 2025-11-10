@@ -43,7 +43,10 @@ class TradingBot:
         self.db = Database(config.db_path)
 
         # Initialize scanners
-        self.ibkr_scanner = IBKRGapScanner(paper_trading=config.paper_trading)
+        self.ibkr_scanner = IBKRGapScanner(
+            paper_trading=config.paper_trading,
+            scanner_config=config.scanner_config,
+        )
         self.asx_scanner = ASXAnnouncementScanner()
 
         # Initialize IB client (lazy connection)
