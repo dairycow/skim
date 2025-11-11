@@ -5,9 +5,6 @@
 oauth_keys/
 *.pem
 
-# OAuth / Phase test files (may contain credentials/tokens)
-.venv_oauth_test/
-
 # Python
 __pycache__/
 *.py[cod]
@@ -47,9 +44,6 @@ data/
 logs/
 *.log
 
-# IB Gateway data
-ibgateway/
-
 # IDE
 .vscode/
 .idea/
@@ -64,15 +58,5 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
-# Claude Code hook cache
-.claude/python-cache/
-.claude/tsc-cache/
-
 # Git worktrees
 .worktrees/
-
-# Live testing files (temporary)
-LIVE_TESTS_QUICKSTART.md
-run_live_tests.py
-tests/integration/README_LIVE_TESTS.md
-tests/integration/workflow/test_live_*.py
