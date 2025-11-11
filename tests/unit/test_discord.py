@@ -178,8 +178,8 @@ class TestDiscordNotifier:
         assert "• RIO" in formatted
         assert "5.5%" in formatted
         assert "4.2%" in formatted
-        assert "$45.20" in formatted
-        assert "$120.50" in formatted
+        assert "$45.2000" in formatted
+        assert "$120.5000" in formatted
 
     def test_format_candidate_list_empty(self):
         """Test empty candidate list formatting"""

@@ -135,7 +135,7 @@ class DiscordNotifier:
             gap_str = (
                 f"{gap_percent:.1f}%" if gap_percent is not None else "N/A"
             )
-            price_str = f"${price:.2f}" if price is not None else "N/A"
+            price_str = f"${price:.4f}" if price is not None else "N/A"
 
             formatted_candidates.append(
                 f"• {ticker} - Gap: {gap_str}, Price: {price_str}"

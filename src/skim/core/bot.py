@@ -107,7 +107,7 @@ class TradingBot:
 
             try:
                 logger.info(
-                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.2f}"
+                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.4f}"
                 )
 
                 # Check if already in candidates
@@ -179,7 +179,7 @@ class TradingBot:
         for stock in gap_stocks:
             try:
                 logger.info(
-                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.2f}"
+                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.4f}"
                 )
 
                 # Check if this ticker is in our candidates
@@ -278,13 +278,13 @@ class TradingBot:
                 if market_data and market_data.low > 0:
                     stop_loss = market_data.low
                     logger.info(
-                        f"{ticker}: Using daily low stop loss: ${stop_loss:.2f}"
+                        f"{ticker}: Using daily low stop loss: ${stop_loss:.4f}"
                     )
                 else:
                     # Fallback to -5% if daily low unavailable
                     stop_loss = current_price * 0.95
                     logger.warning(
-                        f"{ticker}: Using fallback stop loss: ${stop_loss:.2f} (daily low unavailable)"
+                        f"{ticker}: Using fallback stop loss: ${stop_loss:.4f} (daily low unavailable)"
                     )
 
                 # Place market order
@@ -306,7 +306,7 @@ class TradingBot:
                 )
 
                 logger.info(
-                    f"Order {order_result.status}: {quantity} {ticker} @ ${fill_price:.2f}"
+                    f"Order {order_result.status}: {quantity} {ticker} @ ${fill_price:.4f}"
                 )
 
                 # Record position
@@ -405,7 +405,7 @@ class TradingBot:
                         ) * quantity_to_sell
 
                         logger.info(
-                            f"Half position sold: {quantity_to_sell} {ticker} @ ${fill_price:.2f}, PnL: ${pnl:.2f}"
+                            f"Half position sold: {quantity_to_sell} {ticker} @ ${fill_price:.4f}, PnL: ${pnl:.4f}"
                         )
 
                         # Update position
@@ -455,7 +455,7 @@ class TradingBot:
                     pnl = (fill_price - position.entry_price) * remaining_qty
 
                     logger.info(
-                        f"Stop loss executed: ${fill_price:.2f}, PnL: ${pnl:.2f}"
+                        f"Stop loss executed: ${fill_price:.4f}, PnL: ${pnl:.4f}"
                     )
 
                     # Close position
@@ -509,12 +509,12 @@ class TradingBot:
 
         for pos in positions:
             logger.info(
-                f"  {pos.ticker}: {pos.quantity} shares @ ${pos.entry_price:.2f} ({pos.status})"
+                f"  {pos.ticker}: {pos.quantity} shares @ ${pos.entry_price:.4f} ({pos.status})"
             )
 
         # Total PnL
         total_pnl = self.db.get_total_pnl()
-        logger.info(f"Total PnL: ${total_pnl:.2f}")
+        logger.info(f"Total PnL: ${total_pnl:.4f}")
 
         logger.info("=====================")
 
@@ -546,7 +546,7 @@ class TradingBot:
             for stock in gap_stocks:
                 try:
                     logger.info(
-                        f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.2f}"
+                        f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.4f}"
                     )
 
                     # Check if already exists
@@ -653,7 +653,7 @@ class TradingBot:
                     breakout_count += 1
 
                     logger.info(
-                        f"ORH breakout detected: {breakout.ticker} @ ${breakout.current_price:.2f} (ORH: ${breakout.or_high:.2f})"
+                        f"ORH breakout detected: {breakout.ticker} @ ${breakout.current_price:.4f} (ORH: ${breakout.or_high:.4f})"
                     )
 
                 except Exception as e:

@@ -109,7 +109,7 @@ class TestBotStopLossWithDailyLow:
 
         # Verify warning was logged about fallback
         mock_logger.warning.assert_any_call(
-            "AAPL: Using fallback stop loss: $142.50 (daily low unavailable)"
+            "AAPL: Using fallback stop loss: $142.5000 (daily low unavailable)"
         )
 
     def test_stop_loss_handles_missing_market_data_gracefully(

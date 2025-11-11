@@ -54,7 +54,7 @@ def check_stop_loss(
         return ExitSignal(
             action="SELL_ALL",
             quantity=remaining_qty,
-            reason=f"Stop loss hit at ${current_price:.2f}",
+            reason=f"Stop loss hit at ${current_price:.4f}",
         )
 
     return None
