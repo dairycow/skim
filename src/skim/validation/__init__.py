@@ -33,6 +33,14 @@ from .scanners import (
     ScannerRequest,
 )
 
+from .price_parsing import (
+    PriceParsingError,
+    clean_ibkr_price,
+    parse_price_string,
+    safe_parse_price,
+    validate_minimum_price,
+)
+
 __all__ = [
     # Scanner models
     "ScannerRequest",
@@ -56,4 +64,10 @@ __all__ = [
     "AccountBalance",
     "Position",
     "PortfolioSummary",
+    # Price parsing utilities
+    "PriceParsingError",
+    "parse_price_string",
+    "clean_ibkr_price",
+    "safe_parse_price",
+    "validate_minimum_price",
 ]

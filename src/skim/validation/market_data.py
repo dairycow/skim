@@ -187,6 +187,143 @@ class HistoricalDataRequest(BaseModel):
     )
 
 
+class IBKRMarketDataResponse(BaseModel):
+    """IBKR market data snapshot response with enhanced validation"""
+
+    conid: int = Field(..., gt=0, description="Contract ID")
+    last_price: float | None = Field(
+        None, ge=0.0001, description="Last price (Field 31)"
+    )
+    bid: float | None = Field(
+        None, ge=0.0001, description="Bid price (Field 84)"
+    )
+    ask: float | None = Field(
+        None, ge=0.0001, description="Ask price (Field 86)"
+    )
+    volume: int | None = Field(None, ge=0, description="Volume (Field 87)")
+    low: float | None = Field(
+        None, ge=0.0001, description="Low price (Field 7)"
+    )
+    change_percent: float | None = Field(
+        None, description="Change percent (Field 70)"
+    )
+    previous_close: float | None = Field(
+        None, ge=0.0001, description="Previous close (Field 65)"
+    )
+    today_open: float | None = Field(
+        None, ge=0.0001, description="Today's open (Field 88)"
+    )
+    high: float | None = Field(
+        None, ge=0.0001, description="High price (Field 68)"
+    )
+    close: float | None = Field(
+        None, ge=0.0001, description="Close price (Field 69)"
+    )
+    trade_date: datetime | None = Field(
+        None, description="Trade date (Field 75)"
+    )
+    trading_class: str | None = Field(
+        None, description="Trading class (Field 60)"
+    )
+    timestamp: datetime = Field(
+        default_factory=datetime.now, description="Data timestamp"
+    )
+
+    @field_validator("ask")
+    @classmethod
+    def validate_bid_ask_spread(cls, v, info):
+        """Validate bid-ask relationship"""
+        bid = info.data.get("bid")
+        if bid and v and bid > v:
+            raise ValueError("Bid price cannot be higher than ask price")
+        return v
+
+    @field_validator("high", "low")
+    @classmethod
+    def validate_high_low(cls, v, info):
+        """Validate high-low relationship"""
+        if (
+            info.data.get("high")
+            and info.data.get("low")
+            and info.data["high"] < info.data["low"]
+        ):
+            raise ValueError("High price cannot be lower than low price")
+        return v
+
+    @property
+    def mid_price(self) -> float | None:
+        """Calculate mid price from bid/ask"""
+        if self.bid is not None and self.ask is not None:
+            return (self.bid + self.ask) / 2
+        return None
+
+    @property
+    def spread(self) -> float | None:
+        """Calculate bid-ask spread"""
+        if self.bid is not None and self.ask is not None:
+            return self.ask - self.bid
+        return None
+
+    @property
+    def spread_percent(self) -> float | None:
+        """Calculate bid-ask spread as percentage of mid price"""
+        mid = self.mid_price
+        spread = self.spread
+        if mid is not None and spread is not None and mid > 0:
+            return (spread / mid) * 100
+        return None
+
+    @classmethod
+    def from_ibkr_snapshot(
+        cls, snapshot_data: dict, conid: int
+    ) -> "IBKRMarketDataResponse":
+        """Create IBKRMarketDataResponse from raw IBKR snapshot data
+
+        Args:
+            snapshot_data: Raw snapshot data from IBKR API
+            conid: Contract ID
+
+        Returns:
+            IBKRMarketDataResponse instance
+        """
+        try:
+            from .price_parsing import clean_ibkr_price, safe_parse_price
+        except ImportError:
+            # Fallback implementations
+            def clean_ibkr_price(value):
+                if isinstance(value, str) and value and value[0].isalpha():
+                    return float(value[1:])
+                return float(value) if value else 0.0
+
+            def safe_parse_price(value, default=0.0):
+                try:
+                    return clean_ibkr_price(value)
+                except:
+                    return default
+
+        # Extract and clean price fields
+        cleaned_data = {
+            "conid": conid,
+            "last_price": clean_ibkr_price(snapshot_data.get("31"))
+            if snapshot_data.get("31")
+            else 0.0,
+            "bid": safe_parse_price(snapshot_data.get("84"), 0.0),
+            "ask": safe_parse_price(snapshot_data.get("86"), 0.0),
+            "volume": int(safe_parse_price(snapshot_data.get("87"), 0))
+            if snapshot_data.get("87")
+            else 0,
+            "low": safe_parse_price(snapshot_data.get("7"), 0.0),
+            "change_percent": safe_parse_price(snapshot_data.get("70"), 0.0),
+            "previous_close": safe_parse_price(snapshot_data.get("65"), 0.0),
+            "today_open": safe_parse_price(snapshot_data.get("88"), 0.0),
+            "high": safe_parse_price(snapshot_data.get("68"), 0.0),
+            "close": safe_parse_price(snapshot_data.get("69"), 0.0),
+            "trading_class": snapshot_data.get("60"),
+        }
+
+        return cls(**cleaned_data)
+
+
 class MarketDataValidationError(Exception):
     """Raised when market data validation fails"""
 
