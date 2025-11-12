@@ -298,7 +298,7 @@ class IBKRMarketDataResponse(BaseModel):
             def safe_parse_price(value, default=0.0):
                 try:
                     return clean_ibkr_price(value)
-                except:
+                except (ValueError, TypeError):
                     return default
 
         # Extract and clean price fields

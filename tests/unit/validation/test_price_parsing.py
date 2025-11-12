@@ -7,10 +7,10 @@ Follows TDD approach - tests are written first, then implementation.
 import pytest
 
 from skim.validation.price_parsing import (
-    parse_price_string,
-    clean_ibkr_price,
-    validate_minimum_price,
     PriceParsingError,
+    clean_ibkr_price,
+    parse_price_string,
+    validate_minimum_price,
 )
 
 
