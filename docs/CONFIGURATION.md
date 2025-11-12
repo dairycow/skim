@@ -120,9 +120,8 @@ OAUTH_CONSUMER_KEY=your_consumer_key
 OAUTH_ACCESS_TOKEN=your_access_token
 OAUTH_ACCESS_TOKEN_SECRET=your_encrypted_access_token_secret
 
-# Paths to your RSA .pem key files
-OAUTH_SIGNATURE_PATH=/opt/skim/oauth_keys/private_signature.pem
-OAUTH_ENCRYPTION_PATH=/opt/skim/oauth_keys/private_encryption.pem
+# RSA key files are automatically loaded from /opt/skim/oauth_keys/
+# Place your private_signature.pem and private_encryption.pem in the oauth_keys/ directory
 
 # Diffie-Hellman prime (hex string from IBKR, no spaces/colons)
 OAUTH_DH_PRIME=your_dh_prime_hex_string

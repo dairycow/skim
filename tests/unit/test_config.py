@@ -260,3 +260,23 @@ class TestConfigLogging:
 
         # Clean up
         os.environ.pop("PAPER_TRADING", None)
+
+
+class TestOAuthKeyPaths:
+    """Tests for OAuth key path constants"""
+
+    def test_oauth_signature_key_path_constant(self):
+        """Test that OAuth signature key path is correctly defined in Config"""
+        from skim.core.config import Config
+
+        config = Config.from_env()
+        expected_path = "/opt/skim/oauth_keys/private_signature.pem"
+        assert config.oauth_signature_key_path == expected_path
+
+    def test_oauth_encryption_key_path_constant(self):
+        """Test that OAuth encryption key path is correctly defined in Config"""
+        from skim.core.config import Config
+
+        config = Config.from_env()
+        expected_path = "/opt/skim/oauth_keys/private_encryption.pem"
+        assert config.oauth_encryption_key_path == expected_path
