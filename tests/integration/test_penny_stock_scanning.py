@@ -6,7 +6,6 @@ Tests end-to-end penny stock scanning functionality with real IBKR API responses
 import pytest
 import responses
 
-from skim.brokers.ibkr_client import IBKRClient
 from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
 
 

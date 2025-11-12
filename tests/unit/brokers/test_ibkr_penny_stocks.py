@@ -262,12 +262,18 @@ class TestIBKRPennyStockParsing:
                 f"Price {price} should be >= minimum threshold"
             )
 
-
     def test_price_validation_rejects_invalid_prices(self):
         """Test that price validation rejects invalid prices"""
         # These should all be considered invalid prices
-        invalid_prices = [0, -0.001, -1, float("inf"), float("-inf"), float("nan")]
-    
+        invalid_prices = [
+            0,
+            -0.001,
+            -1,
+            float("inf"),
+            float("-inf"),
+            float("nan"),
+        ]
+
         for price in invalid_prices:
             try:
                 # Check if it's a valid number first

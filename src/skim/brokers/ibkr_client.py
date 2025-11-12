@@ -62,7 +62,7 @@ def clean_ibkr_price(value):
     try:
         return float(value)
     except ValueError as e:
-        raise PriceParsingError(f"Cannot parse price '{value}': {e}")
+        raise PriceParsingError(f"Cannot parse price '{value}': {e}") from e
 
 
 def safe_parse_price(value, default=0.0):
