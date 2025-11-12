@@ -71,8 +71,7 @@ DB_PATH=/app/data/skim.db   # Database path
 OAUTH_CONSUMER_KEY=your_consumer_key
 OAUTH_ACCESS_TOKEN=your_access_token
 OAUTH_ACCESS_TOKEN_SECRET=your_encrypted_access_token_secret
-OAUTH_SIGNATURE_PATH=/opt/skim/oauth_keys/private_signature.pem
-OAUTH_ENCRYPTION_PATH=/opt/skim/oauth_keys/private_encryption.pem
+# RSA keys are automatically loaded from /opt/skim/oauth_keys/
 OAUTH_DH_PRIME=your_dh_prime_hex_string
 ```
 

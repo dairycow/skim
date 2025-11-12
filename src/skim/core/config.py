@@ -45,6 +45,12 @@ class Config:
     max_positions: int = 5
     db_path: str = "/app/data/skim.db"
 
+    # OAuth key paths for Docker deployment (hardcoded for consistency)
+    oauth_signature_key_path: str = "/opt/skim/oauth_keys/private_signature.pem"
+    oauth_encryption_key_path: str = (
+        "/opt/skim/oauth_keys/private_encryption.pem"
+    )
+
     @classmethod
     def from_env(cls) -> "Config":
         """Load configuration from environment variables

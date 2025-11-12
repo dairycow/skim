@@ -308,3 +308,46 @@ class TestIBKRClientOrderManagement:
 
         with pytest.raises(RuntimeError, match="Could not find contract ID"):
             connected_client._get_contract_id("INVALID")
+
+
+@pytest.mark.unit
+class TestIBKRClientOAuthPaths:
+    """Tests for IBKRClient OAuth key path usage"""
+
+    def test_uses_hardcoded_oauth_paths(self, mocker):
+        """Test that IBKRClient uses hardcoded OAuth paths instead of environment variables"""
+        # Mock environment variables to ensure they're not used
+        mocker.patch.dict(
+            "os.environ",
+            {
+                "OAUTH_CONSUMER_KEY": "test_key",
+                "OAUTH_ACCESS_TOKEN": "test_token",
+                "OAUTH_ACCESS_TOKEN_SECRET": "test_secret",
+                "OAUTH_DH_PRIME": "test_prime",
+                "OAUTH_SIGNATURE_PATH": "/should/not/be/used/private_signature.pem",
+                "OAUTH_ENCRYPTION_PATH": "/should/not/be/used/private_encryption.pem",
+            },
+        )
+
+        # Mock the generate_lst function to capture the paths passed to it
+        mock_generate_lst = mocker.patch(
+            "skim.brokers.ibkr_client.generate_lst"
+        )
+        mock_generate_lst.return_value = ("test_lst", 1234567890)
+
+        client = IBKRClient(paper_trading=True)
+
+        # Trigger LST generation
+        client._generate_lst()
+
+        # Verify generate_lst was called with hardcoded paths, not environment variables
+        mock_generate_lst.assert_called_once()
+        call_args = mock_generate_lst.call_args[0]
+
+        # The signature and encryption paths should be the hardcoded ones
+        assert call_args[4] == "/opt/skim/oauth_keys/private_signature.pem"
+        assert call_args[5] == "/opt/skim/oauth_keys/private_encryption.pem"
+
+        # Should NOT be the environment variable paths
+        assert call_args[4] != "/should/not/be/used/private_signature.pem"
+        assert call_args[5] != "/should/not/be/used/private_encryption.pem"

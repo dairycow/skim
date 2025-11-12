@@ -30,6 +30,7 @@ import requests
 
 from .ib_interface import IBInterface, MarketData, OrderResult
 from .ibkr_oauth import generate_lst
+from ..core.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,11 @@ class IBKRClient(IBInterface):
         self._access_token = os.getenv("OAUTH_ACCESS_TOKEN")
         self._access_token_secret = os.getenv("OAUTH_ACCESS_TOKEN_SECRET")
         self._dh_prime_hex = os.getenv("OAUTH_DH_PRIME")
-        self._signature_key_path = os.getenv("OAUTH_SIGNATURE_PATH")
-        self._encryption_key_path = os.getenv("OAUTH_ENCRYPTION_PATH")
+
+        # Load OAuth key paths from Config
+        config = Config.from_env()
+        self._signature_key_path = config.oauth_signature_key_path
+        self._encryption_key_path = config.oauth_encryption_key_path
 
         # Validate required config
         required_vars = [
@@ -75,8 +79,6 @@ class IBKRClient(IBInterface):
             "OAUTH_ACCESS_TOKEN",
             "OAUTH_ACCESS_TOKEN_SECRET",
             "OAUTH_DH_PRIME",
-            "OAUTH_SIGNATURE_PATH",
-            "OAUTH_ENCRYPTION_PATH",
         ]
         missing = [var for var in required_vars if not os.getenv(var)]
         if missing:
