@@ -28,9 +28,55 @@ from urllib.parse import quote, quote_plus
 
 import requests
 
+from ..core.config import Config
 from .ib_interface import IBInterface, MarketData, OrderResult
 from .ibkr_oauth import generate_lst
-from ..core.config import Config
+
+
+# Price parsing utilities - local implementation to avoid circular imports
+class PriceParsingError(ValueError):
+    """Custom exception for price parsing errors"""
+
+    pass
+
+
+def clean_ibkr_price(value):
+    """Clean and parse IBKR price strings with prefixes."""
+    if value is None:
+        return 0.0
+
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    if not isinstance(value, str):
+        raise PriceParsingError(f"Unsupported type for price: {type(value)}")
+
+    value = value.strip()
+    if not value:
+        return 0.0
+
+    # Remove IBKR prefixes (C, H, L, O)
+    if value and value[0].isalpha():
+        value = value[1:]
+
+    try:
+        return float(value)
+    except ValueError as e:
+        raise PriceParsingError(f"Cannot parse price '{value}': {e}")
+
+
+def safe_parse_price(value, default=0.0):
+    """Safely parse a price with fallback to default value."""
+    try:
+        return clean_ibkr_price(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def validate_minimum_price(price, min_threshold=0.0001):
+    """Validate that price meets minimum threshold."""
+    return price > 0 and price >= min_threshold
+
 
 logger = logging.getLogger(__name__)
 
@@ -718,40 +764,23 @@ class IBKRClient(IBInterface):
                     f"Extracted values for {ticker}: last={last_price}, bid={bid}, ask={ask}, volume={volume}, low={low}"
                 )
 
-                # Helper function to clean market data values
-                def clean_value(value, value_type=float):
-                    """Clean market data values by removing prefixes and converting type"""
-                    if isinstance(value, str):
-                        # Remove common prefixes like 'C' (Closed), 'H' (High), etc.
-                        cleaned = value.lstrip("CH")
-                        try:
-                            return value_type(cleaned)
-                        except ValueError:
-                            logger.warning(
-                                f"Could not convert {value} to {value_type.__name__}"
-                            )
-                            return value_type(0)
-                    return (
-                        value_type(value)
-                        if value is not None
-                        else (0.0 if value_type is float else 0)
-                    )
-
-                # Convert to proper types
+                # Convert to proper types using new price parsing utilities
                 try:
-                    last_price_float = clean_value(last_price, float)
-                    bid_float = clean_value(bid, float)
-                    ask_float = clean_value(ask, float)
-                    volume_int = int(clean_value(volume, float))
-                    low_float = clean_value(low, float)
-                except (ValueError, TypeError) as e:
+                    last_price_float = clean_ibkr_price(last_price)
+                    bid_float = safe_parse_price(bid, 0.0)
+                    ask_float = safe_parse_price(ask, 0.0)
+                    volume_int = int(safe_parse_price(volume, 0))
+                    low_float = safe_parse_price(low, 0.0)
+                except (PriceParsingError, ValueError, TypeError) as e:
                     logger.warning(
                         f"Invalid market data values for {ticker}: {e}"
                     )
                     return None
 
-                # Validate that we have essential data
-                if not last_price_float or last_price_float <= 0:
+                # Validate that we have essential data using new validation
+                if not validate_minimum_price(
+                    last_price_float, min_threshold=0.0001
+                ):
                     logger.warning(
                         f"Invalid last price for {ticker}: {last_price_float}"
                     )
