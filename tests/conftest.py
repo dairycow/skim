@@ -155,17 +155,20 @@ def ibkr_client_mock_oauth():
         "OAUTH_ACCESS_TOKEN",
         "OAUTH_ACCESS_TOKEN_SECRET",
         "OAUTH_DH_PRIME",
-        "OAUTH_SIGNATURE_PATH",
-        "OAUTH_ENCRYPTION_PATH",
     ]
 
     for var in required_vars:
         original_env[var] = os.environ.get(var)
-        os.environ[var] = "test_value"
 
-    # Set dummy file paths for keys
-    os.environ["OAUTH_SIGNATURE_PATH"] = "/tmp/test_signature.pem"
-    os.environ["OAUTH_ENCRYPTION_PATH"] = "/tmp/test_encryption.pem"
+    # Set dummy OAuth values (use valid hex for DH prime)
+    os.environ["OAUTH_CONSUMER_KEY"] = "test_consumer_key"
+    os.environ["OAUTH_ACCESS_TOKEN"] = "test_access_token"
+    os.environ["OAUTH_ACCESS_TOKEN_SECRET"] = (
+        "dGVzdF9hY2Nlc3NfdG9rZW5fc2VjcmV0X3ZhbGlkX2Jhc2U2NA=="
+    )
+    os.environ["OAUTH_DH_PRIME"] = (
+        "00ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f14374fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7edee386bfb5a899fa5ae9f24117c4b1fe649286651ece65381ffffffffffffffff"
+    )
 
     try:
         client = IBKRClient(paper_trading=True)
@@ -357,8 +360,6 @@ def validate_oauth_environment():
         "OAUTH_ACCESS_TOKEN",
         "OAUTH_ACCESS_TOKEN_SECRET",
         "OAUTH_DH_PRIME",
-        "OAUTH_SIGNATURE_PATH",
-        "OAUTH_ENCRYPTION_PATH",
     ]
 
     missing_vars = [var for var in required_vars if not os.getenv(var)]
@@ -367,14 +368,23 @@ def validate_oauth_environment():
             f"Missing required environment variables: {missing_vars}"
         )
 
-    # Validate key files exist
-    signature_path = Path(os.getenv("OAUTH_SIGNATURE_PATH", ""))
-    encryption_path = Path(os.getenv("OAUTH_ENCRYPTION_PATH", ""))
+    # Validate OAuth key files exist using the same logic as the main config
+    try:
+        from skim.core.config import get_oauth_key_paths
 
-    if not signature_path.exists():
-        raise ValueError(f"Signature key file not found: {signature_path}")
-    if not encryption_path.exists():
-        raise ValueError(f"Encryption key file not found: {encryption_path}")
+        oauth_paths = get_oauth_key_paths()
+
+        if not oauth_paths["signature"].exists():
+            raise ValueError(
+                f"Signature key file not found: {oauth_paths['signature']}"
+            )
+        if not oauth_paths["encryption"].exists():
+            raise ValueError(
+                f"Encryption key file not found: {oauth_paths['encryption']}"
+            )
+
+    except Exception as e:
+        raise ValueError(f"OAuth key validation failed: {e}") from e
 
 
 @pytest.fixture(scope="module")
@@ -382,13 +392,18 @@ def oauth_config():
     """Load real OAuth configuration from environment for integration tests."""
     validate_oauth_environment()
 
+    # Use the same path detection logic as the main config
+    from skim.core.config import get_oauth_key_paths
+
+    oauth_paths = get_oauth_key_paths()
+
     return {
         "consumer_key": os.getenv("OAUTH_CONSUMER_KEY"),
         "access_token": os.getenv("OAUTH_ACCESS_TOKEN"),
         "access_token_secret": os.getenv("OAUTH_ACCESS_TOKEN_SECRET"),
         "dh_prime_hex": os.getenv("OAUTH_DH_PRIME"),
-        "signature_key_path": Path(os.getenv("OAUTH_SIGNATURE_PATH", "")),
-        "encryption_key_path": Path(os.getenv("OAUTH_ENCRYPTION_PATH", "")),
+        "signature_key_path": oauth_paths["signature"],
+        "encryption_key_path": oauth_paths["encryption"],
     }
 
 
