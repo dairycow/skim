@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the architecture and component structure of the Skim trading bot.
+System design, components, and trading workflow for the Skim trading bot.
 
 ## High-Level Architecture
 
@@ -9,293 +9,167 @@ This document describes the architecture and component structure of the Skim tra
 │                    Skim Trading Bot                         │
 ├─────────────────────────────────────────────────────────────┤
 │  Cron Scheduler (Container Startup)                         │
-│  ├── SCAN (23:15 UTC)     ──→ Market Scanning               │
-│  ├── MONITOR (23:20 UTC)  ──→ Gap Monitoring                │
-│  ├── EXECUTE (23:25 UTC)  ──→ Order Execution               │
+│  ├── SCAN (00:00 UTC)     ──→ Market Scanning               │
+│  ├── TRACK (00:10 UTC)    ──→ OR Tracking                   │
+│  ├── EXECUTE (00:12 UTC)  ──→ Order Execution               │
 │  ├── MANAGE (*/5 min)     ──→ Position Management           │
 │  └── STATUS (05:30 UTC)   ──→ Daily Reporting               │
 ├─────────────────────────────────────────────────────────────┤
-│  Core Components                                           │
-│  ├── Market Scanners     ──→ Data Sources                   │
-│  ├── Trading Strategy    ──→ Entry/Exit Logic              │
-│  ├── Position Manager    ──→ Risk Management                │
+│  Core Components                                            │
+│  ├── Market Scanners     ──→ IBKR Gap Scanner               │
+│  ├── Trading Strategy    ──→ ORH Breakout Detection         │
+│  ├── Position Manager    ──→ Risk & Exit Management         │
 │  └── IBKR Interface      ──→ OAuth 1.0a API Client          │
 ├─────────────────────────────────────────────────────────────┤
-│  Data Layer                                                │
+│  Data Layer                                                 │
 │  ├── SQLite Database     ──→ Candidates, Positions, Trades  │
-│  └── Log Files          ──→ Execution Logs                 │
+│  └── Log Files           ──→ Execution Logs                 │
 └─────────────────────────────────────────────────────────────┘
-```
-
-## Project Structure
-
-```
-skim/
-├── src/skim/                    # Core application code
-│   ├── core/                    # Orchestration and main logic
-│   │   ├── bot.py              # Main bot entry point and CLI
-│   │   └── config.py           # Configuration management
-│   ├── brokers/                 # Interactive Brokers integration
-│   │   ├── ib_interface.py     # IBKR API interface
-│   │   ├── ibkr_client.py      # Custom OAuth 1.0a client
-│   │   └── ibkr_oauth.py       # OAuth authentication logic
-│   ├── scanners/                # Market data sources
-│   │   ├── asx_announcements.py # ASX announcement scanner
-│   │   └── ibkr_gap_scanner.py # IBKR gap scanner
-│   ├── strategy/                # Trading algorithms
-│   │   ├── entry.py            # Entry signal generation
-│   │   ├── exit.py             # Exit signal generation
-│   │   └── position_manager.py # Position and risk management
-│   ├── data/                    # Data layer
-│   │   ├── database.py         # Database operations
-│   │   └── models.py           # Data models
-│   ├── notifications/           # Notification services
-│   │   └── discord.py          # Discord webhook integration
-│   └── validation/              # Data validation
-│       ├── accounts.py         # Account data validation
-│       ├── contracts.py        # Contract data validation
-│       ├── market_data.py      # Market data validation
-│       ├── orders.py           # Order data validation
-│       └── scanners.py         # Scanner response validation
-├── tests/                       # Test suite
-│   ├── unit/                   # Unit tests
-│   ├── integration/            # Integration tests
-│   └── fixtures/               # Test data and mocks
-├── docs/                        # Documentation
-├── deploy/                      # Deployment scripts
-│   └── webhook.sh              # GitOps deployment script
-├── docker-compose.yml           # Container orchestration
-├── Dockerfile                   # Container definition
-└── pyproject.toml              # Project configuration
 ```
 
 ## Core Components
 
-### 1. Core Module (`src/skim/core/`)
+### src/skim/core/
+- **bot.py**: CLI commands and cron entry points
+- **config.py**: Environment configuration with ScannerConfig
 
-**bot.py** - Main orchestration and CLI interface
-- Command-line interface for bot operations
-- Cron job integration
-- Workflow coordination
+### src/skim/brokers/
+- **ibkr_client.py**: Custom OAuth 1.0a client (no Gateway)
+- **ibkr_oauth.py**: RSA signatures and token management
+- **ib_interface.py**: Trading operations and market data
 
-**config.py** - Configuration management
-- Environment variable handling
-- Trading parameters
-- OAuth credentials management
+### src/skim/scanners/
+- **ibkr_gap_scanner.py**: Gap detection via IBKR scanner
+- **asx_announcements.py**: Price-sensitive news filter
 
-### 2. Brokers Module (`src/skim/brokers/`)
+### src/skim/strategy/
+- **entry.py**: ORH breakout detection
+- **exit.py**: Stop-loss and profit-taking
+- **position_manager.py**: Position sizing and risk
 
-**ibkr_client.py** - Custom OAuth 1.0a client
-- Direct IBKR API authentication
-- No Gateway required
-- Lightweight Python implementation
+### src/skim/data/
+- **database.py**: SQLite CRUD operations
+- **models.py**: Candidates, positions, trades models
 
-**ibkr_oauth.py** - OAuth authentication logic
-- OAuth 1.0a signature generation
-- RSA key management
-- Session handling
+### src/skim/notifications/
+- **discord.py**: Rich embeds for alerts
 
-**ib_interface.py** - IBKR API interface
-- Order placement and management
-- Account information retrieval
-- Market data queries
+## Trading Workflow
 
-### 3. Scanners Module (`src/skim/scanners/`)
+### Cron-Managed Automated Flow
 
-**asx_announcements.py** - ASX announcement scanner
-- Price-sensitive announcement filtering
-- ASX API integration
-- News sentiment analysis
+```
+Market Open (00:00:30 UTC / 10:00:30 AEDT)
+├── SCAN_IBKR_GAPS
+│   ├── Query IBKR scanner for gaps ≥ 3%
+│   ├── Filter ASX stocks with volume > 50k
+│   └── Save to DB (status: or_tracking)
+│
+10 Minutes Later (00:10:30 UTC / 10:10:30 AEDT)
+├── TRACK_OR_BREAKOUTS
+│   ├── Get or_tracking candidates
+│   ├── Monitor price for 10 minutes
+│   ├── Calculate opening range high (ORH)
+│   └── Update breakouts (status: orh_breakout)
+│
+12 Minutes After Open (00:12:00 UTC / 10:12:00 AEDT)
+├── EXECUTE_ORH_BREAKOUTS
+│   ├── Check max positions limit
+│   ├── Get orh_breakout candidates
+│   ├── Place BUY orders via OAuth client
+│   └── Record positions (status: entered)
+│
+Every 5 Minutes During Market Hours
+├── MANAGE_POSITIONS
+│   ├── Get open positions
+│   ├── Day 3? → Sell 50% (status: half_exited)
+│   ├── Price ≤ stop_loss? → Sell all (status: closed)
+│   └── Continue monitoring
+│
+End of Day (05:30 UTC / 4:30 PM AEDT)
+└── STATUS
+    └── Report: candidates, positions, P&L
+```
 
-**ibkr_gap_scanner.py** - IBKR gap scanner
-- Market scanning
-- Gap detection
-- Technical indicator data
+### Data Flow
 
-### 4. Strategy Module (`src/skim/strategy/`)
-
-**entry.py** - Entry signal generation
-- Gap analysis
-- Breakout detection
-- Entry timing logic
-
-**exit.py** - Exit signal generation
-- Stop-loss management
-- Profit-taking logic
-- Trailing stops
-
-**position_manager.py** - Position and risk management
-- Position sizing
-- Risk calculation
-- Portfolio management
-
-### 5. Data Module (`src/skim/data/`)
-
-**database.py** - Database operations
-- SQLite database management
-- CRUD operations
-- Data persistence
-
-**models.py** - Data models
-- SQLAlchemy models
-- Database schema
-- Data validation
-
-### 6. Notifications Module (`src/skim/notifications/`)
-
-**discord.py** - Discord webhook integration
-- Trading alert notifications
-- Scan result reporting
-- Error notifications
-- Rich embed formatting
-
-### 7. Validation Module (`src/skim/validation/`)
-
-**accounts.py** - Account data validation
-- Account information validation
-- Balance validation
-
-**contracts.py** - Contract data validation
-- Contract search validation
-- Security definition validation
-
-**market_data.py** - Market data validation
-- Historical data validation
-- Live data snapshot validation
-
-**orders.py** - Order data validation
-- Order placement validation
-- Order status validation
-
-**scanners.py** - Scanner response validation
-- Market scanner validation
-- Scanner parameter validation
-
-## Data Flow
-
-### Trading Workflow
-
-1. **SCAN Phase** (23:15 UTC)
-   ```
-   IBKR Gap Scanner → Gap Detection → ASX Filter → Database Storage
-   ```
-
-2. **MONITOR Phase** (23:20 UTC)
-   ```
-   Database Candidates → Gap Validation → Status Update
-   ```
-
-3. **EXECUTE Phase** (23:25 UTC)
-   ```
-   Triggered Candidates → Order Placement → Position Recording
-   ```
-
-4. **MANAGE Phase** (Every 5 min)
-   ```
-   Open Positions → Exit Signals → Order Execution → Status Updates
-   ```
-
-### Data Models
-
-**Candidates Table**
-- Stock symbols identified during scan
-- Gap percentages and announcement data
-- Status: watching → triggered
-
-**Positions Table**
-- Active trading positions
-- Entry/exit prices and quantities
-- Status: entered → half_exited → closed
-
-**Trades Table**
-- All buy/sell transactions
-- Timestamps and execution details
-- P&L calculations
+**Candidates Table**: watching → or_tracking → orh_breakout → entered
+**Positions Table**: entered → half_exited → closed
+**Trades Table**: All buy/sell transactions with timestamps
 
 ## Technology Stack
 
 ### Backend
-- **Python 3.12** - Core language
-- **SQLite** - Database
-- **OAuth 1.0a** - IBKR authentication
-- **Docker** - Containerization
+- **Python 3.12**: Core language
+- **SQLite**: Database
+- **OAuth 1.0a**: Direct IBKR authentication
+- **Docker**: Containerization
 
-### Dependencies
-- **requests** - HTTP client
-- **beautifulsoup4** - HTML parsing
-- **pycryptodome** - Cryptographic operations
-- **loguru** - Logging
-- **python-dotenv** - Environment management
+### Key Dependencies
+- requests (HTTP client)
+- beautifulsoup4 (HTML parsing)
+- pycryptodome (RSA cryptography)
+- loguru (logging)
+- python-dotenv (environment management)
 
 ### Development Tools
-- **uv** - Package management
-- **ruff** - Linting and formatting
-- **pytest** - Testing framework
-- **pre-commit** - Git hooks
+- uv (package management)
+- ruff (linting and formatting)
+- pytest (testing framework)
+- pre-commit (git hooks)
 
 ## Security Architecture
 
 ### OAuth 1.0a Implementation
-- RSA signature generation
-- Token encryption/decryption
-- Secure credential storage
+- RSA signature generation for each request
+- Token encryption/decryption with private keys
 - No plaintext secrets in code
+- Volume-mounted key files (not in container image)
 
 ### Data Protection
 - Environment-based configuration
-- Volume-mounted sensitive files
 - Database encryption (SQLite)
 - Log sanitization
+- Minimal attack surface (no web server)
 
 ## Deployment Architecture
 
 ### Container-Based Deployment
-- Single container deployment
-- Volume-mounted persistent data
-- Cron-based scheduling
-- GitOps automation
+- Single lightweight container
+- Python 3.12-slim base image
+- Volume-mounted persistent data:
+  - `/app/data/` - SQLite database
+  - `/app/logs/` - Log files
+  - `/opt/skim/oauth_keys/` - RSA keys
+- Cron daemon for scheduling
+- GitOps webhook automation
 
 ### Resource Optimization
-- Lightweight Python 3.12-slim base image
-- Minimal dependencies (7 packages)
-- No Java/JVM overhead
 - 256-512 MB RAM usage
+- No Java/JVM overhead
+- Minimal dependencies (7 packages)
+- Cron-based execution (idle most of time)
 
-## Integration Points
+## Design Decisions
 
-### External APIs
-- **Interactive Brokers** - Trading and market data
-- **IBKR** - Market scanning
-- **ASX** - Company announcements
+### OAuth 1.0a vs Gateway
+- 50-75% cost reduction (1 GB vs 2-4 GB RAM)
+- No IB Gateway or IBeam containers
+- Direct lightweight API access
+- Better reliability (no Gateway crashes)
 
-### Internal Systems
-- **Cron Daemon** - Workflow scheduling
-- **SQLite Database** - Data persistence
-- **File System** - Log and key storage
+### SQLite vs PostgreSQL
+- Single-account trading (no concurrent writes)
+- Simplicity (no separate database server)
+- Portability (single file backups)
 
-## Scalability Considerations
+### Cron vs Real-Time
+- Predictable ASX market schedule
+- Resource efficient (bot idle 23 hrs/day)
+- Simple, battle-tested scheduling
 
-### Current Limitations
-- Single-account trading
-- SQLite database (single-node)
-- Cron-based scheduling
-
-### Future Enhancements
-- Multi-account support
-- PostgreSQL migration
-- Microservices architecture
-- Real-time event processing
-
-## Monitoring and Observability
-
-### Logging Strategy
-- Structured logging with loguru
-- Component-based log separation
-- Performance metrics tracking
-- Error alerting
-
-### Health Checks
-- OAuth authentication status
-- Database connectivity
-- API rate limiting
-- System resource monitoring
+### ORH Breakout Strategy
+- Gap + opening range momentum
+- Objective entry signal
+- Stop at low of day
+- Day 3 half-sell reduces exposure
