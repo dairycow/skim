@@ -60,3 +60,6 @@ docker-compose.override.yml
 
 # Git worktrees
 .worktrees/
+
+# Documentation
+docs/_local/*
