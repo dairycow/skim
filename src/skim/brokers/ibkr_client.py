@@ -710,13 +710,18 @@ class IBKRClient(IBInterface):
         return conid
 
     def get_market_data(self, ticker: str) -> MarketData | None:
-        """Get current market snapshot
+        """Get current market snapshot using IBKR market data snapshot endpoint
+
+        This implementation handles the IBKR API requirement that a pre-flight request
+        must be made to establish data streaming before actual snapshot
+        requests will return market data.
 
         Flow:
         1. Look up conid via _get_contract_id()
-        2. GET /iserver/marketdata/snapshot?conids={conid}
-        3. Parse fields: 31=last, 84=bid, 86=ask, 87=volume
-        4. Return MarketData object
+        2. Pre-flight request to establish data stream (if needed)
+        3. Get market snapshot with actual data
+        4. Parse fields: 31=last, 84=bid, 86=ask, 87=volume, 7=low
+        5. Return MarketData object
 
         Args:
             ticker: Stock ticker symbol (e.g., "AAPL")
@@ -733,70 +738,145 @@ class IBKRClient(IBInterface):
         # Step 1: Get contract ID
         conid = self._get_contract_id(ticker)
 
-        # Step 2: Get market snapshot
+        # Step 2: Check if we need to establish data stream for this conid
+        # Track whether we've established streaming for this conid in this session
+        if not hasattr(self, "_market_data_streams"):
+            self._market_data_streams = set()
+
+        needs_preflight = conid not in self._market_data_streams
+
+        if needs_preflight:
+            logger.info(
+                f"Establishing market data stream for {ticker} (conid: {conid})"
+            )
+
+            # Pre-flight request to establish streaming
+            preflight_endpoint = "/iserver/marketdata/snapshot"
+            preflight_params = {
+                "conids": conid,
+                "fields": "31,84,86,87,7",  # Request all needed fields
+            }
+
+            try:
+                preflight_response = self._request(
+                    "GET", preflight_endpoint, params=preflight_params
+                )
+                logger.debug(
+                    f"Pre-flight response for {ticker}: {preflight_response}"
+                )
+
+                # Check if pre-flight established streaming successfully
+                if (
+                    isinstance(preflight_response, list)
+                    and len(preflight_response) > 0
+                    and isinstance(preflight_response[0], dict)
+                    and str(preflight_response[0].get("conid")) == conid
+                ):
+                    # Mark this conid as having established streaming
+                    self._market_data_streams.add(conid)
+                    logger.info(f"Market data stream established for {ticker}")
+
+                else:
+                    logger.warning(
+                        f"Failed to establish market data stream for {ticker}"
+                    )
+                    return None
+
+            except Exception as e:
+                logger.error(f"Pre-flight request failed for {ticker}: {e}")
+                return None
+
+        # Step 3: Get actual market data snapshot
+        logger.info(
+            f"Retrieving market data snapshot for {ticker} (conid: {conid})"
+        )
         endpoint = "/iserver/marketdata/snapshot"
         params = {"conids": conid}
-        response = self._request("GET", endpoint, params=params)
 
-        # Debug: Log the full response
+        try:
+            response = self._request("GET", endpoint, params=params)
+            logger.debug(f"Market data response for {ticker}: {response}")
+        except Exception as e:
+            logger.error(f"Market data request failed for {ticker}: {e}")
+            return None
+
+        # Step 4: Parse response
+        if not isinstance(response, list) or len(response) == 0:
+            logger.warning(
+                f"Invalid market data response for {ticker}: {response}"
+            )
+            return None
+
+        data = response[0]
+        if not isinstance(data, dict):
+            logger.warning(
+                f"Invalid market data data format for {ticker}: {data}"
+            )
+            return None
+
+        # Debug: Log all available fields
+        available_fields = list(data.keys())
         logger.debug(
-            f"Market data response for {ticker} (conid: {conid}): {response}"
+            f"Available fields in market data for {ticker}: {available_fields}"
         )
 
-        # Step 3: Parse response
-        if isinstance(response, list) and len(response) > 0:
-            data = response[0]
-            if isinstance(data, dict):
-                # Debug: Log all available fields
-                logger.debug(
-                    f"Available fields in market data for {ticker}: {list(data.keys())}"
-                )
+        # IBKR field mappings: 31=last, 84=bid, 86=ask, 87=volume, 7=low
+        # Additional commonly used fields: 70=change %, 85=previous close, 88=today's open
+        field_mappings = {
+            "31": "last_price",
+            "84": "bid",
+            "86": "ask",
+            "87": "volume",
+            "7": "low",
+            "70": "change_percent",
+            "85": "previous_close",
+            "88": "today_open",
+        }
 
-                # IBKR uses field codes: 31=last, 84=bid, 86=ask, 87=volume, 7=low
-                last_price = data.get("31") or data.get("last") or 0.0
-                bid = data.get("84") or data.get("bid") or 0.0
-                ask = data.get("86") or data.get("ask") or 0.0
-                volume = data.get("87") or data.get("volume") or 0
-                low = data.get("7") or data.get("low") or 0.0
-
-                # Debug: Log extracted values
-                logger.debug(
-                    f"Extracted values for {ticker}: last={last_price}, bid={bid}, ask={ask}, volume={volume}, low={low}"
-                )
-
-                # Convert to proper types using new price parsing utilities
+        # Extract and parse market data with improved error handling
+        market_data_dict = {}
+        for field_code, field_name in field_mappings.items():
+            raw_value = data.get(field_code)
+            if raw_value is not None:
                 try:
-                    last_price_float = clean_ibkr_price(last_price)
-                    bid_float = safe_parse_price(bid, 0.0)
-                    ask_float = safe_parse_price(ask, 0.0)
-                    volume_int = int(safe_parse_price(volume, 0))
-                    low_float = safe_parse_price(low, 0.0)
+                    if field_name in ["last_price", "bid", "ask", "low"]:
+                        market_data_dict[field_name] = clean_ibkr_price(
+                            raw_value
+                        )
+                    elif field_name == "volume":
+                        market_data_dict[field_name] = int(
+                            safe_parse_price(raw_value, 0)
+                        )
+                    else:  # change_percent, previous_close, today_open
+                        market_data_dict[field_name] = safe_parse_price(
+                            raw_value, 0.0
+                        )
                 except (PriceParsingError, ValueError, TypeError) as e:
                     logger.warning(
-                        f"Invalid market data values for {ticker}: {e}"
+                        f"Failed to parse {field_name} ({field_code}) for {ticker}: {e}"
                     )
-                    return None
-
-                # Validate that we have essential data using new validation
-                if not validate_minimum_price(
-                    last_price_float, min_threshold=0.0001
-                ):
-                    logger.warning(
-                        f"Invalid last price for {ticker}: {last_price_float}"
+                    market_data_dict[field_name] = (
+                        0.0 if field_name != "volume" else 0
                     )
-                    return None
 
-                return MarketData(
-                    ticker=ticker,
-                    last_price=last_price_float,
-                    bid=bid_float,
-                    ask=ask_float,
-                    volume=volume_int,
-                    low=low_float,
-                )
+        # Validate essential data
+        if not validate_minimum_price(
+            market_data_dict.get("last_price", 0.0), min_threshold=0.0001
+        ):
+            logger.warning(
+                f"Invalid last price for {ticker}: {market_data_dict.get('last_price')}"
+            )
+            return None
 
-        logger.warning(f"Could not get market data for {ticker}")
-        return None
+        # Create and return MarketData object
+        return MarketData(
+            ticker=ticker,
+            last_price=market_data_dict.get("last_price", 0.0),
+            bid=market_data_dict.get("bid", 0.0),
+            ask=market_data_dict.get("ask", 0.0),
+            volume=market_data_dict.get("volume", 0),
+            low=market_data_dict.get("low", 0.0),
+        )
 
     # ========== Order Management ==========
 
