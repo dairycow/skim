@@ -53,6 +53,17 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
+        # Mock pre-flight response to establish streaming
+        responses.add(
+            responses.GET,
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
+            json=[
+                {
+                    "conid": "123456",  # Must match conid for streaming to be established
+                }
+            ],
+        )
+
         # Mock the market data snapshot with penny stock prices
         responses.add(
             responses.GET,
@@ -60,10 +71,10 @@ class TestIBKRPennyStockParsing:
             json=[
                 {
                     "31": "0.005",  # last price - 0.5 cents
+                    "71": "0.003",  # daily low - 0.3 cents
                     "84": "0.004",  # bid - 0.4 cents
                     "86": "0.006",  # ask - 0.6 cents
                     "87": "1000000",  # volume
-                    "7": "0.003",  # daily low - 0.3 cents
                 }
             ],
         )
@@ -99,6 +110,17 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
+        # Mock pre-flight response to establish streaming
+        responses.add(
+            responses.GET,
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
+            json=[
+                {
+                    "conid": "123457",  # Must match conid for streaming to be established
+                }
+            ],
+        )
+
         # Mock the market data snapshot with scientific notation
         responses.add(
             responses.GET,
@@ -106,10 +128,10 @@ class TestIBKRPennyStockParsing:
             json=[
                 {
                     "31": "5e-3",  # last price - scientific notation
+                    "71": "3e-3",  # daily low - scientific notation
                     "84": "4e-3",  # bid - scientific notation
                     "86": "6e-3",  # ask - scientific notation
                     "87": "500000",  # volume
-                    "7": "3e-3",  # daily low - scientific notation
                 }
             ],
         )
@@ -143,6 +165,17 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
+        # Mock pre-flight response to establish streaming
+        responses.add(
+            responses.GET,
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
+            json=[
+                {
+                    "conid": "123458",  # Must match conid for streaming to be established
+                }
+            ],
+        )
+
         # Mock the market data snapshot with IBKR prefixes
         responses.add(
             responses.GET,
@@ -150,10 +183,10 @@ class TestIBKRPennyStockParsing:
             json=[
                 {
                     "31": "C0.008",  # last price with 'C' prefix (Closed)
+                    "71": "L0.006",  # daily low with 'L' prefix (Low)
                     "84": "H0.007",  # bid with 'H' prefix (High)
                     "86": "0.009",  # ask without prefix
                     "87": "750000",  # volume
-                    "7": "L0.006",  # daily low with 'L' prefix (Low)
                 }
             ],
         )
@@ -187,6 +220,17 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
+        # Mock pre-flight response to establish streaming
+        responses.add(
+            responses.GET,
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
+            json=[
+                {
+                    "conid": "123459",  # Must match conid for streaming to be established
+                }
+            ],
+        )
+
         # Mock the market data snapshot with extremely small prices
         responses.add(
             responses.GET,
@@ -194,10 +238,10 @@ class TestIBKRPennyStockParsing:
             json=[
                 {
                     "31": "0.001",  # last price - 0.1 cents
+                    "71": "0.0008",  # daily low - 0.08 cents
                     "84": "0.0009",  # bid - 0.09 cents
                     "86": "0.0011",  # ask - 0.11 cents
                     "87": "2000000",  # volume
-                    "7": "0.0008",  # daily low - 0.08 cents
                 }
             ],
         )
@@ -231,6 +275,17 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
+        # Mock pre-flight response to establish streaming
+        responses.add(
+            responses.GET,
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
+            json=[
+                {
+                    "conid": "123460",  # Must match conid for streaming to be established
+                }
+            ],
+        )
+
         # Mock the market data snapshot with malformed prices
         responses.add(
             responses.GET,
@@ -238,10 +293,10 @@ class TestIBKRPennyStockParsing:
             json=[
                 {
                     "31": "",  # Empty last price
+                    "71": None,  # Null daily low
                     "84": "invalid",  # Invalid bid
                     "86": "0.007",  # Valid ask
                     "87": "300000",  # volume
-                    "7": None,  # Null daily low
                 }
             ],
         )

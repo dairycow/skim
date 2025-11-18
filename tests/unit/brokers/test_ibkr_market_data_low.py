@@ -1,6 +1,6 @@
 """Tests for IBKR client market data functionality with daily low support.
 
-Tests the enhanced market data methods that include daily low price (field 7).
+Tests enhanced market data methods that include daily low price (field 71).
 Follows TDD approach - tests are written first, then implementation.
 """
 
@@ -35,7 +35,7 @@ class TestIBKRMarketDataWithLow:
 
     @responses.activate
     def test_get_market_data_includes_daily_low(self, ibkr_client_mock_oauth):
-        """Test that get_market_data returns daily low price (field 7)"""
+        """Test that get_market_data returns daily low price (field 71)"""
         # Mock the contract ID lookup
         responses.add(
             responses.GET,
@@ -46,6 +46,32 @@ class TestIBKRMarketDataWithLow:
                     "symbol": "AAPL",
                     "description": "APPLE INC",
                     "sections": [{"secType": "STK"}],
+                }
+            ],
+        )
+
+        # Mock pre-flight response to establish streaming
+        responses.add(
+            responses.GET,
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
+            json=[
+                {
+                    "conid": "265598",  # Must match conid for streaming to be established
+                }
+            ],
+        )
+
+        # Mock market data snapshot with field 71 (daily low)
+        responses.add(
+            responses.GET,
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
+            json=[
+                {
+                    "31": "150.0",  # last price
+                    "71": "148.0",  # daily low - this should be captured
+                    "84": "149.5",  # bid
+                    "86": "150.5",  # ask
+                    "87": "1000",  # volume
                 }
             ],
         )
@@ -80,7 +106,7 @@ class TestIBKRMarketDataWithLow:
         self, ibkr_client_mock_oauth
     ):
         """Test that get_market_data handles missing daily low gracefully"""
-        # Mock the contract ID lookup
+        # Mock contract ID lookup
         responses.add(
             responses.GET,
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/secdef/search",
@@ -94,7 +120,18 @@ class TestIBKRMarketDataWithLow:
             ],
         )
 
-        # Mock the market data snapshot WITHOUT field 7
+        # Mock pre-flight response to establish streaming
+        responses.add(
+            responses.GET,
+            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
+            json=[
+                {
+                    "conid": "265598",  # Must match conid for streaming to be established
+                }
+            ],
+        )
+
+        # Mock market data snapshot WITHOUT field 71
         responses.add(
             responses.GET,
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
@@ -104,7 +141,7 @@ class TestIBKRMarketDataWithLow:
                     "84": "149.5",  # bid
                     "86": "150.5",  # ask
                     "87": "1000",  # volume
-                    # Missing field 7 (daily low)
+                    # Missing field 71 (daily low)
                 }
             ],
         )

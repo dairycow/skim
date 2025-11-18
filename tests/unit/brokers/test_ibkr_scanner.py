@@ -24,20 +24,22 @@ class TestIBKRScanner:
                 "companyHeader": "BHP Group Ltd - ASX",
                 "symbol": "BHP",
                 "31": 45.50,  # Last price
-                "70": 2.5,  # Change % from close
-                "86": 44.40,  # Previous close
-                "88": 45.00,  # Today's open
-                "7295": 1000000,  # Volume
+                "83": 2.5,  # Change % from close
+                "86": 44.40,  # Ask price
+                "87": 1000000,  # Volume
+                "7741": 45.00,  # Prior close
+                "7295": 45.00,  # Today's open
             },
             {
                 "conid": "8714",
                 "companyHeader": "Commonwealth Bank of Australia - ASX",
                 "symbol": "CBA",
                 "31": 95.25,
-                "70": -1.2,
-                "86": 96.40,
-                "88": 96.00,
-                "7295": 750000,
+                "83": -1.2,
+                "86": 96.40,  # Ask price
+                "87": 750000,  # Volume
+                "7741": 96.00,  # Prior close
+                "7295": 96.00,  # Today's open
             },
         ]
 
@@ -65,7 +67,8 @@ class TestIBKRScanner:
         assert result[0]["symbol"] == "BHP"
         assert result[0]["last_price"] == 45.50
         assert result[0]["change_percent"] == 2.5
-        assert result[0]["previous_close"] == 44.40
+        assert result[0]["ask"] == 44.40  # Field 86 is Ask Price
+        assert result[0]["previous_close"] == 45.00  # Field 7741 is Prior Close
         assert result[0]["today_open"] == 45.00
         assert result[0]["volume"] == 1000000
 
@@ -153,10 +156,11 @@ class TestIBKRScanner:
         market_data_response = {
             "6793599": {
                 "31": 45.50,  # Last price
-                "70": 2.5,  # Change % from close
-                "86": 44.40,  # Previous close price
-                "88": 45.00,  # Today's open price
-                "7295": 1000000,  # Volume
+                "83": 2.5,  # Change % from close
+                "86": 44.40,  # Ask price
+                "87": 1000000,  # Volume
+                "7741": 45.00,  # Prior close price
+                "7295": 45.00,  # Today's open price
             }
         }
 
@@ -171,7 +175,8 @@ class TestIBKRScanner:
         assert isinstance(result, dict)
         assert result["last_price"] == 45.50
         assert result["change_percent"] == 2.5
-        assert result["previous_close"] == 44.40
+        assert result["ask"] == 44.40  # Field 86 is Ask Price
+        assert result["previous_close"] == 45.00  # Field 7741 is Prior Close
         assert result["today_open"] == 45.00
         assert result["volume"] == 1000000
 
@@ -285,10 +290,11 @@ class TestIBKRScanner:
         market_data_response = {
             "6793599": {
                 "31": "45.50",  # String that should convert to float
-                "70": "2.5",  # String that should convert to float
+                "83": "2.5",  # String that should convert to float
                 "86": "44.40",  # String that should convert to float
-                "88": "45.00",  # String that should convert to float
-                "7295": "1000000",  # String that should convert to int
+                "87": "1000000",  # String that should convert to int
+                "7741": "45.00",  # String that should convert to float
+                "7295": "45.00",  # String that should convert to float
             }
         }
 
@@ -302,6 +308,7 @@ class TestIBKRScanner:
 
         assert isinstance(result["last_price"], float)
         assert isinstance(result["change_percent"], float)
+        assert isinstance(result["ask"], float)
         assert isinstance(result["previous_close"], float)
         assert isinstance(result["today_open"], float)
         assert isinstance(result["volume"], int)

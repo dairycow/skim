@@ -754,7 +754,7 @@ class IBKRClient(IBInterface):
             preflight_endpoint = "/iserver/marketdata/snapshot"
             preflight_params = {
                 "conids": conid,
-                "fields": "31,84,86,87,7",  # Request all needed fields
+                "fields": "31,71,84,86,87,83,7741,7295",  # Request all needed fields
             }
 
             try:
@@ -820,17 +820,17 @@ class IBKRClient(IBInterface):
             f"Available fields in market data for {ticker}: {available_fields}"
         )
 
-        # IBKR field mappings: 31=last, 84=bid, 86=ask, 87=volume, 7=low
-        # Additional commonly used fields: 70=change %, 85=previous close, 88=today's open
+        # IBKR field mappings based on market-data-config.md:
+        # 31=last, 71=low, 84=bid, 86=ask, 87=volume, 83=change %, 7741=prior close, 7295=open
         field_mappings = {
             "31": "last_price",
+            "71": "low",
             "84": "bid",
             "86": "ask",
             "87": "volume",
-            "7": "low",
-            "70": "change_percent",
-            "85": "previous_close",
-            "88": "today_open",
+            "83": "change_percent",
+            "7741": "previous_close",
+            "7295": "today_open",
         }
 
         # Extract and parse market data with improved error handling
@@ -1188,10 +1188,11 @@ class IBKRClient(IBInterface):
             # Map numeric fields to readable names with type conversion
             field_mapping = {
                 "31": "last_price",
-                "70": "change_percent",
-                "86": "previous_close",
-                "88": "today_open",
-                "7295": "volume",
+                "83": "change_percent",
+                "86": "ask",
+                "87": "volume",
+                "7741": "previous_close",
+                "7295": "today_open",
             }
 
             for field_code, field_name in field_mapping.items():
@@ -1288,7 +1289,7 @@ class IBKRClient(IBInterface):
         logger.info(f"Getting extended market data for contract {conid}")
 
         # Request specific fields for gap analysis
-        fields = "31,70,86,88,7295"
+        fields = "31,83,86,7741,7295"
         params = {"conids": conid, "fields": fields}
 
         try:
@@ -1305,10 +1306,11 @@ class IBKRClient(IBInterface):
         result = {}
         field_mapping = {
             "31": ("last_price", float),
-            "70": ("change_percent", float),
-            "86": ("previous_close", float),
-            "88": ("today_open", float),
-            "7295": ("volume", int),
+            "83": ("change_percent", float),
+            "86": ("ask", float),
+            "87": ("volume", int),
+            "7741": ("previous_close", float),
+            "7295": ("today_open", float),
         }
 
         # Handle both dict and list response formats
