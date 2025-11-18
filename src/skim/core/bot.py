@@ -81,9 +81,10 @@ class TradingBot:
             self._ensure_connection()
             self.ibkr_scanner.connect()
 
-        # Query IBKR for stocks with gaps > 2% (lower threshold for scanning)
-        scan_threshold = 2.0
-        gap_stocks = self.ibkr_scanner.scan_for_gaps(min_gap=scan_threshold)
+        # Query IBKR for stocks with gaps > configured threshold
+        gap_stocks = self.ibkr_scanner.scan_for_gaps(
+            min_gap=self.config.gap_threshold
+        )
 
         if not gap_stocks:
             logger.info("No stocks found in scan")
