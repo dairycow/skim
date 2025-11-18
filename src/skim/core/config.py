@@ -21,10 +21,10 @@ class ScannerConfig:
     or_duration_minutes: int = 10
 
     # Polling interval for OR tracking (seconds)
-    or_poll_interval_seconds: int = 30
+    or_poll_interval_seconds: int = 45
 
     # Gap fill tolerance for position management (dollars)
-    gap_fill_tolerance: float = 1.0
+    gap_fill_tolerance: float = 0.05
 
     # Breakout buffer above ORH (dollars)
     or_breakout_buffer: float = 0.1
@@ -87,8 +87,8 @@ class Config:
     # Fields with defaults (optional parameters with sensible defaults)
     paper_trading: bool = True
     gap_threshold: float = 3.0
-    max_position_size: int = 1000
-    max_positions: int = 5
+    max_position_size: int = 10000
+    max_positions: int = 50
     db_path: str = "/app/data/skim.db"
 
     # OAuth key paths - dynamically determined at runtime
