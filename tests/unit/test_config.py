@@ -37,9 +37,9 @@ class TestTradingParameters:
 
         # Test default values
         assert config.paper_trading
-        assert config.gap_threshold == 3.0
-        assert config.max_position_size == 1000
-        assert config.max_positions == 5
+        assert config.scanner_config.gap_threshold == 9.0
+        assert config.max_position_size == 10000
+        assert config.max_positions == 50
         assert config.db_path == "/app/data/skim.db"
 
     def test_trading_parameters_can_be_overridden(self):
@@ -55,7 +55,7 @@ class TestTradingParameters:
 
         # Should use environment variable values
         assert config.paper_trading
-        assert config.gap_threshold == 5.0
+        assert config.scanner_config.gap_threshold == 5.0
         assert config.max_position_size == 2000
         assert config.max_positions == 10
         assert config.db_path == "/custom/path/db.sqlite"
@@ -143,6 +143,7 @@ class TestScannerParameters:
     @pytest.mark.parametrize(
         "field,expected_value",
         [
+            ("gap_threshold", 9.0),
             ("volume_filter", 10000),
             ("price_filter", 0.05),
             ("or_duration_minutes", 10),
@@ -172,6 +173,7 @@ class TestScannerParameters:
     @pytest.mark.parametrize(
         "env_var,env_value,field,expected_value",
         [
+            ("GAP_THRESHOLD", "5.0", "gap_threshold", 5.0),
             ("SCANNER_VOLUME_FILTER", "75000", "volume_filter", 75000),
             ("SCANNER_PRICE_FILTER", "0.75", "price_filter", 0.75),
             ("SCANNER_OR_DURATION", "15", "or_duration_minutes", 15),
@@ -251,6 +253,7 @@ class TestConfigLogging:
         log_output = log_capture.getvalue()
 
         # Should log scanner configuration values
+        assert "Scanner Gap Threshold: 9.0%" in log_output
         assert "Scanner Volume Filter: 10,000 shares" in log_output
         assert "Scanner Price Filter: $0.05" in log_output
         assert "OR Duration: 10 minutes" in log_output

@@ -83,7 +83,7 @@ class TradingBot:
 
         # Query IBKR for stocks with gaps > configured threshold
         gap_stocks = self.ibkr_scanner.scan_for_gaps(
-            min_gap=self.config.gap_threshold
+            min_gap=self.config.scanner_config.gap_threshold
         )
 
         if not gap_stocks:
@@ -182,7 +182,7 @@ class TradingBot:
 
         # Query IBKR for stocks with gaps >= threshold
         gap_stocks = self.ibkr_scanner.scan_for_gaps(
-            min_gap=self.config.gap_threshold
+            min_gap=self.config.scanner_config.gap_threshold
         )
 
         if not gap_stocks:
@@ -574,7 +574,7 @@ class TradingBot:
 
             # Scan for gaps > 3% (configured threshold)
             gap_stocks = self.ibkr_scanner.scan_for_gaps(
-                min_gap=self.config.gap_threshold
+                min_gap=self.config.scanner_config.gap_threshold
             )
 
             if not gap_stocks:
