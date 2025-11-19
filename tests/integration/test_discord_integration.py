@@ -16,17 +16,17 @@ class TestTradingBotDiscordIntegration:
     def test_scan_with_discord_notification_success(
         self, mock_requests_post, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
-        """Test scan method with successful Discord notification"""
+        """Test scan method with Discord notification success"""
         # Setup config
         config = Config(
             ib_client_id=1,
             paper_trading=True,
-            gap_threshold=3.0,
             max_position_size=1000,
             max_positions=5,
             db_path="test.db",
             discord_webhook_url="https://discord.com/api/webhooks/test/webhook",
             scanner_config=ScannerConfig(
+                gap_threshold=3.0,
                 volume_filter=50000,
                 price_filter=0.50,
                 or_duration_minutes=10,
@@ -93,12 +93,12 @@ class TestTradingBotDiscordIntegration:
         config = Config(
             ib_client_id=1,
             paper_trading=True,
-            gap_threshold=3.0,
             max_position_size=1000,
             max_positions=5,
             db_path="test.db",
             discord_webhook_url="https://discord.com/api/webhooks/test/webhook",
             scanner_config=ScannerConfig(
+                gap_threshold=3.0,
                 volume_filter=50000,
                 price_filter=0.50,
                 or_duration_minutes=10,
@@ -144,12 +144,12 @@ class TestTradingBotDiscordIntegration:
         config = Config(
             ib_client_id=1,
             paper_trading=True,
-            gap_threshold=3.0,
             max_position_size=1000,
             max_positions=5,
             db_path="test.db",
             discord_webhook_url="https://discord.com/api/webhooks/test/webhook",
             scanner_config=ScannerConfig(
+                gap_threshold=3.0,
                 volume_filter=50000,
                 price_filter=0.50,
                 or_duration_minutes=10,
@@ -198,12 +198,12 @@ class TestTradingBotDiscordIntegration:
         config = Config(
             ib_client_id=1,
             paper_trading=True,
-            gap_threshold=3.0,
             max_position_size=1000,
             max_positions=5,
             db_path="test.db",
-            discord_webhook_url=None,
+            discord_webhook_url="https://discord.com/api/webhooks/test/webhook",
             scanner_config=ScannerConfig(
+                gap_threshold=3.0,
                 volume_filter=50000,
                 price_filter=0.50,
                 or_duration_minutes=10,

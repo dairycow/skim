@@ -11,6 +11,9 @@ from loguru import logger
 class ScannerConfig:
     """Configuration for IBKR gap scanner parameters"""
 
+    # Minimum gap percentage for scanning
+    gap_threshold: float = 9.0
+
     # Minimum volume filter for gap scanning (shares) - ASX optimized
     volume_filter: int = 10000
 
@@ -86,7 +89,6 @@ class Config:
 
     # Fields with defaults (optional parameters with sensible defaults)
     paper_trading: bool = True
-    gap_threshold: float = 3.0
     max_position_size: int = 10000
     max_positions: int = 50
     db_path: str = "/app/data/skim.db"
@@ -123,9 +125,6 @@ class Config:
         config = cls(
             ib_client_id=int(os.getenv("IB_CLIENT_ID", "1")),
             paper_trading=paper_trading,
-            gap_threshold=float(
-                os.getenv("GAP_THRESHOLD", str(cls.gap_threshold))
-            ),
             max_position_size=int(
                 os.getenv("MAX_POSITION_SIZE", str(cls.max_position_size))
             ),
@@ -137,6 +136,7 @@ class Config:
             oauth_signature_key_path=str(oauth_paths["signature"]),
             oauth_encryption_key_path=str(oauth_paths["encryption"]),
             scanner_config=ScannerConfig(
+                gap_threshold=float(os.getenv("GAP_THRESHOLD", "9.0")),
                 volume_filter=int(os.getenv("SCANNER_VOLUME_FILTER", "10000")),
                 price_filter=float(os.getenv("SCANNER_PRICE_FILTER", "0.05")),
                 or_duration_minutes=int(os.getenv("SCANNER_OR_DURATION", "10")),
@@ -155,7 +155,6 @@ class Config:
         logger.info("Configuration loaded:")
         logger.info(f"  Client ID: {config.ib_client_id}")
         logger.info(f"  Paper Trading: {config.paper_trading}")
-        logger.info(f"  Gap Threshold: {config.gap_threshold}%")
         logger.info(f"  Max Position Size: {config.max_position_size} shares")
         logger.info(f"  Max Positions: {config.max_positions}")
         logger.info(f"  Database: {config.db_path}")
@@ -165,6 +164,9 @@ class Config:
         logger.info(f"  OAuth Signature Key: {config.oauth_signature_key_path}")
         logger.info(
             f"  OAuth Encryption Key: {config.oauth_encryption_key_path}"
+        )
+        logger.info(
+            f"  Scanner Gap Threshold: {config.scanner_config.gap_threshold}%"
         )
         logger.info(
             f"  Scanner Volume Filter: {config.scanner_config.volume_filter:,} shares"

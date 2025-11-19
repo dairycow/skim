@@ -206,7 +206,7 @@ def mock_bot_config():
     from skim.core.config import Config, ScannerConfig
 
     config = Mock(spec=Config)
-    config.gap_threshold = 3.0
+    config.scanner_config = ScannerConfig(gap_threshold=3.0)
     config.max_positions = 5
     config.max_position_size = 1000
     config.stop_loss_pct = 5.0
