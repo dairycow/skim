@@ -129,13 +129,18 @@ class MarketData:
     """Real-time market data snapshot"""
 
     ticker: str
-    bid: float
-    ask: float
-    last: float
+    conid: str
+    last_price: float
     high: float
     low: float
+    bid: float
+    ask: float
+    bid_size: int
+    ask_size: int
     volume: int
-    timestamp: datetime
+    open: float
+    prior_close: float
+    change_percent: float
 
     @property
     def mid_price(self) -> float:

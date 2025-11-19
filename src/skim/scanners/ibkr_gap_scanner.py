@@ -199,31 +199,18 @@ class IBKRGapScanner:
             try:
                 # Get market data for all candidates
                 for stock in candidates:
-                    market_data = self.client.get_market_data(stock.ticker)
+                    market_data = self.client.get_market_data(str(stock.conid))
 
                     if market_data:
                         ticker_data = tracking_data[stock.ticker]
                         current_price = market_data.last_price
 
                         # Fetch previous close if we don't have it yet
-                        if ticker_data["prev_close"] is None:
-                            try:
-                                # Try to get previous close from extended market data
-                                extended_data = (
-                                    self.client.get_market_data_extended(
-                                        str(stock.conid)
-                                    )
-                                )
-                                if extended_data and extended_data.get(
-                                    "previous_close"
-                                ):
-                                    ticker_data["prev_close"] = float(
-                                        extended_data["previous_close"]
-                                    )
-                            except Exception as e:
-                                logger.debug(
-                                    f"Could not fetch previous close for {stock.ticker}: {e}"
-                                )
+                        if (
+                            ticker_data["prev_close"] is None
+                            and market_data.prior_close
+                        ):
+                            ticker_data["prev_close"] = market_data.prior_close
 
                         # Set first price (opening price)
                         if ticker_data["first_price"] is None:
@@ -266,7 +253,7 @@ class IBKRGapScanner:
             ticker_data = tracking_data[stock.ticker]
 
             # Get final market data for current price
-            final_market_data = self.client.get_market_data(stock.ticker)
+            final_market_data = self.client.get_market_data(str(stock.conid))
             current_price = (
                 final_market_data.last_price
                 if final_market_data

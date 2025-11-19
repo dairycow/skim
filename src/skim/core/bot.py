@@ -100,9 +100,9 @@ class TradingBot:
 
         for stock in gap_stocks:
             # Only process if ticker has price-sensitive announcement
-            if stock.ticker not in price_sensitive_tickers:
+            if str(stock.conid) not in price_sensitive_tickers:
                 logger.debug(
-                    f"{stock.ticker}: Skipped (no price-sensitive announcement)"
+                    f"{str(stock.conid)}: Skipped (no price-sensitive announcement)"
                 )
                 continue
 
@@ -111,13 +111,13 @@ class TradingBot:
                 current_price = None
                 try:
                     market_data = self.ibkr_scanner.client.get_market_data(
-                        stock.ticker
+                        str(stock.conid)
                     )
                     if market_data and market_data.last_price:
                         current_price = float(market_data.last_price)
                 except Exception as e:
                     logger.debug(
-                        f"Could not fetch market data for {stock.ticker}: {e}"
+                        f"Could not fetch market data for {str(stock.conid)}: {e}"
                     )
 
                 price_display = (
@@ -126,16 +126,16 @@ class TradingBot:
                     else "Price unavailable"
                 )
                 logger.info(
-                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+                    f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
                 )
 
                 # Check if already in candidates
-                existing = self.db.get_candidate(stock.ticker)
+                existing = self.db.get_candidate(str(stock.conid))
 
                 if not existing or existing.status != "watching":
                     # Add to candidates
                     candidate = Candidate(
-                        ticker=stock.ticker,
+                        ticker=str(stock.conid),
                         headline=f"Gap detected: {stock.gap_percent:.2f}%",
                         scan_date=datetime.now().isoformat(),
                         status="watching",
@@ -146,17 +146,17 @@ class TradingBot:
                     candidates_found += 1
                     new_candidates.append(
                         {
-                            "ticker": stock.ticker,
+                            "ticker": str(stock.conid),
                             "gap_percent": stock.gap_percent,
                             "price": current_price,
                         }
                     )
                     logger.info(
-                        f"Added {stock.ticker} to candidates (gap: {stock.gap_percent:.2f}%, price-sensitive announcement)"
+                        f"Added {str(stock.conid)} to candidates (gap: {stock.gap_percent:.2f}%, price-sensitive announcement)"
                     )
 
             except Exception as e:
-                logger.error(f"Error adding candidate {stock.ticker}: {e}")
+                logger.error(f"Error adding candidate {str(stock.conid)}: {e}")
                 continue
 
         # Send Discord notification
@@ -201,13 +201,13 @@ class TradingBot:
                 current_price = None
                 try:
                     market_data = self.ibkr_scanner.client.get_market_data(
-                        stock.ticker
+                        str(stock.conid)
                     )
                     if market_data and market_data.last_price:
                         current_price = float(market_data.last_price)
                 except Exception as e:
                     logger.debug(
-                        f"Could not fetch market data for {stock.ticker}: {e}"
+                        f"Could not fetch market data for {str(stock.conid)}: {e}"
                     )
 
                 price_display = (
@@ -216,28 +216,28 @@ class TradingBot:
                     else "Price unavailable"
                 )
                 logger.info(
-                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+                    f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
                 )
 
                 # Check if this ticker is in our candidates
-                if stock.ticker in candidate_tickers:
+                if str(stock.conid) in candidate_tickers:
                     # Trigger existing candidate
                     logger.warning(
-                        f"{stock.ticker}: CANDIDATE TRIGGERED! Gap: {stock.gap_percent:.2f}%"
+                        f"{str(stock.conid)}: CANDIDATE TRIGGERED! Gap: {stock.gap_percent:.2f}%"
                     )
 
                     self.db.update_candidate_status(
-                        stock.ticker, "triggered", stock.gap_percent
+                        str(stock.conid), "triggered", stock.gap_percent
                     )
                     gaps_found += 1
                 else:
                     # New stock meeting threshold - add directly as triggered
                     logger.warning(
-                        f"{stock.ticker}: NEW STOCK TRIGGERED! Gap: {stock.gap_percent:.2f}%"
+                        f"{str(stock.conid)}: NEW STOCK TRIGGERED! Gap: {stock.gap_percent:.2f}%"
                     )
 
                     candidate = Candidate(
-                        ticker=stock.ticker,
+                        ticker=str(stock.conid),
                         headline=f"Gap triggered: {stock.gap_percent:.2f}%",
                         scan_date=datetime.now().isoformat(),
                         status="triggered",
@@ -248,7 +248,7 @@ class TradingBot:
                     gaps_found += 1
 
             except Exception as e:
-                logger.error(f"Error monitoring {stock.ticker}: {e}")
+                logger.error(f"Error monitoring {str(stock.conid)}: {e}")
                 continue
 
         logger.info(f"Monitoring complete. Found {gaps_found} triggered stocks")
@@ -287,7 +287,8 @@ class TradingBot:
 
             try:
                 # Get current market price
-                market_data = self.ib_client.get_market_data(ticker)
+                conid = self.ib_client._get_contract_id(ticker)
+                market_data = self.ib_client.get_market_data(conid)
 
                 if (
                     not market_data
@@ -311,7 +312,8 @@ class TradingBot:
                     continue
 
                 # Calculate stop loss at low of day
-                market_data = self.ib_client.get_market_data(ticker)
+                conid = self.ib_client._get_contract_id(ticker)
+                market_data = self.ib_client.get_market_data(conid)
                 if market_data and market_data.low > 0:
                     stop_loss = market_data.low
                     logger.info(
@@ -400,7 +402,8 @@ class TradingBot:
 
             try:
                 # Get current price
-                market_data = self.ib_client.get_market_data(ticker)
+                conid = self.ib_client._get_contract_id(ticker)
+                market_data = self.ib_client.get_market_data(conid)
 
                 if (
                     not market_data
@@ -586,13 +589,13 @@ class TradingBot:
                     current_price = None
                     try:
                         market_data = self.ibkr_scanner.client.get_market_data(
-                            stock.ticker
+                            str(stock.conid)
                         )
                         if market_data and market_data.last_price:
                             current_price = float(market_data.last_price)
                     except Exception as e:
                         logger.debug(
-                            f"Could not fetch market data for {stock.ticker}: {e}"
+                            f"Could not fetch market data for {str(stock.conid)}: {e}"
                         )
 
                     price_display = (
@@ -601,11 +604,11 @@ class TradingBot:
                         else "Price unavailable"
                     )
                     logger.info(
-                        f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+                        f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
                     )
 
                     # Check if already exists
-                    existing = self.db.get_candidate(stock.ticker)
+                    existing = self.db.get_candidate(str(stock.conid))
 
                     if not existing or existing.status not in (
                         "or_tracking",
@@ -613,7 +616,7 @@ class TradingBot:
                     ):
                         # Create candidate with OR tracking status
                         candidate = Candidate(
-                            ticker=stock.ticker,
+                            ticker=str(stock.conid),
                             headline=f"Gap detected: {stock.gap_percent:.2f}%",
                             scan_date=datetime.now().isoformat(),
                             status="or_tracking",
@@ -625,12 +628,12 @@ class TradingBot:
                         self.db.save_candidate(candidate)
                         candidates_found += 1
                         logger.info(
-                            f"Added {stock.ticker} to OR tracking (gap: {stock.gap_percent:.2f}%)"
+                            f"Added {str(stock.conid)} to OR tracking (gap: {stock.gap_percent:.2f}%)"
                         )
 
                 except Exception as e:
                     logger.error(
-                        f"Error adding OR tracking candidate {stock.ticker}: {e}"
+                        f"Error adding OR tracking candidate {str(stock.conid)}: {e}"
                     )
                     continue
 
@@ -774,7 +777,8 @@ class TradingBot:
 
             try:
                 # Get current market data
-                market_data = self.ib_client.get_market_data(ticker)
+                conid = self.ib_client._get_contract_id(ticker)
+                market_data = self.ib_client.get_market_data(conid)
 
                 if not market_data or not market_data.last_price:
                     logger.warning(
