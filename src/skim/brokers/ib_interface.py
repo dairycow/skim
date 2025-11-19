@@ -9,11 +9,18 @@ class MarketData:
     """Market data for a security"""
 
     ticker: str
+    conid: str
     last_price: float
+    high: float
+    low: float
     bid: float
     ask: float
+    bid_size: int
+    ask_size: int
     volume: int
-    low: float
+    open: float
+    prior_close: float
+    change_percent: float
 
 
 @dataclass
@@ -66,11 +73,11 @@ class IBInterface(Protocol):
         """
         ...
 
-    def get_market_data(self, ticker: str) -> MarketData | None:
-        """Get current market data for a ticker
+    def get_market_data(self, conid: str) -> MarketData | None:
+        """Get current market data for a contract
 
         Args:
-            ticker: Stock ticker symbol (e.g., "BHP")
+            conid: IBKR contract ID
 
         Returns:
             MarketData object if data available, None otherwise

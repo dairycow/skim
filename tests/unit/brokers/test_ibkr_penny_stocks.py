@@ -20,11 +20,18 @@ class TestIBKRPennyStockParsing:
         # This test should pass initially - dataclass should handle any float
         market_data = MarketData(
             ticker="CR9",
+            conid="123456",
             last_price=0.005,
+            high=0.007,
+            low=0.003,
             bid=0.004,
             ask=0.006,
+            bid_size=5000,
+            ask_size=5000,
             volume=1000000,
-            low=0.003,
+            open=0.004,
+            prior_close=0.004,
+            change_percent=25.0,
         )
 
         assert market_data.ticker == "CR9"
@@ -70,19 +77,26 @@ class TestIBKRPennyStockParsing:
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=[
                 {
+                    "55": "TEST",  # symbol
                     "31": "0.005",  # last price - 0.5 cents
+                    "70": "0.007",  # high
                     "71": "0.003",  # daily low - 0.3 cents
                     "84": "0.004",  # bid - 0.4 cents
+                    "85": "5000",  # ask size
                     "86": "0.006",  # ask - 0.6 cents
                     "87": "1000000",  # volume
+                    "88": "5000",  # bid size
+                    "7295": "0.004",  # open
+                    "7741": "0.004",  # prior close
+                    "83": "25.0",  # change %
                 }
             ],
         )
 
-        result = ibkr_client_mock_oauth.get_market_data("CR9")
+        result = ibkr_client_mock_oauth.get_market_data("123456")
 
         assert result is not None
-        assert result.ticker == "CR9"
+        assert result.ticker == "TEST"
         assert (
             result.last_price == 0.005
         )  # This should fail initially (returns 0.0)
@@ -116,7 +130,7 @@ class TestIBKRPennyStockParsing:
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=[
                 {
-                    "conid": "123457",  # Must match conid for streaming to be established
+                    "conid": "123456",  # Must match conid for streaming to be established
                 }
             ],
         )
@@ -127,19 +141,26 @@ class TestIBKRPennyStockParsing:
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=[
                 {
+                    "55": "TEST",
                     "31": "5e-3",  # last price - scientific notation
+                    "70": "7e-3",  # high
                     "71": "3e-3",  # daily low - scientific notation
                     "84": "4e-3",  # bid - scientific notation
+                    "85": "5000",  # ask size
                     "86": "6e-3",  # ask - scientific notation
                     "87": "500000",  # volume
+                    "88": "5000",  # bid size
+                    "7295": "4e-3",  # open
+                    "7741": "4e-3",  # prior close
+                    "83": "25.0",  # change %
                 }
             ],
         )
 
-        result = ibkr_client_mock_oauth.get_market_data("1TT")
+        result = ibkr_client_mock_oauth.get_market_data("123456")
 
         assert result is not None
-        assert result.ticker == "1TT"
+        assert result.ticker == "TEST"
         assert result.last_price == 0.005  # This should fail initially
         assert result.bid == 0.004
         assert result.ask == 0.006
@@ -182,6 +203,7 @@ class TestIBKRPennyStockParsing:
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=[
                 {
+                    "55": "TEST",
                     "31": "C0.008",  # last price with 'C' prefix (Closed)
                     "71": "L0.006",  # daily low with 'L' prefix (Low)
                     "84": "H0.007",  # bid with 'H' prefix (High)
@@ -191,7 +213,7 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
-        result = ibkr_client_mock_oauth.get_market_data("BLU")
+        result = ibkr_client_mock_oauth.get_market_data("123456")
 
         assert result is not None
         assert result.ticker == "BLU"
@@ -237,6 +259,7 @@ class TestIBKRPennyStockParsing:
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=[
                 {
+                    "55": "TEST",
                     "31": "0.001",  # last price - 0.1 cents
                     "71": "0.0008",  # daily low - 0.08 cents
                     "84": "0.0009",  # bid - 0.09 cents
@@ -246,7 +269,7 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
-        result = ibkr_client_mock_oauth.get_market_data("BUY")
+        result = ibkr_client_mock_oauth.get_market_data("123456")
 
         assert result is not None
         assert result.ticker == "BUY"
@@ -292,6 +315,7 @@ class TestIBKRPennyStockParsing:
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
             json=[
                 {
+                    "55": "TEST",
                     "31": "",  # Empty last price
                     "71": None,  # Null daily low
                     "84": "invalid",  # Invalid bid
@@ -301,7 +325,7 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
-        result = ibkr_client_mock_oauth.get_market_data("JPR")
+        result = ibkr_client_mock_oauth.get_market_data("123456")
 
         # Should return None due to invalid last price
         assert result is None

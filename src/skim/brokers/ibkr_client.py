@@ -709,36 +709,35 @@ class IBKRClient(IBInterface):
 
         return conid
 
-    def get_market_data(self, ticker: str) -> MarketData | None:
-        """Get current market snapshot using IBKR market data snapshot endpoint
+    def get_market_data(self, conid: str) -> MarketData | None:
+        """Get comprehensive market data for a contract using conid
 
         This implementation handles the IBKR API requirement that a pre-flight request
         must be made to establish data streaming before actual snapshot
         requests will return market data.
 
         Flow:
-        1. Look up conid via _get_contract_id()
-        2. Pre-flight request to establish data stream (if needed)
-        3. Get market snapshot with actual data
-        4. Parse fields: 31=last, 84=bid, 86=ask, 87=volume, 7=low
-        5. Return MarketData object
+        1. Pre-flight request to establish data stream (if needed)
+        2. Get market snapshot with all trading fields
+        3. Parse fields: 31,70,71,84,85,86,87,88,7295,7741,83
+        4. Return enhanced MarketData object
 
         Args:
-            ticker: Stock ticker symbol (e.g., "AAPL")
+            conid: IBKR contract ID
 
         Returns:
             MarketData object if successful, None on failure
 
         Raises:
-            RuntimeError: If not connected or ticker not found
+            RuntimeError: If not connected or conid is invalid
         """
         if not self._connected:
             raise RuntimeError("Not connected - call connect() first")
 
-        # Step 1: Get contract ID
-        conid = self._get_contract_id(ticker)
+        if not conid or not str(conid).strip():
+            raise ValueError("Contract ID (conid) cannot be empty")
 
-        # Step 2: Check if we need to establish data stream for this conid
+        # Step 1: Check if we need to establish data stream for this conid
         # Track whether we've established streaming for this conid in this session
         if not hasattr(self, "_market_data_streams"):
             self._market_data_streams = set()
@@ -746,15 +745,13 @@ class IBKRClient(IBInterface):
         needs_preflight = conid not in self._market_data_streams
 
         if needs_preflight:
-            logger.info(
-                f"Establishing market data stream for {ticker} (conid: {conid})"
-            )
+            logger.info(f"Establishing market data stream for conid: {conid}")
 
-            # Pre-flight request to establish streaming
+            # Pre-flight request to establish streaming with all trading fields
             preflight_endpoint = "/iserver/marketdata/snapshot"
             preflight_params = {
                 "conids": conid,
-                "fields": "31,71,84,86,87,83,7741,7295",  # Request all needed fields
+                "fields": "31,70,71,84,85,86,87,88,7295,7741,83",  # All trading fields
             }
 
             try:
@@ -762,7 +759,7 @@ class IBKRClient(IBInterface):
                     "GET", preflight_endpoint, params=preflight_params
                 )
                 logger.debug(
-                    f"Pre-flight response for {ticker}: {preflight_response}"
+                    f"Pre-flight response for {conid}: {preflight_response}"
                 )
 
                 # Check if pre-flight established streaming successfully
@@ -774,108 +771,136 @@ class IBKRClient(IBInterface):
                 ):
                     # Mark this conid as having established streaming
                     self._market_data_streams.add(conid)
-                    logger.info(f"Market data stream established for {ticker}")
+                    logger.info(f"Market data stream established for {conid}")
 
                 else:
                     logger.warning(
-                        f"Failed to establish market data stream for {ticker}"
+                        f"Failed to establish market data stream for {conid}"
                     )
                     return None
 
             except Exception as e:
-                logger.error(f"Pre-flight request failed for {ticker}: {e}")
+                logger.error(f"Pre-flight request failed for {conid}: {e}")
                 return None
 
-        # Step 3: Get actual market data snapshot
-        logger.info(
-            f"Retrieving market data snapshot for {ticker} (conid: {conid})"
-        )
+        # Step 2: Get actual market data snapshot
+        logger.info(f"Retrieving market data snapshot for conid: {conid}")
         endpoint = "/iserver/marketdata/snapshot"
-        params = {"conids": conid}
+        params = {
+            "conids": conid,
+            "fields": "31,70,71,84,85,86,87,88,7295,7741,83",
+        }
 
         try:
             response = self._request("GET", endpoint, params=params)
-            logger.debug(f"Market data response for {ticker}: {response}")
+            logger.debug(f"Market data response for {conid}: {response}")
         except Exception as e:
-            logger.error(f"Market data request failed for {ticker}: {e}")
+            logger.error(f"Market data request failed for {conid}: {e}")
             return None
 
-        # Step 4: Parse response
+        # Step 3: Parse response
         if not isinstance(response, list) or len(response) == 0:
             logger.warning(
-                f"Invalid market data response for {ticker}: {response}"
+                f"Invalid market data response for {conid}: {response}"
             )
             return None
 
         data = response[0]
         if not isinstance(data, dict):
             logger.warning(
-                f"Invalid market data data format for {ticker}: {data}"
+                f"Invalid market data data format for {conid}: {data}"
             )
             return None
 
         # Debug: Log all available fields
         available_fields = list(data.keys())
         logger.debug(
-            f"Available fields in market data for {ticker}: {available_fields}"
+            f"Available fields in market data for {conid}: {available_fields}"
         )
 
         # IBKR field mappings based on market-data-config.md:
-        # 31=last, 71=low, 84=bid, 86=ask, 87=volume, 83=change %, 7741=prior close, 7295=open
+        # 31=last, 70=high, 71=low, 84=bid, 85=ask_size, 86=ask, 87=volume, 88=bid_size
+        # 7295=open, 7741=prior_close, 83=change %
         field_mappings = {
-            "31": "last_price",
-            "71": "low",
-            "84": "bid",
-            "86": "ask",
-            "87": "volume",
-            "83": "change_percent",
-            "7741": "previous_close",
-            "7295": "today_open",
+            "31": ("last_price", float),
+            "70": ("high", float),
+            "71": ("low", float),
+            "84": ("bid", float),
+            "85": ("ask_size", int),
+            "86": ("ask", float),
+            "87": ("volume", int),
+            "88": ("bid_size", int),
+            "7295": ("open", float),
+            "7741": ("prior_close", float),
+            "83": ("change_percent", float),
         }
 
         # Extract and parse market data with improved error handling
         market_data_dict = {}
-        for field_code, field_name in field_mappings.items():
+        for field_code, (field_name, field_type) in field_mappings.items():
             raw_value = data.get(field_code)
             if raw_value is not None:
                 try:
-                    if field_name in ["last_price", "bid", "ask", "low"]:
-                        market_data_dict[field_name] = clean_ibkr_price(
-                            raw_value
-                        )
-                    elif field_name == "volume":
+                    if field_type is float:
+                        if field_name in [
+                            "last_price",
+                            "bid",
+                            "ask",
+                            "high",
+                            "low",
+                            "open",
+                            "prior_close",
+                        ]:
+                            market_data_dict[field_name] = clean_ibkr_price(
+                                raw_value
+                            )
+                        else:  # change_percent
+                            market_data_dict[field_name] = safe_parse_price(
+                                raw_value, 0.0
+                            )
+                    elif field_type is int:
                         market_data_dict[field_name] = int(
                             safe_parse_price(raw_value, 0)
                         )
-                    else:  # change_percent, previous_close, today_open
-                        market_data_dict[field_name] = safe_parse_price(
-                            raw_value, 0.0
-                        )
                 except (PriceParsingError, ValueError, TypeError) as e:
                     logger.warning(
-                        f"Failed to parse {field_name} ({field_code}) for {ticker}: {e}"
+                        f"Failed to parse {field_name} ({field_code}) for {conid}: {e}"
                     )
                     market_data_dict[field_name] = (
-                        0.0 if field_name != "volume" else 0
+                        0 if field_type is int else 0.0
                     )
+            else:
+                market_data_dict[field_name] = 0 if field_type is int else 0.0
 
         # Validate essential data
         if not validate_minimum_price(
             market_data_dict.get("last_price", 0.0), min_threshold=0.0001
         ):
             logger.warning(
-                f"Invalid last price for {ticker}: {market_data_dict.get('last_price')}"
+                f"Invalid last price for {conid}: {market_data_dict.get('last_price')}"
             )
             return None
 
-        # Create and return MarketData object
+        # Get ticker symbol from contract data for the MarketData object
+        ticker = data.get(
+            "55", f"CONID_{conid}"
+        )  # Field 55 is symbol, fallback to conid
+
+        # Create and return enhanced MarketData object
         return MarketData(
             ticker=ticker,
+            conid=conid,
             last_price=market_data_dict.get("last_price", 0.0),
+            high=market_data_dict.get("high", 0.0),
+            low=market_data_dict.get("low", 0.0),
             bid=market_data_dict.get("bid", 0.0),
             ask=market_data_dict.get("ask", 0.0),
+            bid_size=market_data_dict.get("bid_size", 0),
+            ask_size=market_data_dict.get("ask_size", 0),
             volume=market_data_dict.get("volume", 0),
-            low=market_data_dict.get("low", 0.0),
+            open=market_data_dict.get("open", 0.0),
+            prior_close=market_data_dict.get("prior_close", 0.0),
+            change_percent=market_data_dict.get("change_percent", 0.0),
         )
 
     # ========== Order Management ==========
@@ -1259,142 +1284,6 @@ class IBKRClient(IBInterface):
         )
 
         return response
-
-    def get_market_data_extended(self, conid: str) -> dict:
-        """Get extended market data for a contract
-
-        Endpoint: GET /iserver/marketdata/snapshot?conids={conid}&fields=31,70,86,88,7295
-
-        Args:
-            conid: IBKR contract ID
-
-        Returns:
-            Dictionary with extended market data:
-            - last_price: Field 31 (Last price)
-            - change_percent: Field 70 (Change % from close)
-            - previous_close: Field 86 (Previous close price)
-            - today_open: Field 88 (Today's open price)
-            - volume: Field 7295 (Volume)
-
-        Raises:
-            RuntimeError: If not connected or request fails
-            ValueError: If conid is invalid
-        """
-        if not self._connected:
-            raise RuntimeError("Not connected - call connect() first")
-
-        if not conid or not str(conid).strip():
-            raise ValueError("Contract ID (conid) cannot be empty")
-
-        logger.info(f"Getting extended market data for contract {conid}")
-
-        # Request specific fields for gap analysis
-        fields = "31,83,86,7741,7295"
-        params = {"conids": conid, "fields": fields}
-
-        try:
-            response = self._request(
-                "GET", "/iserver/marketdata/snapshot", params=params
-            )
-        except Exception as e:
-            logger.error(f"Failed to retrieve market data for {conid}: {e}")
-            raise RuntimeError(
-                f"Failed to get market data for contract {conid}: {e}"
-            ) from e
-
-        # Extract data for the specific contract
-        result = {}
-        field_mapping = {
-            "31": ("last_price", float),
-            "83": ("change_percent", float),
-            "86": ("ask", float),
-            "87": ("volume", int),
-            "7741": ("previous_close", float),
-            "7295": ("today_open", float),
-        }
-
-        # Handle both dict and list response formats
-        # When fields parameter is used, IBKR returns a list instead of dict
-        if isinstance(response, list):
-            # Find the contract data in the list
-            contract_data = None
-            for item in response:
-                if isinstance(item, dict) and str(item.get("conid")) == str(
-                    conid
-                ):
-                    contract_data = item
-                    break
-
-            if contract_data is None:
-                logger.warning(
-                    f"No market data returned for contract {conid} in list response"
-                )
-                return {}
-        elif isinstance(response, dict):
-            if conid not in response:
-                logger.warning(f"No market data returned for contract {conid}")
-                return {}
-            contract_data = response[conid]
-        else:
-            logger.warning(
-                f"Unexpected market data response format for {conid}: {type(response)}"
-            )
-            return {}
-
-        if not isinstance(contract_data, dict):
-            logger.warning(
-                f"Invalid contract data format for {conid}: {type(contract_data)}"
-            )
-            return {}
-
-        # Map fields with type conversion and validation
-        for field_code, (field_name, field_type) in field_mapping.items():
-            if field_code in contract_data:
-                value = contract_data[field_code]
-                try:
-                    # Convert to appropriate type with null handling
-                    if value is not None:
-                        if field_type is int:
-                            # Handle comma-separated numbers and decimals for int fields
-                            if isinstance(value, str):
-                                # Remove commas and convert, handling decimal values
-                                clean_value = value.replace(",", "")
-                                if "." in clean_value:
-                                    result[field_name] = int(float(clean_value))
-                                else:
-                                    result[field_name] = int(clean_value)
-                            elif isinstance(value, (int, float)):
-                                result[field_name] = int(value)
-                            else:
-                                result[field_name] = 0
-                        elif field_type is float:
-                            # Handle comma-separated numbers for float fields
-                            if isinstance(value, str):
-                                clean_value = value.replace(",", "")
-                                result[field_name] = float(clean_value)
-                            elif isinstance(value, (int, float)):
-                                result[field_name] = float(value)
-                            else:
-                                result[field_name] = 0.0
-                        else:
-                            result[field_name] = field_type(value)
-                    else:
-                        result[field_name] = 0 if field_type is int else 0.0
-                except (ValueError, TypeError) as e:
-                    logger.warning(
-                        f"Failed to convert {field_code}={value} to {field_type.__name__} for {conid}: {e}"
-                    )
-                    result[field_name] = 0 if field_type is int else 0.0
-            else:
-                logger.debug(
-                    f"Field {field_code} not available for contract {conid}"
-                )
-                result[field_name] = 0 if field_type is int else 0.0
-
-        logger.info(
-            f"Retrieved extended market data for {conid}: {len(result)} fields"
-        )
-        return result
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancel specific order
