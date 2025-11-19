@@ -107,8 +107,26 @@ class TradingBot:
                 continue
 
             try:
+                # Get current price for display and database
+                current_price = None
+                try:
+                    market_data = self.ibkr_scanner.client.get_market_data(
+                        stock.ticker
+                    )
+                    if market_data and market_data.last_price:
+                        current_price = float(market_data.last_price)
+                except Exception as e:
+                    logger.debug(
+                        f"Could not fetch market data for {stock.ticker}: {e}"
+                    )
+
+                price_display = (
+                    f"${current_price:.4f}"
+                    if current_price
+                    else "Price unavailable"
+                )
                 logger.info(
-                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.4f}"
+                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
                 )
 
                 # Check if already in candidates
@@ -122,7 +140,7 @@ class TradingBot:
                         scan_date=datetime.now().isoformat(),
                         status="watching",
                         gap_percent=stock.gap_percent,
-                        prev_close=stock.close_price,
+                        prev_close=current_price,  # Use current price as fallback
                     )
                     self.db.save_candidate(candidate)
                     candidates_found += 1
@@ -130,7 +148,7 @@ class TradingBot:
                         {
                             "ticker": stock.ticker,
                             "gap_percent": stock.gap_percent,
-                            "price": stock.close_price,
+                            "price": current_price,
                         }
                     )
                     logger.info(
@@ -179,8 +197,26 @@ class TradingBot:
 
         for stock in gap_stocks:
             try:
+                # Get current price for display and database
+                current_price = None
+                try:
+                    market_data = self.ibkr_scanner.client.get_market_data(
+                        stock.ticker
+                    )
+                    if market_data and market_data.last_price:
+                        current_price = float(market_data.last_price)
+                except Exception as e:
+                    logger.debug(
+                        f"Could not fetch market data for {stock.ticker}: {e}"
+                    )
+
+                price_display = (
+                    f"${current_price:.4f}"
+                    if current_price
+                    else "Price unavailable"
+                )
                 logger.info(
-                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.4f}"
+                    f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
                 )
 
                 # Check if this ticker is in our candidates
@@ -206,7 +242,7 @@ class TradingBot:
                         scan_date=datetime.now().isoformat(),
                         status="triggered",
                         gap_percent=stock.gap_percent,
-                        prev_close=stock.close_price,
+                        prev_close=current_price,  # Use current price as fallback
                     )
                     self.db.save_candidate(candidate)
                     gaps_found += 1
@@ -546,8 +582,26 @@ class TradingBot:
 
             for stock in gap_stocks:
                 try:
+                    # Get current price for display and database
+                    current_price = None
+                    try:
+                        market_data = self.ibkr_scanner.client.get_market_data(
+                            stock.ticker
+                        )
+                        if market_data and market_data.last_price:
+                            current_price = float(market_data.last_price)
+                    except Exception as e:
+                        logger.debug(
+                            f"Could not fetch market data for {stock.ticker}: {e}"
+                        )
+
+                    price_display = (
+                        f"${current_price:.4f}"
+                        if current_price
+                        else "Price unavailable"
+                    )
                     logger.info(
-                        f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ ${stock.close_price:.4f}"
+                        f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
                     )
 
                     # Check if already exists
@@ -564,7 +618,7 @@ class TradingBot:
                             scan_date=datetime.now().isoformat(),
                             status="or_tracking",
                             gap_percent=stock.gap_percent,
-                            prev_close=stock.close_price,
+                            prev_close=current_price,  # Use current price as fallback
                             conid=stock.conid,
                             source="ibkr",
                         )
@@ -608,13 +662,12 @@ class TradingBot:
             # Convert to GapStock objects for scanner
             gap_stocks = []
             for candidate in candidates:
-                if candidate.conid and candidate.prev_close:
+                if candidate.conid:
                     from skim.scanners.ibkr_gap_scanner import GapStock
 
                     gap_stock = GapStock(
                         ticker=candidate.ticker,
                         gap_percent=candidate.gap_percent or 0.0,
-                        close_price=candidate.prev_close,
                         conid=candidate.conid,
                     )
                     gap_stocks.append(gap_stock)

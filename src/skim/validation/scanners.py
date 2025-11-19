@@ -80,9 +80,6 @@ class GapStock(BaseModel):
     gap_percent: float = Field(
         ..., ge=-100, le=1000, description="Gap percentage from previous close"
     )
-    close_price: float = Field(
-        ..., gt=0, description="Previous day closing price"
-    )
     conid: int = Field(..., gt=0, description="IBKR contract ID")
 
     @field_validator("ticker")

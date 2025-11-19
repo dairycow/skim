@@ -584,6 +584,7 @@ class TestIBKRGapScanner:
             {
                 "conid": "8644",
                 "symbol": "BHP",
+                "companyHeader": "BHP Group Ltd - ASX",
                 "today_open": 47.68,  # 5.5% gap from 45.20
                 "previous_close": 45.20,
                 "last_price": 48.00,
@@ -593,6 +594,7 @@ class TestIBKRGapScanner:
             {
                 "conid": "8653",
                 "symbol": "RIO",
+                "companyHeader": "Rio Tinto Ltd - ASX",
                 "today_open": 125.56,  # 4.2% gap from 120.50
                 "previous_close": 120.50,
                 "last_price": 126.00,
@@ -647,9 +649,7 @@ class TestIBKRGapScanner:
         assert (
             abs(results[0].gap_percent - 6.19) < 0.01
         )  # Using scanner's change_percent directly
-        assert (
-            results[0].close_price == 1.0
-        )  # Placeholder value from new implementation
+
         assert results[0].conid == 8644
 
     def test_scan_for_gaps_empty_response(self, mocker):
@@ -677,10 +677,14 @@ class TestIBKRGapScanner:
         # Mock gap stocks
         gap_stocks = [
             GapStock(
-                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+                ticker="BHP",
+                gap_percent=5.5,
+                conid=8644,
             ),
             GapStock(
-                ticker="RIO", gap_percent=4.2, close_price=120.50, conid=8653
+                ticker="RIO",
+                gap_percent=4.2,
+                conid=8653,
             ),
         ]
 
@@ -696,9 +700,20 @@ class TestIBKRGapScanner:
                 return mock_data
             return None
 
+        # Mock extended market data for previous close
+        def mock_get_market_data_extended(conid):
+            if conid == "8644":  # BHP
+                return {"previous_close": 45.20}
+            elif conid == "8653":  # RIO
+                return {"previous_close": 120.50}
+            return {}
+
         mock_client = Mock()
         mock_client.get_market_data.side_effect = (
             mock_get_market_data_or_tracking
+        )
+        mock_client.get_market_data_extended.side_effect = (
+            mock_get_market_data_extended
         )
         mock_client.is_connected.return_value = True
 
@@ -723,10 +738,14 @@ class TestIBKRGapScanner:
         # Mock gap stocks
         gap_stocks = [
             GapStock(
-                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+                ticker="BHP",
+                gap_percent=5.5,
+                conid=8644,
             ),
             GapStock(
-                ticker="RIO", gap_percent=4.2, close_price=120.50, conid=8653
+                ticker="RIO",
+                gap_percent=4.2,
+                conid=8653,
             ),
         ]
 
@@ -775,7 +794,9 @@ class TestIBKRGapScanner:
 
         gap_stocks = [
             GapStock(
-                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+                ticker="BHP",
+                gap_percent=5.5,
+                conid=8644,
             ),
         ]
 
@@ -798,8 +819,17 @@ class TestIBKRGapScanner:
                 return mock_data
             return None
 
+        # Mock extended market data for previous close
+        def mock_get_market_data_extended(conid):
+            if conid == "8644":  # BHP
+                return {"previous_close": 45.20}
+            return {}
+
         mock_client = Mock()
         mock_client.get_market_data.side_effect = mock_get_market_data_gap_fail
+        mock_client.get_market_data_extended.side_effect = (
+            mock_get_market_data_extended
+        )
         mock_client.is_connected.return_value = True
 
         # Patch IBKRClient before creating scanner
@@ -946,11 +976,12 @@ class TestIBKRGapScanner:
 
         # Test GapStock
         gap_stock = GapStock(
-            ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+            ticker="BHP",
+            gap_percent=5.5,
+            conid=8644,
         )
         assert gap_stock.ticker == "BHP"
         assert gap_stock.gap_percent == 5.5
-        assert gap_stock.close_price == 45.20
         assert gap_stock.conid == 8644
 
         # Test OpeningRangeData
@@ -1185,7 +1216,9 @@ class TestIBKRGapScanner:
 
         gap_stocks = [
             GapStock(
-                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+                ticker="BHP",
+                gap_percent=5.5,
+                conid=8644,
             )
         ]
 
@@ -1211,7 +1244,9 @@ class TestIBKRGapScanner:
 
         gap_stocks = [
             GapStock(
-                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+                ticker="BHP",
+                gap_percent=5.5,
+                conid=8644,
             )
         ]
 
