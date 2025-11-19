@@ -35,7 +35,7 @@ OAUTH_CONSUMER_KEY=your_key
 OAUTH_ACCESS_TOKEN=your_token
 OAUTH_ACCESS_TOKEN_SECRET=your_secret
 OAUTH_DH_PRIME=your_dh_prime_hex
-DB_PATH=./data/skim.db
+
 
 # Optional notifications
 DISCORD_WEBHOOK_URL=your_webhook_url
