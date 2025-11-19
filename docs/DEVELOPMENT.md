@@ -37,10 +37,6 @@ OAUTH_ACCESS_TOKEN_SECRET=your_secret
 OAUTH_DH_PRIME=your_dh_prime_hex
 DB_PATH=./data/skim.db
 
-# Trading parameters
-MAX_POSITION_SIZE=1000
-MAX_POSITIONS=5
-
 # Optional notifications
 DISCORD_WEBHOOK_URL=your_webhook_url
 ```
@@ -182,7 +178,7 @@ Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 |---------|-------------|------------|---------|
 | PAPER_TRADING | true | false | true |
 | LOG_LEVEL | DEBUG | INFO | DEBUG |
-| DB_PATH | ./data/skim.db | /app/data/skim.db | :memory: |
+| DB_PATH | /app/data/skim.db | :memory: |
 
 ## Troubleshooting
 

@@ -24,7 +24,7 @@ class ScannerConfig:
     or_duration_minutes: int = 10
 
     # Polling interval for OR tracking (seconds)
-    or_poll_interval_seconds: int = 45
+    or_poll_interval_seconds: int = 30
 
     # Gap fill tolerance for position management (dollars)
     gap_fill_tolerance: float = 0.05
@@ -123,32 +123,15 @@ class Config:
         oauth_paths = get_oauth_key_paths()
 
         config = cls(
-            ib_client_id=int(os.getenv("IB_CLIENT_ID", "1")),
+            ib_client_id=1,
             paper_trading=paper_trading,
-            max_position_size=int(
-                os.getenv("MAX_POSITION_SIZE", str(cls.max_position_size))
-            ),
-            max_positions=int(
-                os.getenv("MAX_POSITIONS", str(cls.max_positions))
-            ),
-            db_path=os.getenv("DB_PATH", cls.db_path),
+            max_position_size=cls.max_position_size,
+            max_positions=cls.max_positions,
+            db_path=cls.db_path,
             discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL"),
             oauth_signature_key_path=str(oauth_paths["signature"]),
             oauth_encryption_key_path=str(oauth_paths["encryption"]),
-            scanner_config=ScannerConfig(
-                volume_filter=int(os.getenv("SCANNER_VOLUME_FILTER", "10000")),
-                price_filter=float(os.getenv("SCANNER_PRICE_FILTER", "0.05")),
-                or_duration_minutes=int(os.getenv("SCANNER_OR_DURATION", "10")),
-                or_poll_interval_seconds=int(
-                    os.getenv("SCANNER_OR_POLL_INTERVAL", "30")
-                ),
-                gap_fill_tolerance=float(
-                    os.getenv("SCANNER_GAP_FILL_TOLERANCE", "1.0")
-                ),
-                or_breakout_buffer=float(
-                    os.getenv("SCANNER_OR_BREAKOUT_BUFFER", "0.1")
-                ),
-            ),
+            scanner_config=ScannerConfig(),
         )
 
         logger.info("Configuration loaded:")

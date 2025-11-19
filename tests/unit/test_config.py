@@ -26,9 +26,6 @@ class TestTradingParameters:
         # Clear any existing environment variables
         for key in [
             "PAPER_TRADING",
-            "MAX_POSITION_SIZE",
-            "MAX_POSITIONS",
-            "DB_PATH",
         ]:
             os.environ.pop(key, None)
 
@@ -45,9 +42,6 @@ class TestTradingParameters:
         """Test that trading parameters can be overridden via environment variables"""
         # Set test environment variables
         os.environ["PAPER_TRADING"] = "true"
-        os.environ["MAX_POSITION_SIZE"] = "2000"
-        os.environ["MAX_POSITIONS"] = "10"
-        os.environ["DB_PATH"] = "/custom/path/db.sqlite"
 
         config = Config.from_env()
 
@@ -56,16 +50,13 @@ class TestTradingParameters:
         assert (
             config.scanner_config.gap_threshold == 9.0
         )  # No longer configurable via env
-        assert config.max_position_size == 2000
-        assert config.max_positions == 10
-        assert config.db_path == "/custom/path/db.sqlite"
+        assert config.max_position_size == 10000  # Fixed default
+        assert config.max_positions == 50  # Fixed default
+        assert config.db_path == "/app/data/skim.db"  # Fixed default
 
         # Clean up
         for key in [
             "PAPER_TRADING",
-            "MAX_POSITION_SIZE",
-            "MAX_POSITIONS",
-            "DB_PATH",
         ]:
             os.environ.pop(key, None)
 
@@ -104,16 +95,7 @@ class TestScannerConfigIntegration:
 
     def test_from_env_creates_scanner_config(self):
         """Test that Config.from_env() creates scanner_config from ScannerConfig"""
-        # Clear any existing scanner environment variables
-        for key in [
-            "SCANNER_VOLUME_FILTER",
-            "SCANNER_PRICE_FILTER",
-            "OR_DURATION_MINUTES",
-            "OR_POLL_INTERVAL_SECONDS",
-            "GAP_FILL_TOLERANCE",
-            "OR_BREAKOUT_BUFFER",
-        ]:
-            os.environ.pop(key, None)
+        # No scanner environment variables exist anymore
 
         # Set required non-scanner environment variables
         os.environ["PAPER_TRADING"] = "true"
@@ -147,7 +129,7 @@ class TestScannerParameters:
             ("price_filter", 0.05),
             ("or_duration_minutes", 10),
             ("or_poll_interval_seconds", 30),
-            ("gap_fill_tolerance", 1.0),
+            ("gap_fill_tolerance", 0.05),
             ("or_breakout_buffer", 0.1),
         ],
     )
@@ -168,39 +150,6 @@ class TestScannerParameters:
 
         # Test through scanner_config attribute
         assert getattr(config.scanner_config, field) == expected_value
-
-    @pytest.mark.parametrize(
-        "env_var,env_value,field,expected_value",
-        [
-            ("SCANNER_VOLUME_FILTER", "75000", "volume_filter", 75000),
-            ("SCANNER_PRICE_FILTER", "0.75", "price_filter", 0.75),
-            ("SCANNER_OR_DURATION", "15", "or_duration_minutes", 15),
-            (
-                "SCANNER_OR_POLL_INTERVAL",
-                "45",
-                "or_poll_interval_seconds",
-                45,
-            ),
-            ("SCANNER_GAP_FILL_TOLERANCE", "1.5", "gap_fill_tolerance", 1.5),
-            ("SCANNER_OR_BREAKOUT_BUFFER", "0.2", "or_breakout_buffer", 0.2),
-        ],
-    )
-    def test_scanner_env_vars_used(
-        self, env_var, env_value, field, expected_value
-    ):
-        """Test that scanner environment variables are used (parameterized)"""
-        # Set environment variable to non-default value
-        os.environ[env_var] = env_value
-        os.environ["PAPER_TRADING"] = "true"
-
-        config = Config.from_env()
-
-        # Should use environment variable value, not default
-        assert getattr(config.scanner_config, field) == expected_value
-
-        # Clean up
-        os.environ.pop(env_var, None)
-        os.environ.pop("PAPER_TRADING", None)
 
 
 class TestCustomScannerConfig:
@@ -256,7 +205,7 @@ class TestConfigLogging:
         assert "Scanner Price Filter: $0.05" in log_output
         assert "OR Duration: 10 minutes" in log_output
         assert "OR Poll Interval: 30 seconds" in log_output
-        assert "Gap Fill Tolerance: $1.0" in log_output
+        assert "Gap Fill Tolerance: $0.05" in log_output
         assert "OR Breakout Buffer: $0.1" in log_output
 
         # Clean up
