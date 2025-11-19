@@ -33,6 +33,37 @@ class ScannerConfig:
     or_breakout_buffer: float = 0.1
 
 
+def get_db_path() -> Path:
+    """Get database path that works both locally and in Docker.
+
+    Priority order:
+    1. Docker mount path: /app/data/skim.db (production)
+    2. Local development path: project_root/data/skim.db (development)
+
+    Returns:
+        Path object for the database file
+
+    Raises:
+        FileNotFoundError: If data directory cannot be created/accessed
+    """
+    # First try Docker mount path (production environment)
+    docker_path = Path("/app/data/skim.db")
+    if docker_path.parent.exists():
+        logger.debug(f"Using Docker database path: {docker_path}")
+        return docker_path
+
+    # Fallback to local development path (project root + data)
+    # Use __file__ to reliably find project root from config.py location
+    project_root = Path(__file__).parent.parent.parent.parent
+    local_path = project_root / "data" / "skim.db"
+
+    # Ensure data directory exists for local development
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.debug(f"Using local database path: {local_path}")
+    return local_path
+
+
 def get_oauth_key_paths() -> dict[str, Path]:
     """Get OAuth key paths that work both locally and in Docker.
 
@@ -122,12 +153,15 @@ class Config:
         # Get OAuth key paths dynamically
         oauth_paths = get_oauth_key_paths()
 
+        # Get database path dynamically
+        db_path = get_db_path()
+
         config = cls(
             ib_client_id=1,
             paper_trading=paper_trading,
             max_position_size=cls.max_position_size,
             max_positions=cls.max_positions,
-            db_path=cls.db_path,
+            db_path=str(db_path),
             discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL"),
             oauth_signature_key_path=str(oauth_paths["signature"]),
             oauth_encryption_key_path=str(oauth_paths["encryption"]),
