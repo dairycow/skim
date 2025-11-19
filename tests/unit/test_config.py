@@ -26,7 +26,6 @@ class TestTradingParameters:
         # Clear any existing environment variables
         for key in [
             "PAPER_TRADING",
-            "GAP_THRESHOLD",
             "MAX_POSITION_SIZE",
             "MAX_POSITIONS",
             "DB_PATH",
@@ -46,7 +45,6 @@ class TestTradingParameters:
         """Test that trading parameters can be overridden via environment variables"""
         # Set test environment variables
         os.environ["PAPER_TRADING"] = "true"
-        os.environ["GAP_THRESHOLD"] = "5.0"
         os.environ["MAX_POSITION_SIZE"] = "2000"
         os.environ["MAX_POSITIONS"] = "10"
         os.environ["DB_PATH"] = "/custom/path/db.sqlite"
@@ -55,7 +53,9 @@ class TestTradingParameters:
 
         # Should use environment variable values
         assert config.paper_trading
-        assert config.scanner_config.gap_threshold == 5.0
+        assert (
+            config.scanner_config.gap_threshold == 9.0
+        )  # No longer configurable via env
         assert config.max_position_size == 2000
         assert config.max_positions == 10
         assert config.db_path == "/custom/path/db.sqlite"
@@ -63,7 +63,6 @@ class TestTradingParameters:
         # Clean up
         for key in [
             "PAPER_TRADING",
-            "GAP_THRESHOLD",
             "MAX_POSITION_SIZE",
             "MAX_POSITIONS",
             "DB_PATH",
@@ -173,7 +172,6 @@ class TestScannerParameters:
     @pytest.mark.parametrize(
         "env_var,env_value,field,expected_value",
         [
-            ("GAP_THRESHOLD", "5.0", "gap_threshold", 5.0),
             ("SCANNER_VOLUME_FILTER", "75000", "volume_filter", 75000),
             ("SCANNER_PRICE_FILTER", "0.75", "price_filter", 0.75),
             ("SCANNER_OR_DURATION", "15", "or_duration_minutes", 15),
