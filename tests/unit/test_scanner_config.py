@@ -48,7 +48,7 @@ def test_scanner_config_default_values():
     assert config.price_filter == 0.05
     assert config.or_duration_minutes == 10
     assert config.or_poll_interval_seconds == 30
-    assert config.gap_fill_tolerance == 1.0
+    assert config.gap_fill_tolerance == 0.05
     assert config.or_breakout_buffer == 0.1
 
 
@@ -104,58 +104,29 @@ def test_scanner_config_asx_optimized_defaults():
     assert config.price_filter == 0.05  # 5c minimum for 4c+ stock opportunities
     assert config.or_duration_minutes == 10
     assert config.or_poll_interval_seconds == 30
-    assert config.gap_fill_tolerance == 1.0
+    assert config.gap_fill_tolerance == 0.05
     assert config.or_breakout_buffer == 0.1
 
 
 @patch.dict(
     os.environ,
     {
-        "IB_CLIENT_ID": "1",
         "PAPER_TRADING": "true",
     },
 )
-def test_config_from_env_with_scanner_config_defaults():
-    """Test Config.from_env loads scanner config with ASX-appropriate defaults"""
+def test_config_from_env_uses_scanner_defaults():
+    """Test that Config.from_env() uses scanner config defaults"""
     from skim.core.config import Config
 
     config = Config.from_env()
 
-    # Check scanner config has ASX-optimized defaults
+    # Should use class defaults, not environment variables
     assert config.scanner_config.volume_filter == 10000
     assert config.scanner_config.price_filter == 0.05
     assert config.scanner_config.or_duration_minutes == 10
     assert config.scanner_config.or_poll_interval_seconds == 30
-    assert config.scanner_config.gap_fill_tolerance == 1.0
+    assert config.scanner_config.gap_fill_tolerance == 0.05
     assert config.scanner_config.or_breakout_buffer == 0.1
-
-
-@patch.dict(
-    os.environ,
-    {
-        "IB_CLIENT_ID": "1",
-        "PAPER_TRADING": "true",
-        "SCANNER_VOLUME_FILTER": "25000",
-        "SCANNER_PRICE_FILTER": "0.10",
-        "SCANNER_OR_DURATION": "15",
-        "SCANNER_OR_POLL_INTERVAL": "45",
-        "SCANNER_GAP_FILL_TOLERANCE": "1.5",
-        "SCANNER_OR_BREAKOUT_BUFFER": "0.2",
-    },
-)
-def test_config_from_env_scanner_config_env_overrides():
-    """Test environment variables override scanner config defaults"""
-    from skim.core.config import Config
-
-    config = Config.from_env()
-
-    # Check environment overrides are applied
-    assert config.scanner_config.volume_filter == 25000
-    assert config.scanner_config.price_filter == 0.10
-    assert config.scanner_config.or_duration_minutes == 15
-    assert config.scanner_config.or_poll_interval_seconds == 45
-    assert config.scanner_config.gap_fill_tolerance == 1.5
-    assert config.scanner_config.or_breakout_buffer == 0.2
 
 
 @patch.dict(
@@ -186,7 +157,7 @@ def test_config_from_env_scanner_config_logging():
         assert "Scanner Price Filter: $0.05" in log_output
         assert "OR Duration: 10 minutes" in log_output
         assert "OR Poll Interval: 30 seconds" in log_output
-        assert "Gap Fill Tolerance: $1.0" in log_output
+        assert "Gap Fill Tolerance: $0.05" in log_output
         assert "OR Breakout Buffer: $0.1" in log_output
     finally:
         # Restore default logger
