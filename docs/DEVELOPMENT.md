@@ -38,7 +38,6 @@ OAUTH_DH_PRIME=your_dh_prime_hex
 DB_PATH=./data/skim.db
 
 # Trading parameters
-GAP_THRESHOLD=3.0
 MAX_POSITION_SIZE=1000
 MAX_POSITIONS=5
 

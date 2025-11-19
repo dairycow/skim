@@ -136,7 +136,6 @@ class Config:
             oauth_signature_key_path=str(oauth_paths["signature"]),
             oauth_encryption_key_path=str(oauth_paths["encryption"]),
             scanner_config=ScannerConfig(
-                gap_threshold=float(os.getenv("GAP_THRESHOLD", "9.0")),
                 volume_filter=int(os.getenv("SCANNER_VOLUME_FILTER", "10000")),
                 price_filter=float(os.getenv("SCANNER_PRICE_FILTER", "0.05")),
                 or_duration_minutes=int(os.getenv("SCANNER_OR_DURATION", "10")),
