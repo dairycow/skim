@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from skim.core.bot import TradingBot
-from skim.core.config import Config
 from skim.scanners.ibkr_gap_scanner import (
     BreakoutSignal,
     GapStock,
@@ -22,10 +21,14 @@ class TestTradingBotIBKRIntegration:
         """Create mock gap stocks data"""
         return [
             GapStock(
-                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+                ticker="BHP",
+                gap_percent=5.5,
+                conid=8644,
             ),
             GapStock(
-                ticker="RIO", gap_percent=4.2, close_price=120.50, conid=8653
+                ticker="RIO",
+                gap_percent=4.2,
+                conid=8653,
             ),
         ]
 
@@ -305,25 +308,10 @@ class TestTradingBotIBKRIntegration:
 
 
 class TestTradingBotCoreMethods:
-    """Comprehensive tests for TradingBot core methods"""
+    """Test core TradingBot methods"""
 
     @pytest.fixture
-    def config(self):
-        """Create test configuration"""
-        from skim.core.config import ScannerConfig
-
-        config = Mock(spec=Config)
-        config.gap_threshold = 3.0
-        config.max_positions = 5
-        config.max_position_size = 1000
-        config.paper_trading = True
-        config.discord_webhook_url = "https://discord-webhook.com"
-        config.db_path = ":memory:"
-        config.scanner_config = ScannerConfig()
-        return config
-
-    @pytest.fixture
-    def bot(self, config):
+    def bot(self, mock_bot_config):
         """Create TradingBot instance with mocked dependencies"""
         with (
             patch("skim.core.bot.Database"),
@@ -332,17 +320,21 @@ class TestTradingBotCoreMethods:
             patch("skim.core.bot.IBKRGapScanner"),
             patch("skim.core.bot.ASXAnnouncementScanner"),
         ):
-            return TradingBot(config)
+            return TradingBot(mock_bot_config)
 
     @pytest.fixture
     def mock_gap_stocks(self):
         """Create mock gap stocks data"""
         return [
             GapStock(
-                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+                ticker="BHP",
+                gap_percent=5.5,
+                conid=8644,
             ),
             GapStock(
-                ticker="RIO", gap_percent=4.2, close_price=120.50, conid=8653
+                ticker="RIO",
+                gap_percent=4.2,
+                conid=8653,
             ),
         ]
 
@@ -691,25 +683,10 @@ class TestTradingBotCoreMethods:
 
 
 class TestTradingBotWorkflowMethods:
-    """Tests for TradingBot workflow methods"""
+    """Test TradingBot workflow methods"""
 
     @pytest.fixture
-    def config(self):
-        """Create test configuration"""
-        from skim.core.config import ScannerConfig
-
-        config = Mock(spec=Config)
-        config.gap_threshold = 3.0
-        config.max_positions = 5
-        config.max_position_size = 1000
-        config.paper_trading = True
-        config.discord_webhook_url = "https://discord-webhook.com"
-        config.db_path = ":memory:"
-        config.scanner_config = ScannerConfig()
-        return config
-
-    @pytest.fixture
-    def bot(self, config):
+    def bot(self, mock_bot_config):
         """Create TradingBot instance with mocked dependencies"""
         with (
             patch("skim.core.bot.Database"),
@@ -718,17 +695,21 @@ class TestTradingBotWorkflowMethods:
             patch("skim.core.bot.IBKRGapScanner"),
             patch("skim.core.bot.ASXAnnouncementScanner"),
         ):
-            return TradingBot(config)
+            return TradingBot(mock_bot_config)
 
     @pytest.fixture
     def mock_gap_stocks(self):
         """Create mock gap stocks data"""
         return [
             GapStock(
-                ticker="BHP", gap_percent=5.5, close_price=45.20, conid=8644
+                ticker="BHP",
+                gap_percent=5.5,
+                conid=8644,
             ),
             GapStock(
-                ticker="RIO", gap_percent=4.2, close_price=120.50, conid=8653
+                ticker="RIO",
+                gap_percent=4.2,
+                conid=8653,
             ),
         ]
 
@@ -753,7 +734,7 @@ class TestTradingBotWorkflowMethods:
         # Verify workflow
         bot.asx_scanner.fetch_price_sensitive_tickers.assert_called_once()
         mock_scanner.connect.assert_called_once()
-        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=2.0)
+        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
 
         # Verify candidates were saved
         assert bot.db.save_candidate.call_count == 2
@@ -1082,28 +1063,7 @@ class TestTradingBotScannerConfig:
     """Tests for TradingBot scanner configuration integration"""
 
     @pytest.fixture
-    def config(self):
-        """Create test configuration with custom scanner config"""
-        from skim.core.config import Config, ScannerConfig
-
-        scanner_config = ScannerConfig(
-            volume_filter=25000,
-            price_filter=0.10,
-            or_duration_minutes=15,
-            or_poll_interval_seconds=45,
-            gap_fill_tolerance=1.5,
-            or_breakout_buffer=0.2,
-        )
-
-        return Config(
-            ib_client_id=1,
-            paper_trading=True,
-            scanner_config=scanner_config,
-            discord_webhook_url=None,
-        )
-
-    @pytest.fixture
-    def bot(self, config):
+    def bot(self, scanner_config):
         """Create TradingBot instance with mocked dependencies"""
         with (
             patch("skim.core.bot.Database"),
@@ -1112,26 +1072,21 @@ class TestTradingBotScannerConfig:
             patch("skim.core.bot.IBKRGapScanner"),
             patch("skim.core.bot.ASXAnnouncementScanner"),
         ):
-            return TradingBot(config)
+            return TradingBot(scanner_config)
 
-    def test_bot_initializes_scanner_with_config(self, bot, config):
+    def test_bot_initializes_scanner_with_config(self, bot, scanner_config):
         """Test TradingBot passes scanner_config to IBKRGapScanner"""
         # The IBKRGapScanner should have been initialised with scanner_config
         # Since we're using mocks, we just verify the bot has the scanner
         assert bot.ibkr_scanner is not None
         assert hasattr(bot, "scanner_config") or hasattr(
-            config, "scanner_config"
+            scanner_config, "scanner_config"
         )
 
-    def test_scan_ibkr_gaps_uses_config_filters(self, bot, config):
+    def test_scan_ibkr_gaps_uses_config_filters(self, bot, scanner_config):
         """Test scan_ibkr_gaps method uses config values"""
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = []
-
-        bot.scan_ibkr_gaps()
-
-        # Verify scanner uses config gap threshold
         mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
 
     def test_track_or_breakouts_uses_config_timing(self, bot, config):

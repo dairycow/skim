@@ -75,12 +75,10 @@ class TestGapStock:
         gap_stock = GapStock(
             ticker="BHP",
             gap_percent=5.5,
-            close_price=45.20,
             conid=8644,
         )
         assert gap_stock.ticker == "BHP"
         assert gap_stock.gap_percent == 5.5
-        assert gap_stock.close_price == 45.20
         assert gap_stock.conid == 8644
 
     def test_ticker_normalization(self):
@@ -88,7 +86,6 @@ class TestGapStock:
         gap_stock = GapStock(
             ticker="BHP",  # Pattern validation happens before normalization
             gap_percent=5.5,
-            close_price=45.20,
             conid=8644,
         )
         assert gap_stock.ticker == "BHP"
@@ -99,19 +96,19 @@ class TestGapStock:
             GapStock(
                 ticker="BHP",
                 gap_percent=1500,  # Too high
-                close_price=45.20,
                 conid=8644,
             )
 
-    def test_negative_close_price(self):
-        """Test validation error for negative close price"""
-        with pytest.raises(ValidationError):
-            GapStock(
-                ticker="BHP",
-                gap_percent=5.5,
-                close_price=-10.0,  # Negative price
-                conid=8644,
-            )
+    def test_minimal_gap_stock(self):
+        """Test creating a gap stock with minimal required fields"""
+        gap_stock = GapStock(
+            ticker="BHP",
+            gap_percent=5.5,
+            conid=8644,
+        )
+        assert gap_stock.ticker == "BHP"
+        assert gap_stock.gap_percent == 5.5
+        assert gap_stock.conid == 8644
 
     def test_invalid_conid(self):
         """Test validation error for invalid contract ID"""
@@ -119,7 +116,6 @@ class TestGapStock:
             GapStock(
                 ticker="BHP",
                 gap_percent=5.5,
-                close_price=45.20,
                 conid=0,  # Must be > 0
             )
 
