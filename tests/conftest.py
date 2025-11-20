@@ -459,3 +459,33 @@ def mock_ibkr_scanner(mocker):
 
     scanner = mocker.MagicMock(spec=IBKRGapScanner)
     return scanner
+
+
+def create_gap_scan_result(gap_stocks=None, new_candidates=None):
+    """Helper to create GapScanResult for test mocks"""
+    from skim.validation.scanners import GapScanResult
+
+    return GapScanResult(
+        gap_stocks=gap_stocks or [],
+        new_candidates=new_candidates or [],
+    )
+
+
+def create_monitoring_result(gap_stocks=None, triggered_candidates=None):
+    """Helper to create MonitoringResult for test mocks"""
+    from skim.validation.scanners import MonitoringResult
+
+    return MonitoringResult(
+        gap_stocks=gap_stocks or [],
+        triggered_candidates=triggered_candidates or [],
+    )
+
+
+def create_or_tracking_result(gap_stocks=None, or_tracking_candidates=None):
+    """Helper to create ORTrackingResult for test mocks"""
+    from skim.validation.scanners import ORTrackingResult
+
+    return ORTrackingResult(
+        gap_stocks=gap_stocks or [],
+        or_tracking_candidates=or_tracking_candidates or [],
+    )

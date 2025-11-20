@@ -89,7 +89,7 @@ class TestDecoupledGapScannerGapScanWithAnnouncements:
         candidate = result.new_candidates[0]
 
         # Verify it has fields needed for Candidate model
-        assert candidate["ticker"] == "BHP"
+        assert candidate["ticker"] == gap_stock.ticker
         assert candidate["headline"] is not None
         assert candidate["gap_percent"] == 5.5
         assert candidate["price"] == 50.0
@@ -228,6 +228,6 @@ class TestDecoupledScannerORTrackingResult:
 
         # Verify OR tracking specific fields
         assert candidate["status"] == "or_tracking"
-        assert candidate["conid"] == "265598"
+        assert candidate["conid"] == 265598
         assert candidate["source"] == "ibkr"
         assert candidate["gap_percent"] == 5.5

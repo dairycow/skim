@@ -441,21 +441,21 @@ class IBKRGapScanner:
 
         for stock in gap_stocks:
             # Only process if ticker has price-sensitive announcement
-            if str(stock.conid) not in price_sensitive_tickers:
+            if stock.ticker not in price_sensitive_tickers:
                 logger.debug(
-                    f"{str(stock.conid)}: Skipped (no price-sensitive announcement)"
+                    f"{stock.ticker}: Skipped (no price-sensitive announcement)"
                 )
                 continue
 
             # Get current price for display
             current_price = None
             try:
-                market_data = self.get_market_data(str(stock.conid))
+                market_data = self.get_market_data(stock.ticker)
                 if market_data and market_data.last_price:
                     current_price = float(market_data.last_price)
             except Exception as e:
                 logger.debug(
-                    f"Could not fetch market data for {str(stock.conid)}: {e}"
+                    f"Could not fetch market data for {stock.ticker}: {e}"
                 )
 
             price_display = (
@@ -464,12 +464,12 @@ class IBKRGapScanner:
                 else "Price unavailable"
             )
             logger.info(
-                f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+                f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
             )
 
             # Create candidate for notification and persistence
             candidate_dict = {
-                "ticker": str(stock.conid),
+                "ticker": stock.ticker,
                 "headline": f"Gap detected: {stock.gap_percent:.2f}%",
                 "gap_percent": stock.gap_percent,
                 "price": current_price,
@@ -479,7 +479,7 @@ class IBKRGapScanner:
             new_candidates.append(candidate_dict)
 
             logger.info(
-                f"Found {str(stock.conid)}: gap {stock.gap_percent:.2f}% with price-sensitive announcement"
+                f"Found {stock.ticker}: gap {stock.gap_percent:.2f}% with price-sensitive announcement"
             )
 
             filtered_stocks.append(stock)
@@ -523,12 +523,12 @@ class IBKRGapScanner:
             # Get current price for display
             current_price = None
             try:
-                market_data = self.get_market_data(str(stock.conid))
+                market_data = self.get_market_data(stock.ticker)
                 if market_data and market_data.last_price:
                     current_price = float(market_data.last_price)
             except Exception as e:
                 logger.debug(
-                    f"Could not fetch market data for {str(stock.conid)}: {e}"
+                    f"Could not fetch market data for {stock.ticker}: {e}"
                 )
 
             price_display = (
@@ -537,19 +537,19 @@ class IBKRGapScanner:
                 else "Price unavailable"
             )
             logger.info(
-                f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+                f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
             )
 
             # Check if this ticker is in our candidates
-            if str(stock.conid) in candidate_tickers:
+            if stock.ticker in candidate_tickers:
                 # Trigger existing candidate
                 logger.warning(
-                    f"{str(stock.conid)}: CANDIDATE TRIGGERED! Gap: {stock.gap_percent:.2f}%"
+                    f"{stock.ticker}: CANDIDATE TRIGGERED! Gap: {stock.gap_percent:.2f}%"
                 )
 
                 triggered_candidates.append(
                     {
-                        "ticker": str(stock.conid),
+                        "ticker": stock.ticker,
                         "gap_percent": stock.gap_percent,
                         "price": current_price,
                         "status": "triggered",
@@ -559,12 +559,12 @@ class IBKRGapScanner:
             else:
                 # New stock meeting threshold - add directly as triggered
                 logger.warning(
-                    f"{str(stock.conid)}: NEW STOCK TRIGGERED! Gap: {stock.gap_percent:.2f}%"
+                    f"{stock.ticker}: NEW STOCK TRIGGERED! Gap: {stock.gap_percent:.2f}%"
                 )
 
                 triggered_candidates.append(
                     {
-                        "ticker": str(stock.conid),
+                        "ticker": stock.ticker,
                         "headline": f"Gap triggered: {stock.gap_percent:.2f}%",
                         "gap_percent": stock.gap_percent,
                         "price": current_price,
@@ -606,12 +606,12 @@ class IBKRGapScanner:
             # Get current price for display
             current_price = None
             try:
-                market_data = self.get_market_data(str(stock.conid))
+                market_data = self.get_market_data(stock.ticker)
                 if market_data and market_data.last_price:
                     current_price = float(market_data.last_price)
             except Exception as e:
                 logger.debug(
-                    f"Could not fetch market data for {str(stock.conid)}: {e}"
+                    f"Could not fetch market data for {stock.ticker}: {e}"
                 )
 
             price_display = (
@@ -620,12 +620,12 @@ class IBKRGapScanner:
                 else "Price unavailable"
             )
             logger.info(
-                f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+                f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
             )
 
             # Create candidate with OR tracking status
             candidate_dict = {
-                "ticker": str(stock.conid),
+                "ticker": stock.ticker,
                 "headline": f"Gap detected: {stock.gap_percent:.2f}%",
                 "scan_date": datetime.now().isoformat(),
                 "status": "or_tracking",
@@ -637,7 +637,7 @@ class IBKRGapScanner:
             or_tracking_candidates.append(candidate_dict)
 
             logger.info(
-                f"Found {str(stock.conid)} for OR tracking (gap: {stock.gap_percent:.2f}%)"
+                f"Found {stock.ticker} for OR tracking (gap: {stock.gap_percent:.2f}%)"
             )
 
         logger.info(
