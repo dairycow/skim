@@ -11,6 +11,11 @@ from skim.scanners.ibkr_gap_scanner import (
     GapStock,
     OpeningRangeData,
 )
+from tests.conftest import (
+    create_gap_scan_result,
+    create_monitoring_result,
+    create_or_tracking_result,
+)
 
 
 class TestTradingBotIBKRIntegration:
@@ -122,12 +127,12 @@ class TestTradingBotIBKRIntegration:
         mock_scanner = mock_trading_bot.ibkr_scanner
         # scan_gaps_with_announcements returns (gap_stocks, new_candidates)
         mock_new_candidates = [
-            {"ticker": stock.ticker, "gap_percent": stock.gap_percent}
+            {"ticker": stock.ticker, "headline": f"Gap detected: {stock.gap_percent:.2f}%", "gap_percent": stock.gap_percent, "price": 50.0, "status": "watching", "scan_date": "2025-11-20T10:00:00"}
             for stock in mock_gap_stocks
         ]
-        mock_scanner.scan_gaps_with_announcements.return_value = (
-            mock_gap_stocks,
-            mock_new_candidates,
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result(
+            gap_stocks=mock_gap_stocks,
+            new_candidates=mock_new_candidates,
         )
         mock_scanner.is_connected.return_value = True
 
@@ -145,12 +150,12 @@ class TestTradingBotIBKRIntegration:
         mock_scanner = mock_trading_bot.ibkr_scanner
         # scan_gaps_with_announcements returns (gap_stocks, new_candidates)
         mock_new_candidates = [
-            {"ticker": stock.ticker, "gap_percent": stock.gap_percent}
+            {"ticker": stock.ticker, "headline": f"Gap detected: {stock.gap_percent:.2f}%", "gap_percent": stock.gap_percent, "price": 50.0, "status": "watching", "scan_date": "2025-11-20T10:00:00"}
             for stock in mock_gap_stocks
         ]
-        mock_scanner.scan_gaps_with_announcements.return_value = (
-            mock_gap_stocks,
-            mock_new_candidates,
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result(
+            gap_stocks=mock_gap_stocks,
+            new_candidates=mock_new_candidates,
         )
         mock_scanner.is_connected.return_value = True
 
@@ -293,7 +298,7 @@ class TestTradingBotIBKRIntegration:
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
         mock_scanner.is_connected.return_value = False
-        mock_scanner.scan_gaps_with_announcements.return_value = ([], [])
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result()
 
         # Mock ASX scanner
         mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(
@@ -317,7 +322,7 @@ class TestTradingBotIBKRIntegration:
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_gaps_with_announcements.return_value = ([], [])
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result()
 
         # Mock ASX scanner
         mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(
@@ -414,12 +419,12 @@ class TestTradingBotCoreMethods:
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = False
         mock_new_candidates = [
-            {"ticker": stock.ticker, "gap_percent": stock.gap_percent}
+            {"ticker": stock.ticker, "headline": f"Gap detected: {stock.gap_percent:.2f}%", "gap_percent": stock.gap_percent, "price": 50.0, "status": "watching", "scan_date": "2025-11-20T10:00:00"}
             for stock in mock_gap_stocks
         ]
-        mock_scanner.scan_gaps_with_announcements.return_value = (
-            mock_gap_stocks,
-            mock_new_candidates,
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result(
+            gap_stocks=mock_gap_stocks,
+            new_candidates=mock_new_candidates,
         )
 
         bot.db.get_candidate = Mock(return_value=None)
@@ -443,12 +448,12 @@ class TestTradingBotCoreMethods:
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
         mock_new_candidates = [
-            {"ticker": stock.ticker, "gap_percent": stock.gap_percent}
+            {"ticker": stock.ticker, "headline": f"Gap detected: {stock.gap_percent:.2f}%", "gap_percent": stock.gap_percent, "price": 50.0, "status": "watching", "scan_date": "2025-11-20T10:00:00"}
             for stock in mock_gap_stocks
         ]
-        mock_scanner.scan_gaps_with_announcements.return_value = (
-            mock_gap_stocks,
-            mock_new_candidates,
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result(
+            gap_stocks=mock_gap_stocks,
+            new_candidates=mock_new_candidates,
         )
 
         bot.db.get_candidate = Mock(return_value=None)
@@ -465,7 +470,7 @@ class TestTradingBotCoreMethods:
         """Test scan when no stocks found"""
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_gaps_with_announcements.return_value = ([], [])
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result()
         bot.discord_notifier.send_scan_results = Mock()
 
         result = bot.scan()
@@ -761,12 +766,12 @@ class TestTradingBotWorkflowMethods:
         mock_scanner.is_connected.return_value = False
         # scan_gaps_with_announcements returns (gap_stocks, new_candidates)
         mock_new_candidates = [
-            {"ticker": stock.ticker, "gap_percent": stock.gap_percent}
+            {"ticker": stock.ticker, "headline": f"Gap detected: {stock.gap_percent:.2f}%", "gap_percent": stock.gap_percent, "price": 50.0, "status": "watching", "scan_date": "2025-11-20T10:00:00"}
             for stock in mock_gap_stocks
         ]
-        mock_scanner.scan_gaps_with_announcements.return_value = (
-            mock_gap_stocks,
-            mock_new_candidates,
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result(
+            gap_stocks=mock_gap_stocks,
+            new_candidates=mock_new_candidates,
         )
 
         bot.db.get_candidate = Mock(return_value=None)
@@ -821,7 +826,7 @@ class TestTradingBotWorkflowMethods:
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
         # scan_and_monitor_gaps returns (gap_stocks, gaps_triggered)
-        mock_scanner.scan_and_monitor_gaps.return_value = ([], 0)
+        mock_scanner.scan_and_monitor_gaps.return_value = create_monitoring_result()
 
         bot.db.get_watching_candidates = Mock(return_value=[])
 
@@ -1088,9 +1093,9 @@ class TestTradingBotScannerConfig:
         # Mock the scanner method to return expected values
         mock_gap_stocks = []
         mock_new_candidates = []
-        mock_scanner.scan_gaps_with_announcements.return_value = (
-            mock_gap_stocks,
-            mock_new_candidates,
+        mock_scanner.scan_gaps_with_announcements.return_value = create_gap_scan_result(
+            gap_stocks=mock_gap_stocks,
+            new_candidates=mock_new_candidates,
         )
 
         # Call the scan method
