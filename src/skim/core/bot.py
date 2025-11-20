@@ -14,6 +14,9 @@ from skim.data.database import Database
 from skim.notifications.discord import DiscordNotifier
 from skim.scanners.asx_announcements import ASXAnnouncementScanner
 from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+from skim.strategy.exit import check_half_exit, check_stop_loss
+from skim.strategy.order_executor import OrderExecutor
+from skim.strategy.position_manager import can_open_new_position
 
 
 class TradingBot:
@@ -143,10 +146,11 @@ class TradingBot:
 
         self._ensure_connection()
 
-        # Check how many open positions we have
-        position_count = self.db.count_open_positions()
-
-        if position_count >= self.config.max_positions:
+        # Check if we can open new positions
+        if not can_open_new_position(
+            self.db.count_open_positions(),
+            self.config.max_positions,
+        ):
             logger.warning(
                 f"Maximum positions ({self.config.max_positions}) reached, skipping execution"
             )
@@ -159,99 +163,27 @@ class TradingBot:
             logger.info("No triggered candidates to execute")
             return 0
 
+        # Create order executor
+        executor = OrderExecutor(self.ib_client, self.db)
+
         orders_placed = 0
 
         for candidate in candidates:
-            ticker = candidate.ticker
-
             try:
-                # Get current market price
-                conid = self.ib_client._get_contract_id(ticker)
-                market_data = self.ib_client.get_market_data(conid)
-
-                if (
-                    not market_data
-                    or not market_data.last_price
-                    or market_data.last_price <= 0
-                ):
-                    logger.warning(f"{ticker}: No valid market data available")
-                    continue
-
-                current_price = market_data.last_price
-
-                # Calculate position size (simple: fixed dollar amount)
-                position_value = 5000  # $5000 per position
-                quantity = min(
-                    int(position_value / current_price),
-                    self.config.max_position_size,
+                position_id = executor.execute_entry(
+                    candidate,
+                    stop_loss_source="daily_low",
+                    max_position_size=self.config.max_position_size,
+                    position_value=5000.0,
                 )
 
-                if quantity < 1:
-                    logger.warning(f"{ticker}: Calculated quantity too small")
-                    continue
-
-                # Calculate stop loss at low of day
-                conid = self.ib_client._get_contract_id(ticker)
-                market_data = self.ib_client.get_market_data(conid)
-                if market_data and market_data.low > 0:
-                    stop_loss = market_data.low
-                    logger.info(
-                        f"{ticker}: Using daily low stop loss: ${stop_loss:.4f}"
-                    )
-                else:
-                    # Fallback to -5% if daily low unavailable
-                    stop_loss = current_price * 0.95
-                    logger.warning(
-                        f"{ticker}: Using fallback stop loss: ${stop_loss:.4f} (daily low unavailable)"
-                    )
-
-                # Place market order
-                order_result = self.ib_client.place_order(
-                    ticker, "BUY", quantity
-                )
-
-                if not order_result:
-                    logger.warning(f"Order placement failed for {ticker}")
-                    continue
-
-                logger.info(f"Order placed: BUY {quantity} {ticker} @ market")
-
-                # Use filled price if available, otherwise use current price as estimate
-                fill_price = (
-                    order_result.filled_price
-                    if order_result.filled_price
-                    else current_price
-                )
-
-                logger.info(
-                    f"Order {order_result.status}: {quantity} {ticker} @ ${fill_price:.4f}"
-                )
-
-                # Record position
-                position_id = self.db.create_position(
-                    ticker=ticker,
-                    quantity=quantity,
-                    entry_price=fill_price,
-                    stop_loss=stop_loss,
-                    entry_date=datetime.now().isoformat(),
-                )
-
-                # Record trade
-                self.db.create_trade(
-                    ticker=ticker,
-                    action="BUY",
-                    quantity=quantity,
-                    price=fill_price,
-                    position_id=position_id,
-                )
-
-                # Update candidate status
-                self.db.update_candidate_status(ticker, "entered")
-
-                orders_placed += 1
+                if position_id:
+                    orders_placed += 1
 
             except Exception as e:
-                logger.error(f"Error executing order for {ticker}: {e}")
+                logger.error(
+                    f"Error executing order for {candidate.ticker}: {e}"
+                )
                 continue
 
         logger.info(f"Execution complete. Placed {orders_placed} orders")
@@ -272,6 +204,9 @@ class TradingBot:
         if not positions:
             logger.info("No positions to manage")
             return 0
+
+        # Create order executor
+        executor = OrderExecutor(self.ib_client, self.db)
 
         actions_taken = 0
 
@@ -294,87 +229,29 @@ class TradingBot:
 
                 current_price = market_data.last_price
 
-                # Rule 1: Sell half on day 3
-                if position.days_held >= 3 and not position.half_sold:
-                    quantity_to_sell = position.quantity // 2
-
-                    if quantity_to_sell > 0:
-                        order_result = self.ib_client.place_order(
-                            ticker, "SELL", quantity_to_sell
-                        )
-
-                        if not order_result:
-                            logger.warning(
-                                f"Day 3 sell order failed for {ticker}"
-                            )
-                            continue
-
-                        logger.info(
-                            f"Day 3: Selling half position {quantity_to_sell} {ticker}"
-                        )
-
-                        # Use filled price if available, otherwise use current price as estimate
-                        fill_price = (
-                            order_result.filled_price
-                            if order_result.filled_price
-                            else current_price
-                        )
-                        pnl = (
-                            fill_price - position.entry_price
-                        ) * quantity_to_sell
-
-                        logger.info(
-                            f"Half position sold: {quantity_to_sell} {ticker} @ ${fill_price:.4f}, PnL: ${pnl:.4f}"
-                        )
-
-                        # Update position
-                        if position_id is not None:
-                            self.db.update_position_half_sold(position_id, True)
-                        self.db.update_candidate_status(ticker, "half_exited")
-
-                        # Record trade
-                        self.db.create_trade(
-                            ticker=ticker,
-                            action="SELL",
-                            quantity=quantity_to_sell,
-                            price=fill_price,
-                            position_id=position_id,
-                            pnl=pnl,
-                            notes="Day 3 half exit",
-                        )
-
-                        actions_taken += 1
-
-                # Rule 2: Check stop loss (low of day approximation)
-                if current_price <= position.stop_loss:
-                    remaining_qty = (
-                        position.quantity
-                        if not position.half_sold
-                        else position.quantity // 2
+                # Rule 1: Sell half on day 3 first (if not already exited)
+                half_exit_signal = check_half_exit(position)
+                if half_exit_signal:
+                    executor.execute_exit(
+                        position,
+                        half_exit_signal.quantity,
+                        half_exit_signal.reason,
                     )
 
-                    order_result = self.ib_client.place_order(
-                        ticker, "SELL", remaining_qty
-                    )
+                    # Update position
+                    if position_id is not None:
+                        self.db.update_position_half_sold(position_id, True)
+                    self.db.update_candidate_status(ticker, "half_exited")
 
-                    if not order_result:
-                        logger.warning(f"Stop loss order failed for {ticker}")
-                        continue
+                    actions_taken += 1
 
-                    logger.warning(
-                        f"STOP LOSS HIT: Selling {remaining_qty} {ticker}"
-                    )
-
-                    # Use filled price if available, otherwise use current price as estimate
-                    fill_price = (
-                        order_result.filled_price
-                        if order_result.filled_price
-                        else current_price
-                    )
-                    pnl = (fill_price - position.entry_price) * remaining_qty
-
-                    logger.info(
-                        f"Stop loss executed: ${fill_price:.4f}, PnL: ${pnl:.4f}"
+                # Rule 2: Check stop loss (may close entire position or remaining half)
+                stop_loss_signal = check_stop_loss(position, current_price)
+                if stop_loss_signal:
+                    executor.execute_exit(
+                        position,
+                        stop_loss_signal.quantity,
+                        stop_loss_signal.reason,
                     )
 
                     # Close position
@@ -382,22 +259,15 @@ class TradingBot:
                         self.db.update_position_exit(
                             position_id=position_id,
                             status="closed",
-                            exit_price=fill_price,
+                            exit_price=current_price,
                             exit_date=datetime.now().isoformat(),
                         )
 
-                    # Record trade
-                    self.db.create_trade(
-                        ticker=ticker,
-                        action="SELL",
-                        quantity=remaining_qty,
-                        price=fill_price,
-                        position_id=position_id,
-                        pnl=pnl,
-                        notes="Stop loss",
+                    logger.warning(
+                        f"STOP LOSS HIT: {ticker} at ${current_price:.4f}"
                     )
-
                     actions_taken += 1
+                    continue
 
                 # Rule 3: Trailing stop with 10-day SMA (simplified for now)
                 # TODO: Implement 10-day SMA trailing stop
@@ -642,94 +512,35 @@ class TradingBot:
 
         self._ensure_connection()
 
-        # Check position limits
-        position_count = self.db.count_open_positions()
-        if position_count >= self.config.max_positions:
+        # Check if we can open new positions
+        if not can_open_new_position(
+            self.db.count_open_positions(),
+            self.config.max_positions,
+        ):
             logger.warning("Maximum positions reached, skipping ORH execution")
             return 0
+
+        # Create order executor
+        executor = OrderExecutor(self.ib_client, self.db)
 
         orders_placed = 0
 
         for candidate in candidates:
-            ticker = candidate.ticker
-
             try:
-                # Get current market data
-                conid = self.ib_client._get_contract_id(ticker)
-                market_data = self.ib_client.get_market_data(conid)
-
-                if not market_data or not market_data.last_price:
-                    logger.warning(
-                        f"{ticker}: No valid market data for ORH execution"
-                    )
-                    continue
-
-                current_price = market_data.last_price
-
-                # Calculate position size
-                position_value = 5000  # $5000 per position
-                quantity = min(
-                    int(position_value / current_price),
-                    self.config.max_position_size,
+                position_id = executor.execute_entry(
+                    candidate,
+                    stop_loss_source="or_low",
+                    max_position_size=self.config.max_position_size,
+                    position_value=5000.0,
                 )
 
-                if quantity < 1:
-                    logger.warning(f"{ticker}: Calculated quantity too small")
-                    continue
-
-                # Set stop loss at OR low or 5% below entry
-                stop_loss = (
-                    candidate.or_low
-                    if candidate.or_low and candidate.or_low > 0
-                    else current_price * 0.95
-                )
-
-                # Place market order
-                order_result = self.ib_client.place_order(
-                    ticker, "BUY", quantity
-                )
-
-                if not order_result:
-                    logger.warning(f"ORH order placement failed for {ticker}")
-                    continue
-
-                logger.info(
-                    f"ORH order placed: BUY {quantity} {ticker} @ market"
-                )
-
-                # Use filled price if available
-                fill_price = (
-                    order_result.filled_price
-                    if order_result.filled_price
-                    else current_price
-                )
-
-                # Record position
-                position_id = self.db.create_position(
-                    ticker=ticker,
-                    quantity=quantity,
-                    entry_price=fill_price,
-                    stop_loss=stop_loss,
-                    entry_date=datetime.now().isoformat(),
-                )
-
-                # Record trade
-                self.db.create_trade(
-                    ticker=ticker,
-                    action="BUY",
-                    quantity=quantity,
-                    price=fill_price,
-                    position_id=position_id,
-                    notes="ORH breakout entry",
-                )
-
-                # Update candidate status
-                self.db.update_candidate_status(ticker, "entered")
-
-                orders_placed += 1
+                if position_id:
+                    orders_placed += 1
 
             except Exception as e:
-                logger.error(f"Error executing ORH order for {ticker}: {e}")
+                logger.error(
+                    f"Error executing ORH order for {candidate.ticker}: {e}"
+                )
                 continue
 
         logger.info(f"ORH execution complete. Placed {orders_placed} orders")
