@@ -20,11 +20,18 @@ class TestBotStopLossWithDailyLow:
         # Mock market data with daily low
         mock_market_data = MarketData(
             ticker="AAPL",
+            conid="265598",
             last_price=150.0,
+            high=152.0,
+            low=145.0,  # Daily low is $145
             bid=149.5,
             ask=150.5,
+            bid_size=100,
+            ask_size=200,
             volume=1000,
-            low=145.0,  # Daily low is $145
+            open=148.0,
+            prior_close=147.0,
+            change_percent=2.04,
         )
         mock_trading_bot.ib_client.get_market_data.return_value = (
             mock_market_data
@@ -71,11 +78,18 @@ class TestBotStopLossWithDailyLow:
         # Mock market data without daily low (low = 0.0)
         mock_market_data = MarketData(
             ticker="AAPL",
+            conid="265598",
             last_price=150.0,
+            high=152.0,
+            low=0.0,  # Daily low unavailable
             bid=149.5,
             ask=150.5,
+            bid_size=100,
+            ask_size=200,
             volume=1000,
-            low=0.0,  # Daily low unavailable
+            open=148.0,
+            prior_close=147.0,
+            change_percent=2.04,
         )
         mock_trading_bot.ib_client.get_market_data.return_value = (
             mock_market_data

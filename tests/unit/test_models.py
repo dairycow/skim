@@ -135,13 +135,18 @@ def test_market_data_mid_price():
     """Test MarketData.mid_price calculation"""
     data = MarketData(
         ticker="BHP",
-        bid=46.00,
-        ask=46.10,
-        last=46.05,
+        conid="8644",
+        last_price=46.05,
         high=47.00,
         low=45.50,
+        bid=46.00,
+        ask=46.10,
+        bid_size=100,
+        ask_size=200,
         volume=1_000_000,
-        timestamp=datetime.now(),
+        open=46.50,
+        prior_close=45.80,
+        change_percent=0.54,
     )
 
     assert data.mid_price == 46.05  # (46.00 + 46.10) / 2

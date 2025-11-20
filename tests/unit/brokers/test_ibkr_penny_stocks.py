@@ -213,7 +213,7 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
-        result = ibkr_client_mock_oauth.get_market_data("123456")
+        result = ibkr_client_mock_oauth.get_market_data("123458")
 
         assert result is not None
         assert result.ticker == "BLU"
@@ -269,7 +269,7 @@ class TestIBKRPennyStockParsing:
             ],
         )
 
-        result = ibkr_client_mock_oauth.get_market_data("123456")
+        result = ibkr_client_mock_oauth.get_market_data("123459")
 
         assert result is not None
         assert result.ticker == "BUY"

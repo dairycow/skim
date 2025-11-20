@@ -3,7 +3,6 @@
 import json
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -80,13 +79,18 @@ def sample_market_data() -> MarketData:
     """Sample market data for testing"""
     return MarketData(
         ticker="BHP",
-        bid=46.00,
-        ask=46.10,
-        last=46.05,
+        conid="8644",
+        last_price=46.05,
         high=47.00,
         low=45.50,
+        bid=46.00,
+        ask=46.10,
+        bid_size=100,
+        ask_size=200,
         volume=1_000_000,
-        timestamp=datetime.now(),
+        open=46.50,
+        prior_close=45.80,
+        change_percent=0.54,
     )
 
 
@@ -108,11 +112,18 @@ def mock_ibkr_client(mocker):
 
     mock_market_data = IBMarketData(
         ticker="BHP",
+        conid="8644",
         last_price=46.50,
+        high=47.20,
+        low=45.80,
         bid=46.45,
         ask=46.55,
+        bid_size=150,
+        ask_size=250,
         volume=1_000_000,
-        low=45.80,
+        open=46.30,
+        prior_close=45.90,
+        change_percent=1.31,
     )
     mock_client.get_market_data.return_value = mock_market_data
 
@@ -215,6 +226,22 @@ def mock_bot_config():
     config.db_path = ":memory:"
     config.scanner_config = ScannerConfig()
     return config
+
+
+@pytest.fixture
+def scanner_config():
+    """Create ScannerConfig instance for testing"""
+    from skim.core.config import ScannerConfig
+
+    return ScannerConfig(
+        gap_threshold=3.0,
+        volume_filter=10000,
+        price_filter=0.05,
+        or_duration_minutes=10,
+        or_poll_interval_seconds=30,
+        gap_fill_tolerance=0.05,
+        or_breakout_buffer=0.1,
+    )
 
 
 @pytest.fixture

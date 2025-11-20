@@ -605,12 +605,12 @@ class TestIBKRGapScanner:
 
         mock_client.run_scanner.return_value = mock_scanner_results
 
-        with mocker.patch(
+        mocker.patch(
             "skim.scanners.ibkr_gap_scanner.IBKRClient",
             return_value=mock_client,
-        ):
-            scanner = IBKRGapScanner()
-            scanner._connected = True  # Mock connected state
+        )
+        scanner = IBKRGapScanner()
+        scanner._connected = True  # Mock connected state
         mock_client = Mock()
 
         # Mock IBKR scanner response with real field structure
@@ -1272,16 +1272,14 @@ class TestIBKRGapScanner:
         mocker.patch("time.time", side_effect=[start_time, start_time + 61])
 
         # Mock OpeningRangeData creation to raise validation error
-        with mocker.patch(
+        mocker.patch(
             "skim.scanners.ibkr_gap_scanner.OpeningRangeData",
             side_effect=Exception("Validation error"),
-        ):
-            results = scanner.track_opening_range(
-                gap_stocks, duration_seconds=60
-            )
+        )
+        results = scanner.track_opening_range(gap_stocks, duration_seconds=60)
 
-            # Should handle validation error and skip invalid data
-            assert len(results) == 0
+        # Should handle validation error and skip invalid data
+        assert len(results) == 0
 
     def test_filter_breakouts_empty_data(self, mocker):
         """Test filter breakouts with empty opening range data"""
@@ -1316,14 +1314,14 @@ class TestIBKRGapScanner:
         ]
 
         # Mock BreakoutSignal creation to raise validation error
-        with mocker.patch(
+        mocker.patch(
             "skim.scanners.ibkr_gap_scanner.BreakoutSignal",
             side_effect=Exception("Validation error"),
-        ):
-            results = scanner.filter_breakouts(or_data)
+        )
+        results = scanner.filter_breakouts(or_data)
 
-            # Should handle validation error and skip invalid data
-            assert len(results) == 0
+        # Should handle validation error and skip invalid data
+        assert len(results) == 0
 
     def test_connect_success(self, mocker):
         """Test successful connection to IBKR"""

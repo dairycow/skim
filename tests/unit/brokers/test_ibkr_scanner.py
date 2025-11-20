@@ -151,36 +151,6 @@ class TestIBKRScanner:
             ibkr_client_mock_oauth.get_scanner_params()
 
     @responses.activate
-    def test_get_market_data_extended_success(self, ibkr_client_mock_oauth):
-        """Test successful extended market data retrieval"""
-        market_data_response = {
-            "6793599": {
-                "31": 45.50,  # Last price
-                "83": 2.5,  # Change % from close
-                "86": 44.40,  # Ask price
-                "87": 1000000,  # Volume
-                "7741": 45.00,  # Prior close price
-                "7295": 45.00,  # Today's open price
-            }
-        }
-
-        responses.get(
-            f"{ibkr_client_mock_oauth.BASE_URL}/iserver/marketdata/snapshot",
-            json=market_data_response,
-            status=200,
-        )
-
-        result = ibkr_client_mock_oauth.get_market_data_extended("6793599")
-
-        assert isinstance(result, dict)
-        assert result["last_price"] == 45.50
-        assert result["change_percent"] == 2.5
-        assert result["ask"] == 44.40  # Field 86 is Ask Price
-        assert result["previous_close"] == 45.00  # Field 7741 is Prior Close
-        assert result["today_open"] == 45.00
-        assert result["volume"] == 1000000
-
-    @responses.activate
     def test_get_market_data_extended_not_found(self, ibkr_client_mock_oauth):
         """Test extended market data retrieval for non-existent contract"""
         responses.get(

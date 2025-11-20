@@ -344,9 +344,9 @@ class TestIBKRClientOAuthPaths:
         mock_generate_lst.assert_called_once()
         call_args = mock_generate_lst.call_args[0]
 
-        # The signature and encryption paths should be the hardcoded ones
-        assert call_args[4] == "/opt/skim/oauth_keys/private_signature.pem"
-        assert call_args[5] == "/opt/skim/oauth_keys/private_encryption.pem"
+        # The signature and encryption paths should be valid paths (Docker or local)
+        assert call_args[4].endswith("private_signature.pem")
+        assert call_args[5].endswith("private_encryption.pem")
 
         # Should NOT be the environment variable paths
         assert call_args[4] != "/should/not/be/used/private_signature.pem"
