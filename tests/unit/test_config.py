@@ -36,7 +36,8 @@ class TestTradingParameters:
         assert config.scanner_config.gap_threshold == 9.0
         assert config.max_position_size == 10000
         assert config.max_positions == 50
-        assert config.db_path == "/app/data/skim.db"
+        # Path should be either Docker or local path depending on environment
+        assert config.db_path.endswith("skim.db")
 
     def test_trading_parameters_can_be_overridden(self):
         """Test that trading parameters can be overridden via environment variables"""
@@ -52,7 +53,8 @@ class TestTradingParameters:
         )  # No longer configurable via env
         assert config.max_position_size == 10000  # Fixed default
         assert config.max_positions == 50  # Fixed default
-        assert config.db_path == "/app/data/skim.db"  # Fixed default
+        # Path should be either Docker or local path depending on environment
+        assert config.db_path.endswith("skim.db")  # Fixed default
 
         # Clean up
         for key in [
@@ -220,13 +222,15 @@ class TestOAuthKeyPaths:
         from skim.core.config import Config
 
         config = Config.from_env()
-        expected_path = "/opt/skim/oauth_keys/private_signature.pem"
-        assert config.oauth_signature_key_path == expected_path
+        # Path should be either Docker or local path depending on environment
+        assert config.oauth_signature_key_path.endswith("private_signature.pem")
 
     def test_oauth_encryption_key_path_constant(self):
         """Test that OAuth encryption key path is correctly defined in Config"""
         from skim.core.config import Config
 
         config = Config.from_env()
-        expected_path = "/opt/skim/oauth_keys/private_encryption.pem"
-        assert config.oauth_encryption_key_path == expected_path
+        # Path should be either Docker or local path depending on environment
+        assert config.oauth_encryption_key_path.endswith(
+            "private_encryption.pem"
+        )

@@ -75,14 +75,14 @@ class TestTradingBotIBKRIntegration:
             )
         ]
 
-    def test_scan_ibkr_gaps_method_exists(self, mock_trading_bot):
-        """Test that scan_ibkr_gaps method exists"""
-        assert hasattr(mock_trading_bot, "scan_ibkr_gaps")
-        assert callable(mock_trading_bot.scan_ibkr_gaps)
+    def test_scan_method_exists(self, mock_trading_bot):
+        """Test that scan method exists"""
+        assert hasattr(mock_trading_bot, "scan")
+        assert callable(mock_trading_bot.scan)
 
-    def test_scan_ibkr_gaps_returns_int(self, mock_trading_bot):
-        """Test that scan_ibkr_gaps returns int"""
-        result = mock_trading_bot.scan_ibkr_gaps()
+    def test_scan_returns_int(self, mock_trading_bot):
+        """Test that scan returns int"""
+        result = mock_trading_bot.scan()
         assert isinstance(result, int)
 
     def test_track_or_breakouts_method_exists(self, mock_trading_bot):
@@ -105,38 +105,38 @@ class TestTradingBotIBKRIntegration:
         result = mock_trading_bot.execute_orh_breakouts()
         assert isinstance(result, int)
 
-    def test_scan_ibkr_gaps_uses_ibkr_scanner(
+    def test_scan_uses_ibkr_scanner(
         self, mock_trading_bot, mock_gap_stocks, mocker
     ):
-        """Test that scan_ibkr_gaps uses IBKRGapScanner"""
+        """Test that scan uses IBKRGapScanner"""
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        mock_scanner.scan_gaps_with_announcements.return_value = mock_gap_stocks
         mock_scanner.is_connected.return_value = True
 
-        result = mock_trading_bot.scan_ibkr_gaps()
+        result = mock_trading_bot.scan()
 
         # Verify scanner was used
-        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
+        mock_scanner.scan_gaps_with_announcements.assert_called_once()
         assert isinstance(result, int)
 
-    def test_scan_ibkr_gaps_stores_candidates_with_or_tracking_status(
+    def test_scan_stores_candidates_with_or_tracking_status(
         self, mock_trading_bot, mock_gap_stocks
     ):
-        """Test that scan_ibkr_gaps stores candidates with 'or_tracking' status"""
+        """Test that scan stores candidates with 'or_tracking' status"""
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        mock_scanner.scan_gaps_with_announcements.return_value = mock_gap_stocks
         mock_scanner.is_connected.return_value = True
 
         # Mock database methods
         mock_trading_bot.db.get_candidate = Mock(return_value=None)
         mock_trading_bot.db.save_candidate = Mock()
 
-        result = mock_trading_bot.scan_ibkr_gaps()
+        result = mock_trading_bot.scan()
 
         # Verify scanner was used
-        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
+        mock_scanner.scan_gaps_with_announcements.assert_called_once()
         assert isinstance(result, int)
 
     def test_track_or_breakouts_uses_existing_ibkr_client(
@@ -220,14 +220,16 @@ class TestTradingBotIBKRIntegration:
         assert callable(mock_trading_bot.db.get_orh_breakout_candidates)
         assert callable(mock_trading_bot.db.update_candidate_or_data)
 
-    def test_error_handling_scan_ibkr_gaps(self, mock_trading_bot):
-        """Test error handling in scan_ibkr_gaps"""
+    def test_error_handling_scan(self, mock_trading_bot):
+        """Test error handling in scan"""
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.scan_for_gaps.side_effect = Exception("IBKR API Error")
+        mock_scanner.scan_gaps_with_announcements.side_effect = Exception(
+            "IBKR API Error"
+        )
         mock_scanner.is_connected.return_value = True
 
-        result = mock_trading_bot.scan_ibkr_gaps()
+        result = mock_trading_bot.scan()
 
         # Should return 0 when error occurs
         assert result == 0
@@ -266,7 +268,7 @@ class TestTradingBotIBKRIntegration:
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
         mock_scanner.is_connected.return_value = False
-        mock_scanner.scan_for_gaps.return_value = []
+        mock_scanner.scan_gaps_with_announcements.return_value = []
 
         # Mock ASX scanner
         mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(
@@ -290,7 +292,7 @@ class TestTradingBotIBKRIntegration:
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = []
+        mock_scanner.scan_gaps_with_announcements.return_value = []
 
         # Mock ASX scanner
         mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(
@@ -381,36 +383,34 @@ class TestTradingBotCoreMethods:
             )
         ]
 
-    def test_scan_ibkr_gaps_full_workflow(self, bot, mock_gap_stocks):
-        """Test complete scan_ibkr_gaps workflow"""
+    def test_scan_full_workflow(self, bot, mock_gap_stocks):
+        """Test complete scan workflow"""
         # Setup mocks
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = False
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        mock_scanner.scan_gaps_with_announcements.return_value = mock_gap_stocks
 
         bot.db.get_candidate = Mock(return_value=None)
         bot.db.save_candidate = Mock()
 
         # Execute
-        result = bot.scan_ibkr_gaps()
+        result = bot.scan()
 
         # Verify workflow
         mock_scanner.is_connected.assert_called()
         mock_scanner.connect.assert_called_once()
-        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
+        mock_scanner.scan_gaps_with_announcements.assert_called_once()
 
         # Verify candidates were saved
         assert bot.db.save_candidate.call_count == 2
         assert result == 2
 
-    def test_scan_ibkr_gaps_with_existing_candidates(
-        self, bot, mock_gap_stocks
-    ):
-        """Test scan_ibkr_gaps with existing candidates"""
+    def test_scan_with_existing_candidates(self, bot, mock_gap_stocks):
+        """Test scan with existing candidates"""
         # Setup mocks
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        mock_scanner.scan_gaps_with_announcements.return_value = mock_gap_stocks
 
         # Mock existing candidate for BHP
         def mock_get_candidate(ticker):
@@ -422,30 +422,30 @@ class TestTradingBotCoreMethods:
         bot.db.save_candidate = Mock()
 
         # Execute
-        result = bot.scan_ibkr_gaps()
+        result = bot.scan()
 
         # Verify only new candidate was saved
         bot.db.save_candidate.assert_called_once()
         assert result == 1
 
-    def test_scan_ibkr_gaps_no_stocks_found(self, bot):
-        """Test scan_ibkr_gaps when no stocks found"""
+    def test_scan_no_stocks_found(self, bot):
+        """Test scan when no stocks found"""
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = []
+        mock_scanner.scan_gaps_with_announcements.return_value = []
 
-        result = bot.scan_ibkr_gaps()
+        result = bot.scan()
 
         assert result == 0
-        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
+        mock_scanner.scan_gaps_with_announcements.assert_called_once()
 
-    def test_scan_ibkr_gaps_connection_error(self, bot):
-        """Test scan_ibkr_gaps with connection error"""
+    def test_scan_connection_error(self, bot):
+        """Test scan with connection error"""
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = False
         mock_scanner.connect.side_effect = Exception("Connection failed")
 
-        result = bot.scan_ibkr_gaps()
+        result = bot.scan()
 
         assert result == 0
 
@@ -723,7 +723,7 @@ class TestTradingBotWorkflowMethods:
 
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = False
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        mock_scanner.scan_gaps_with_announcements.return_value = mock_gap_stocks
 
         bot.db.get_candidate = Mock(return_value=None)
         bot.db.save_candidate = Mock()
@@ -734,7 +734,7 @@ class TestTradingBotWorkflowMethods:
         # Verify workflow
         bot.asx_scanner.fetch_price_sensitive_tickers.assert_called_once()
         mock_scanner.connect.assert_called_once()
-        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
+        mock_scanner.scan_gaps_with_announcements.assert_called_once()
 
         # Verify candidates were saved
         assert bot.db.save_candidate.call_count == 2
@@ -756,7 +756,7 @@ class TestTradingBotWorkflowMethods:
 
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        mock_scanner.scan_gaps_with_announcements.return_value = mock_gap_stocks
 
         bot.db.save_candidate = Mock()
         bot.discord_notifier.send_scan_results = Mock()
@@ -778,7 +778,7 @@ class TestTradingBotWorkflowMethods:
 
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = []
+        mock_scanner.scan_gaps_with_announcements.return_value = []
 
         bot.discord_notifier.send_scan_results = Mock()
 
@@ -796,9 +796,9 @@ class TestTradingBotWorkflowMethods:
 
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks[
-            :1
-        ]  # Only BHP
+        mock_scanner.scan_gaps_with_announcements.return_value = (
+            mock_gap_stocks[:1]
+        )  # Only BHP
 
         bot.db.get_candidate = Mock(return_value=None)
         bot.db.save_candidate = Mock()
@@ -819,7 +819,7 @@ class TestTradingBotWorkflowMethods:
         # Setup mocks
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        mock_scanner.scan_gaps_with_announcements.return_value = mock_gap_stocks
 
         # Mock existing candidates
         mock_candidates = [Mock(ticker="BHP")]
@@ -829,7 +829,7 @@ class TestTradingBotWorkflowMethods:
         result = bot.monitor()
 
         # Verify workflow
-        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
+        mock_scanner.scan_gaps_with_announcements.assert_called_once()
         bot.db.get_watching_candidates.assert_called_once()
 
         # Verify BHP was triggered (in candidates)
@@ -850,7 +850,7 @@ class TestTradingBotWorkflowMethods:
         # Setup mocks
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = []
+        mock_scanner.scan_gaps_with_announcements.return_value = []
 
         bot.db.get_watching_candidates = Mock(return_value=[])
 
@@ -1083,11 +1083,11 @@ class TestTradingBotScannerConfig:
             scanner_config, "scanner_config"
         )
 
-    def test_scan_ibkr_gaps_uses_config_filters(self, bot, scanner_config):
-        """Test scan_ibkr_gaps method uses config values"""
+    def test_scan_uses_config_filters(self, bot, scanner_config):
+        """Test scan method uses config values"""
         mock_scanner = bot.ibkr_scanner
         mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.assert_called_once_with(min_gap=3.0)
+        mock_scanner.scan_gaps_with_announcements.assert_called_once()
 
     def test_track_or_breakouts_uses_config_timing(self, bot, config):
         """Test track_or_breakouts uses config timing parameters"""

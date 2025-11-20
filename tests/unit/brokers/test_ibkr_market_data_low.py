@@ -16,14 +16,21 @@ class TestIBKRMarketDataWithLow:
 
     def test_market_data_dataclass_includes_low_field(self):
         """Test that MarketData dataclass includes low field"""
-        # This test should fail initially because low field doesn't exist yet
+        # Test that MarketData includes all required fields including low
         market_data = MarketData(
             ticker="AAPL",
+            conid="265598",
             last_price=150.0,
+            high=152.0,
+            low=148.0,
             bid=149.5,
             ask=150.5,
+            bid_size=100,
+            ask_size=200,
             volume=1000,
-            low=148.0,  # This should cause the test to fail initially
+            open=149.0,
+            prior_close=147.0,
+            change_percent=2.04,
         )
 
         assert market_data.ticker == "AAPL"

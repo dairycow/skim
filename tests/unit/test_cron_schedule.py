@@ -65,7 +65,7 @@ class TestCronScheduleValidation:
                 command_name = self.extract_command_name(parsed["command"])
                 if command_name in [
                     "scan_ibkr",
-                    "scan_ibkr_gaps",
+                    "scan",
                     "track_or_breakouts",
                 ]:
                     entries.append(
@@ -192,16 +192,14 @@ class TestBotMethodAvailability:
                 bot_methods[attr_name] = attr
         return bot_methods
 
-    def test_scan_ibkr_gaps_method_exists(self, bot_methods):
-        """Test that scan_ibkr_gaps method exists"""
-        assert "scan_ibkr_gaps" in bot_methods, (
-            "scan_ibkr_gaps method not found in TradingBot"
-        )
+    def test_scan_method_exists(self, bot_methods):
+        """TEST: scan method should exist in TradingBot"""
+        assert "scan" in bot_methods, "scan method not found in TradingBot"
 
     def test_all_cron_methods_exist(self, bot_methods):
         """TEST: All cron commands should map to existing methods"""
         expected_methods = [
-            "scan_ibkr_gaps",  # Fixed: should be scan_ibkr_gaps
+            "scan",  # Updated: should be scan
             "track_or_breakouts",
             "execute_orh_breakouts",
             "manage_positions",
@@ -280,10 +278,10 @@ class TestUTCAEDTConversion(BaseCronTest):
         entries = []
         for line in crontab_content.split("\n"):
             parsed = self.parse_crontab_line(line)
-            if parsed and "scan_ibkr_gaps" in parsed["command"]:
+            if parsed and "scan" in parsed["command"]:
                 entries.append(parsed)
 
-        assert len(entries) > 0, "No scan_ibkr_gaps command found"
+        assert len(entries) > 0, "No scan command found"
 
         for entry in entries:
             utc_hour = int(entry["hour"])
@@ -401,10 +399,10 @@ class TestMarketHoursCoverage(BaseCronTest):
         entries = []
         for line in crontab_content.split("\n"):
             parsed = self.parse_crontab_line(line)
-            if parsed and "scan_ibkr_gaps" in parsed["command"]:
+            if parsed and "scan" in parsed["command"]:
                 entries.append(parsed)
 
-        assert len(entries) > 0, "No scan_ibkr_gaps command found"
+        assert len(entries) > 0, "No scan command found"
 
         # Should have at least one entry at 23:00:30 UTC (10:00:30 AM AEDT)
         market_open_entries = [
@@ -426,7 +424,7 @@ class TestUTCDayMapping(BaseCronTest):
             if parsed and any(
                 cmd in parsed["command"]
                 for cmd in [
-                    "scan_ibkr_gaps",
+                    "scan",
                     "track_or_breakouts",
                     "execute_orh_breakouts",
                 ]
@@ -449,7 +447,7 @@ class TestUTCDayMapping(BaseCronTest):
             if parsed and any(
                 cmd in parsed["command"]
                 for cmd in [
-                    "scan_ibkr_gaps",
+                    "scan",
                     "track_or_breakouts",
                     "execute_orh_breakouts",
                 ]
@@ -474,7 +472,7 @@ class TestUTCDayMapping(BaseCronTest):
             if parsed and any(
                 cmd in parsed["command"]
                 for cmd in [
-                    "scan_ibkr_gaps",
+                    "scan",
                     "track_or_breakouts",
                     "execute_orh_breakouts",
                 ]
