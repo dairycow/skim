@@ -84,19 +84,31 @@ class TradingBot:
                 self._ensure_connection()
                 self.ibkr_scanner.connect()
 
-            # Use enhanced scanner for complete gap scanning workflow
-            gap_stocks, new_candidates = (
-                self.ibkr_scanner.scan_gaps_with_announcements(
-                    price_sensitive_tickers=price_sensitive_tickers, db=self.db
-                )
+            # Use scanner for complete gap scanning workflow
+            scan_result = self.ibkr_scanner.scan_gaps_with_announcements(
+                price_sensitive_tickers=price_sensitive_tickers
             )
 
-            candidates_found = len(new_candidates)
+            # Persist candidates to database
+            for candidate_data in scan_result.new_candidates:
+                from skim.data.models import Candidate
+
+                candidate = Candidate(
+                    ticker=candidate_data["ticker"],
+                    headline=candidate_data["headline"],
+                    scan_date=candidate_data["scan_date"],
+                    status=candidate_data["status"],
+                    gap_percent=candidate_data["gap_percent"],
+                    prev_close=candidate_data["price"],
+                )
+                self.db.save_candidate(candidate)
+
+            candidates_found = len(scan_result.new_candidates)
 
             # Send Discord notification
             try:
                 self.discord_notifier.send_scan_results(
-                    candidates_found, new_candidates
+                    candidates_found, scan_result.new_candidates
                 )
             except Exception as e:
                 logger.error(f"Failed to send Discord notification: {e}")
@@ -126,15 +138,40 @@ class TradingBot:
             self._ensure_connection()
             self.ibkr_scanner.connect()
 
-        # Use enhanced scanner for complete gap monitoring workflow
-        gap_stocks, gaps_triggered = self.ibkr_scanner.scan_and_monitor_gaps(
-            existing_candidates=candidates, db=self.db
+        # Use scanner for complete gap monitoring workflow
+        monitoring_result = self.ibkr_scanner.scan_and_monitor_gaps(
+            existing_candidates=candidates
         )
 
+        # Process triggered candidates
+        triggered_count = 0
+        for candidate_data in monitoring_result.triggered_candidates:
+            if candidate_data.get("is_existing"):
+                # Update existing candidate status
+                self.db.update_candidate_status(
+                    candidate_data["ticker"],
+                    candidate_data["status"],
+                    candidate_data["gap_percent"],
+                )
+            else:
+                # Save new triggered candidate
+                from skim.data.models import Candidate
+
+                candidate = Candidate(
+                    ticker=candidate_data["ticker"],
+                    headline=candidate_data["headline"],
+                    scan_date=candidate_data["scan_date"],
+                    status=candidate_data["status"],
+                    gap_percent=candidate_data["gap_percent"],
+                    prev_close=candidate_data["price"],
+                )
+                self.db.save_candidate(candidate)
+            triggered_count += 1
+
         logger.info(
-            f"Monitoring complete. Found {gaps_triggered} triggered stocks"
+            f"Monitoring complete. Found {triggered_count} triggered stocks"
         )
-        return gaps_triggered
+        return triggered_count
 
     def execute(self) -> int:
         """Execute orders for triggered candidates
@@ -403,12 +440,26 @@ class TradingBot:
                 self._ensure_connection()
                 self.ibkr_scanner.connect()
 
-            # Use enhanced scanner for OR tracking workflow
-            candidates_found = self.ibkr_scanner.scan_for_or_tracking(
-                db=self.db
-            )
+            # Use scanner for OR tracking workflow
+            or_result = self.ibkr_scanner.scan_for_or_tracking()
 
-            if candidates_found == 0:
+            # Persist OR tracking candidates to database
+            for candidate_data in or_result.or_tracking_candidates:
+                from skim.data.models import Candidate
+
+                candidate = Candidate(
+                    ticker=candidate_data["ticker"],
+                    headline=candidate_data["headline"],
+                    scan_date=candidate_data["scan_date"],
+                    status=candidate_data["status"],
+                    gap_percent=candidate_data["gap_percent"],
+                    prev_close=candidate_data["prev_close"],
+                    conid=candidate_data["conid"],
+                    source=candidate_data["source"],
+                )
+                self.db.save_candidate(candidate)
+
+            if len(or_result.or_tracking_candidates) == 0:
                 logger.info("No OR tracking candidates found")
                 return 0
 
