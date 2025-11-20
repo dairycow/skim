@@ -6,9 +6,11 @@ and real-time market data to identify opening range breakouts.
 
 import time
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from skim.brokers.ib_interface import MarketData
 from skim.brokers.ibkr_client import IBKRClient
 from skim.core.config import ScannerConfig
 from skim.validation.scanners import (
@@ -17,6 +19,10 @@ from skim.validation.scanners import (
     OpeningRangeData,
     ScannerValidationError,
 )
+
+if TYPE_CHECKING:
+    from skim.data.database import Database
+    from skim.data.models import Candidate
 
 
 class IBKRGapScanner:
@@ -110,15 +116,12 @@ class IBKRGapScanner:
                         )
                         continue
 
-                    # Use scanner gap percentage directly since it's already calculated
-                    actual_gap_pct = gap_percent
-
                     # Filter by minimum gap requirement
-                    if actual_gap_pct >= min_gap:
+                    if gap_percent >= min_gap:
                         try:
                             gap_stock = GapStock(
                                 ticker=str(symbol),
-                                gap_percent=float(actual_gap_pct),
+                                gap_percent=float(gap_percent),
                                 conid=int(conid),
                             )
                             gap_stocks.append(gap_stock)
@@ -128,11 +131,11 @@ class IBKRGapScanner:
                             )
                             continue
                         logger.debug(
-                            f"Added gap stock: {symbol} gap={actual_gap_pct:.2f}%"
+                            f"Added gap stock: {symbol} gap={gap_percent:.2f}%"
                         )
                     else:
                         logger.debug(
-                            f"Filtered {symbol}: gap={actual_gap_pct:.2f}% < min_gap={min_gap}%"
+                            f"Filtered {symbol}: gap={gap_percent:.2f}% < min_gap={min_gap}%"
                         )
 
                 except (KeyError, ValueError, TypeError) as e:
@@ -391,6 +394,283 @@ class IBKRGapScanner:
             logger.info("IBKR gap scanner disconnected")
         except Exception as e:
             logger.error(f"Error disconnecting IBKR gap scanner: {e}")
+
+    def get_market_data(self, conid: str) -> MarketData | None:
+        """Get market data for a contract using the underlying client
+
+        Args:
+            conid: IBKR contract ID
+
+        Returns:
+            MarketData object if successful, None on failure
+        """
+        if not self._connected or not self.client.is_connected():
+            logger.error("Scanner not connected - call connect() first")
+            return None
+
+        return self.client.get_market_data(conid)
+
+    def scan_gaps_with_announcements(
+        self, price_sensitive_tickers: set[str], db: "Database | None" = None
+    ) -> tuple[list[GapStock], list[dict]]:
+        """Scan for gaps and filter by price-sensitive announcements
+
+        Args:
+            price_sensitive_tickers: Set of tickers with price-sensitive announcements
+            db: Database instance for persistence (optional)
+
+        Returns:
+            Tuple of (gap_stocks, new_candidates) where:
+            - gap_stocks: List of GapStock objects with announcements
+            - new_candidates: List of candidate dicts for notifications
+        """
+        logger.info("Scanning for gaps with announcement filtering...")
+
+        # Scan for gaps
+        gap_stocks = self.scan_for_gaps(
+            min_gap=self.scanner_config.gap_threshold
+        )
+
+        if not gap_stocks:
+            logger.info("No gap stocks found in scan")
+            return [], []
+
+        filtered_stocks = []
+        new_candidates = []
+
+        for stock in gap_stocks:
+            # Only process if ticker has price-sensitive announcement
+            if str(stock.conid) not in price_sensitive_tickers:
+                logger.debug(
+                    f"{str(stock.conid)}: Skipped (no price-sensitive announcement)"
+                )
+                continue
+
+            # Get current price for display and database
+            current_price = None
+            try:
+                market_data = self.get_market_data(str(stock.conid))
+                if market_data and market_data.last_price:
+                    current_price = float(market_data.last_price)
+            except Exception as e:
+                logger.debug(
+                    f"Could not fetch market data for {str(stock.conid)}: {e}"
+                )
+
+            price_display = (
+                f"${current_price:.4f}"
+                if current_price
+                else "Price unavailable"
+            )
+            logger.info(
+                f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+            )
+
+            # Check if already in database and persist if needed
+            existing = None
+            if db:
+                existing = db.get_candidate(str(stock.conid))
+
+            if not existing or existing.status != "watching":
+                # Create candidate for notification
+                candidate_dict = {
+                    "ticker": str(stock.conid),
+                    "gap_percent": stock.gap_percent,
+                    "price": current_price,
+                }
+                new_candidates.append(candidate_dict)
+
+                # Persist to database if provided
+                if db:
+                    from skim.data.models import Candidate
+
+                    candidate = Candidate(
+                        ticker=str(stock.conid),
+                        headline=f"Gap detected: {stock.gap_percent:.2f}%",
+                        scan_date=datetime.now().isoformat(),
+                        status="watching",
+                        gap_percent=stock.gap_percent,
+                        prev_close=current_price,  # Use current price as fallback
+                    )
+                    db.save_candidate(candidate)
+                    logger.info(
+                        f"Added {str(stock.conid)} to candidates (gap: {stock.gap_percent:.2f}%, price-sensitive announcement)"
+                    )
+
+            filtered_stocks.append(stock)
+
+        logger.info(
+            f"Gap scan with announcements complete. Found {len(filtered_stocks)} gap stocks with announcements"
+        )
+        return filtered_stocks, new_candidates
+
+    def scan_and_monitor_gaps(
+        self,
+        existing_candidates: list["Candidate"],
+        db: "Database | None" = None,
+    ) -> tuple[list[GapStock], int]:
+        """Scan for gaps and check against existing candidates for triggering
+
+        Args:
+            existing_candidates: List of existing candidates to check against
+            db: Database instance for persistence (optional)
+
+        Returns:
+            Tuple of (gap_stocks, gaps_triggered) where:
+            - gap_stocks: List of GapStock objects
+            - gaps_triggered: Number of candidates triggered
+        """
+        logger.info("Scanning and monitoring gaps for triggering...")
+
+        # Scan for gaps
+        gap_stocks = self.scan_for_gaps(
+            min_gap=self.scanner_config.gap_threshold
+        )
+
+        if not gap_stocks:
+            logger.info("No stocks meeting gap threshold")
+            return [], 0
+
+        candidate_tickers = {c.ticker for c in existing_candidates}
+        gaps_triggered = 0
+
+        for stock in gap_stocks:
+            # Get current price for display and database
+            current_price = None
+            try:
+                market_data = self.get_market_data(str(stock.conid))
+                if market_data and market_data.last_price:
+                    current_price = float(market_data.last_price)
+            except Exception as e:
+                logger.debug(
+                    f"Could not fetch market data for {str(stock.conid)}: {e}"
+                )
+
+            price_display = (
+                f"${current_price:.4f}"
+                if current_price
+                else "Price unavailable"
+            )
+            logger.info(
+                f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+            )
+
+            # Check if this ticker is in our candidates
+            if str(stock.conid) in candidate_tickers:
+                # Trigger existing candidate
+                logger.warning(
+                    f"{str(stock.conid)}: CANDIDATE TRIGGERED! Gap: {stock.gap_percent:.2f}%"
+                )
+
+                if db:
+                    db.update_candidate_status(
+                        str(stock.conid), "triggered", stock.gap_percent
+                    )
+                gaps_triggered += 1
+            else:
+                # New stock meeting threshold - add directly as triggered
+                logger.warning(
+                    f"{str(stock.conid)}: NEW STOCK TRIGGERED! Gap: {stock.gap_percent:.2f}%"
+                )
+
+                if db:
+                    from skim.data.models import Candidate
+
+                    candidate = Candidate(
+                        ticker=str(stock.conid),
+                        headline=f"Gap triggered: {stock.gap_percent:.2f}%",
+                        scan_date=datetime.now().isoformat(),
+                        status="triggered",
+                        gap_percent=stock.gap_percent,
+                        prev_close=current_price,  # Use current price as fallback
+                    )
+                    db.save_candidate(candidate)
+                gaps_triggered += 1
+
+        logger.info(
+            f"Gap monitoring complete. Found {gaps_triggered} triggered stocks"
+        )
+        return gap_stocks, gaps_triggered
+
+    def scan_for_or_tracking(self, db: "Database | None" = None) -> int:
+        """Scan for gaps and store candidates with OR tracking status
+
+        Args:
+            db: Database instance for persistence (optional)
+
+        Returns:
+            Number of new candidates found and stored for OR tracking
+        """
+        logger.info("Scanning for OR tracking candidates...")
+
+        # Scan for gaps
+        gap_stocks = self.scan_for_gaps(
+            min_gap=self.scanner_config.gap_threshold
+        )
+
+        if not gap_stocks:
+            logger.info("No gap stocks found in IBKR scan")
+            return 0
+
+        candidates_found = 0
+
+        for stock in gap_stocks:
+            # Get current price for display and database
+            current_price = None
+            try:
+                market_data = self.get_market_data(str(stock.conid))
+                if market_data and market_data.last_price:
+                    current_price = float(market_data.last_price)
+            except Exception as e:
+                logger.debug(
+                    f"Could not fetch market data for {str(stock.conid)}: {e}"
+                )
+
+            price_display = (
+                f"${current_price:.4f}"
+                if current_price
+                else "Price unavailable"
+            )
+            logger.info(
+                f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
+            )
+
+            # Check if already exists
+            existing = None
+            if db:
+                existing = db.get_candidate(str(stock.conid))
+
+            if db and (
+                not existing
+                or existing.status
+                not in (
+                    "or_tracking",
+                    "orh_breakout",
+                )
+            ):
+                # Create candidate with OR tracking status
+                from skim.data.models import Candidate
+
+                candidate = Candidate(
+                    ticker=str(stock.conid),
+                    headline=f"Gap detected: {stock.gap_percent:.2f}%",
+                    scan_date=datetime.now().isoformat(),
+                    status="or_tracking",
+                    gap_percent=stock.gap_percent,
+                    prev_close=current_price,  # Use current price as fallback
+                    conid=stock.conid,
+                    source="ibkr",
+                )
+                db.save_candidate(candidate)
+                candidates_found += 1
+                logger.info(
+                    f"Added {str(stock.conid)} to OR tracking (gap: {stock.gap_percent:.2f}%)"
+                )
+
+        logger.info(
+            f"OR tracking scan complete. Found {candidates_found} OR tracking candidates"
+        )
+        return candidates_found
 
     def is_connected(self) -> bool:
         """Check if scanner is connected"""
