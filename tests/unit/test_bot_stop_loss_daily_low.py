@@ -33,13 +33,14 @@ class TestBotStopLossWithDailyLow:
             prior_close=147.0,
             change_percent=2.04,
         )
+        mock_trading_bot.ib_client._get_contract_id.return_value = "265598"
         mock_trading_bot.ib_client.get_market_data.return_value = (
             mock_market_data
         )
 
         # Mock successful order placement
         mock_trading_bot.ib_client.place_order.return_value = Mock(
-            order_id="12345"
+            order_id="12345", filled_price=150.0
         )
 
         # Mock candidate data
@@ -59,12 +60,23 @@ class TestBotStopLossWithDailyLow:
             patch.object(
                 mock_trading_bot.db, "count_open_positions", return_value=0
             ),
+            patch.object(
+                mock_trading_bot.db, "create_position", return_value=1
+            ),
+            patch.object(
+                mock_trading_bot.db, "create_trade", return_value=None
+            ),
+            patch.object(
+                mock_trading_bot.db,
+                "update_candidate_status",
+                return_value=None,
+            ),
         ):
             mock_trading_bot.execute()
 
         # Verify that get_market_data was called to get daily low (called twice - once for execution, once for stop loss)
         assert mock_trading_bot.ib_client.get_market_data.call_count >= 1
-        mock_trading_bot.ib_client.get_market_data.assert_any_call("AAPL")
+        mock_trading_bot.ib_client._get_contract_id.assert_any_call("AAPL")
 
         # Verify order was placed
         mock_trading_bot.ib_client.place_order.assert_called_with(

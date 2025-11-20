@@ -70,37 +70,42 @@ class TradingBot:
         """
         logger.info("Starting IBKR market scan for candidates...")
 
-        # Fetch price-sensitive announcements first
-        price_sensitive_tickers = (
-            self.asx_scanner.fetch_price_sensitive_tickers()
-        )
-
-        # Connect to IBKR if needed
-        if not self.ibkr_scanner.is_connected():
-            self._ensure_connection()
-            self.ibkr_scanner.connect()
-
-        # Use enhanced scanner for complete gap scanning workflow
-        gap_stocks, new_candidates = (
-            self.ibkr_scanner.scan_gaps_with_announcements(
-                price_sensitive_tickers=price_sensitive_tickers, db=self.db
-            )
-        )
-
-        candidates_found = len(new_candidates)
-
-        # Send Discord notification
         try:
-            self.discord_notifier.send_scan_results(
-                candidates_found, new_candidates
+            # Fetch price-sensitive announcements first
+            price_sensitive_tickers = (
+                self.asx_scanner.fetch_price_sensitive_tickers()
             )
-        except Exception as e:
-            logger.error(f"Failed to send Discord notification: {e}")
 
-        logger.info(
-            f"Scan complete. Found {candidates_found} new candidates with both momentum and announcements"
-        )
-        return candidates_found
+            # Connect to IBKR if needed
+            if not self.ibkr_scanner.is_connected():
+                self._ensure_connection()
+                self.ibkr_scanner.connect()
+
+            # Use enhanced scanner for complete gap scanning workflow
+            gap_stocks, new_candidates = (
+                self.ibkr_scanner.scan_gaps_with_announcements(
+                    price_sensitive_tickers=price_sensitive_tickers, db=self.db
+                )
+            )
+
+            candidates_found = len(new_candidates)
+
+            # Send Discord notification
+            try:
+                self.discord_notifier.send_scan_results(
+                    candidates_found, new_candidates
+                )
+            except Exception as e:
+                logger.error(f"Failed to send Discord notification: {e}")
+
+            logger.info(
+                f"Scan complete. Found {candidates_found} new candidates with both momentum and announcements"
+            )
+            return candidates_found
+
+        except Exception as e:
+            logger.error(f"Error in scan workflow: {e}")
+            return 0
 
     def monitor(self) -> int:
         """Monitor candidates and trigger on gap threshold
