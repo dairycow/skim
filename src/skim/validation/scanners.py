@@ -5,6 +5,7 @@ announcement scraping, ensuring data quality and type safety throughout
 the scanning pipeline.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
@@ -230,3 +231,42 @@ class GapCalculationError(Exception):
     """Raised when gap calculation fails due to invalid data"""
 
     pass
+
+
+@dataclass
+class GapScanResult:
+    """Result from gap scanning with announcement filtering
+
+    Attributes:
+        gap_stocks: List of GapStock objects with gap information
+        new_candidates: List of candidate dicts for new gaps (for notifications)
+    """
+
+    gap_stocks: list["GapStock"]
+    new_candidates: list[dict]
+
+
+@dataclass
+class MonitoringResult:
+    """Result from monitoring existing candidates for gap triggering
+
+    Attributes:
+        gap_stocks: List of GapStock objects meeting threshold
+        triggered_candidates: List of dicts with triggered candidate info
+    """
+
+    gap_stocks: list["GapStock"]
+    triggered_candidates: list[dict]
+
+
+@dataclass
+class ORTrackingResult:
+    """Result from OR tracking scan
+
+    Attributes:
+        gap_stocks: List of GapStock objects for OR tracking
+        or_tracking_candidates: List of dicts with candidate info
+    """
+
+    gap_stocks: list["GapStock"]
+    or_tracking_candidates: list[dict]

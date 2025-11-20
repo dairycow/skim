@@ -450,3 +450,12 @@ def ibkr_client():
     # Cleanup
     if client.is_connected():
         client.disconnect()
+
+
+@pytest.fixture
+def mock_ibkr_scanner(mocker):
+    """Mock IBKRGapScanner for testing decoupled scanner"""
+    from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+
+    scanner = mocker.MagicMock(spec=IBKRGapScanner)
+    return scanner
