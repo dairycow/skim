@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from loguru import logger
+from loguru import logger as default_logger
 
 from skim.brokers.ibkr_client import IBKRClient
 from skim.data.database import Database
@@ -16,16 +16,18 @@ from skim.strategy.position_manager import (
 class OrderExecutor:
     """Handles order execution for entries and exits"""
 
-    def __init__(self, ib_client: IBKRClient, db: Database):
+    def __init__(self, ib_client: IBKRClient, db: Database, logger=None):
         """
         Initialize OrderExecutor
 
         Args:
             ib_client: IBKR client for placing orders
             db: Database for recording positions and trades
+            logger: Optional logger instance (defaults to loguru logger)
         """
         self.ib_client = ib_client
         self.db = db
+        self.logger = logger or default_logger
 
     def execute_entry(
         self,
@@ -58,7 +60,7 @@ class OrderExecutor:
                 or not market_data.last_price
                 or market_data.last_price <= 0
             ):
-                logger.warning(f"{ticker}: No valid market data available")
+                self.logger.warning(f"{ticker}: No valid market data available")
                 return None
 
             current_price = market_data.last_price
@@ -71,7 +73,7 @@ class OrderExecutor:
             )
 
             if quantity < 1:
-                logger.warning(f"{ticker}: Calculated quantity too small")
+                self.logger.warning(f"{ticker}: Calculated quantity too small")
                 return None
 
             # Calculate stop loss based on source
@@ -81,12 +83,19 @@ class OrderExecutor:
                 )
             else:
                 # Default to daily low
+                daily_low = market_data.low if market_data.low > 0 else None
                 stop_loss = calculate_stop_loss(
                     current_price,
-                    low_of_day=market_data.low if market_data.low > 0 else None,
+                    low_of_day=daily_low,
                 )
 
-            logger.info(
+                # Log if falling back to percentage-based stop loss
+                if daily_low is None or daily_low <= 0:
+                    self.logger.warning(
+                        f"{ticker}: Using fallback stop loss: ${stop_loss:.4f} (daily low unavailable)"
+                    )
+
+            self.logger.info(
                 f"{ticker}: Position size={quantity}, Stop loss=${stop_loss:.4f}"
             )
 
@@ -94,10 +103,10 @@ class OrderExecutor:
             order_result = self.ib_client.place_order(ticker, "BUY", quantity)
 
             if not order_result:
-                logger.warning(f"Order placement failed for {ticker}")
+                self.logger.warning(f"Order placement failed for {ticker}")
                 return None
 
-            logger.info(f"Order placed: BUY {quantity} {ticker} @ market")
+            self.logger.info(f"Order placed: BUY {quantity} {ticker} @ market")
 
             # Use filled price if available, otherwise use current price
             fill_price = (
@@ -106,7 +115,7 @@ class OrderExecutor:
                 else current_price
             )
 
-            logger.info(
+            self.logger.info(
                 f"Order {order_result.status}: {quantity} {ticker} @ ${fill_price:.4f}"
             )
 
@@ -135,7 +144,7 @@ class OrderExecutor:
             return position_id
 
         except Exception as e:
-            logger.error(f"Error executing order for {ticker}: {e}")
+            self.logger.error(f"Error executing order for {ticker}: {e}")
             return None
 
     def execute_exit(
@@ -162,10 +171,10 @@ class OrderExecutor:
             order_result = self.ib_client.place_order(ticker, "SELL", quantity)
 
             if not order_result:
-                logger.warning(f"Exit order failed for {ticker}")
+                self.logger.warning(f"Exit order failed for {ticker}")
                 return None
 
-            logger.info(f"Exit order placed: SELL {quantity} {ticker}")
+            self.logger.info(f"Exit order placed: SELL {quantity} {ticker}")
 
             # Use filled price if available
             fill_price = (
@@ -176,7 +185,7 @@ class OrderExecutor:
                 # Calculate PnL
                 pnl = (fill_price - position.entry_price) * quantity
 
-                logger.info(
+                self.logger.info(
                     f"Exit executed: {quantity} {ticker} @ ${fill_price:.4f}, PnL: ${pnl:.4f}"
                 )
 
@@ -194,5 +203,5 @@ class OrderExecutor:
             return fill_price
 
         except Exception as e:
-            logger.error(f"Error executing exit for {ticker}: {e}")
+            self.logger.error(f"Error executing exit for {ticker}: {e}")
             return None

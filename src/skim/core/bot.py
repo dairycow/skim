@@ -201,7 +201,7 @@ class TradingBot:
             return 0
 
         # Create order executor
-        executor = OrderExecutor(self.ib_client, self.db)
+        executor = OrderExecutor(self.ib_client, self.db, logger)
 
         orders_placed = 0
 
@@ -243,7 +243,7 @@ class TradingBot:
             return 0
 
         # Create order executor
-        executor = OrderExecutor(self.ib_client, self.db)
+        executor = OrderExecutor(self.ib_client, self.db, logger)
 
         actions_taken = 0
 
@@ -572,7 +572,7 @@ class TradingBot:
             return 0
 
         # Create order executor
-        executor = OrderExecutor(self.ib_client, self.db)
+        executor = OrderExecutor(self.ib_client, self.db, logger)
 
         orders_placed = 0
 

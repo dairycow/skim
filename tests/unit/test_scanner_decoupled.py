@@ -4,7 +4,7 @@ Tests verify that scanner returns structured data without accessing database.
 The bot.py layer handles all database persistence.
 """
 
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 

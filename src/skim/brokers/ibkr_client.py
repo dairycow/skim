@@ -709,21 +709,25 @@ class IBKRClient(IBInterface):
 
         return conid
 
-    def get_market_data(self, conid: str) -> MarketData | None:
-        """Get comprehensive market data for a contract using conid
+    def get_market_data(
+        self, conid: str, ticker: str | None = None
+    ) -> MarketData | None:  # noqa: E501
+        """Get comprehensive market data for a contract using conid or ticker
 
         This implementation handles the IBKR API requirement that a pre-flight request
         must be made to establish data streaming before actual snapshot
         requests will return market data.
 
         Flow:
-        1. Pre-flight request to establish data stream (if needed)
-        2. Get market snapshot with all trading fields
-        3. Parse fields: 31,70,71,84,85,86,87,88,7295,7741,83
-        4. Return enhanced MarketData object
+        1. If input is a ticker (non-numeric), look up the conid
+        2. Pre-flight request to establish data stream (if needed)
+        3. Get market snapshot with all trading fields
+        4. Parse fields: 31,70,71,84,85,86,87,88,7295,7741,83
+        5. Return enhanced MarketData object
 
         Args:
-            conid: IBKR contract ID
+            conid: IBKR contract ID or ticker symbol
+            ticker: Optional ticker symbol. If provided, overrides symbol from API response
 
         Returns:
             MarketData object if successful, None on failure
@@ -736,6 +740,23 @@ class IBKRClient(IBInterface):
 
         if not conid or not str(conid).strip():
             raise ValueError("Contract ID (conid) cannot be empty")
+
+        # Check if conid is actually a ticker symbol (non-numeric)
+        # If so, look it up to get the actual conid
+        if not str(conid).isdigit():
+            # Treat as ticker - look up the conid
+            try:
+                actual_conid = self._get_contract_id(conid)
+                if not ticker:
+                    ticker = (
+                        conid  # Use the input as ticker since it's not numeric
+                    )
+                conid = actual_conid
+            except RuntimeError as e:
+                logger.error(
+                    f"Failed to look up contract ID for ticker {conid}: {e}"
+                )
+                return None
 
         # Step 1: Check if we need to establish data stream for this conid
         # Track whether we've established streaming for this conid in this session
@@ -882,9 +903,13 @@ class IBKRClient(IBInterface):
             return None
 
         # Get ticker symbol from contract data for the MarketData object
-        ticker = data.get(
-            "55", f"CONID_{conid}"
-        )  # Field 55 is symbol, fallback to conid
+        # Use provided ticker parameter if given, otherwise extract from field 55
+        if ticker is None or not ticker:
+            ticker = str(data.get("55", f"CONID_{conid}"))
+
+        # Ensure ticker is a non-empty string
+        if not ticker:
+            ticker = f"CONID_{conid}"
 
         # Create and return enhanced MarketData object
         return MarketData(
@@ -902,6 +927,104 @@ class IBKRClient(IBInterface):
             prior_close=market_data_dict.get("prior_close", 0.0),
             change_percent=market_data_dict.get("change_percent", 0.0),
         )
+
+    def get_market_data_extended(self, conid: str) -> dict:  # noqa: E501
+        """Get extended market data for a contract as a dictionary
+
+        This method returns raw market data fields mapped to human-readable names.
+        Used for advanced market data analysis and scanner operations.
+
+        Args:
+            conid: IBKR contract ID
+
+        Returns:
+            Dictionary with field mappings like:
+            {
+                "last_price": float,
+                "ask": float,
+                "bid": float,
+                "volume": int,
+                "change_percent": float,
+                "previous_close": float,
+                "today_open": float,
+            }
+            Returns empty dict {} if no data found or error occurs
+
+        Raises:
+            RuntimeError: If not connected or request fails with HTTP error
+            ValueError: If contract ID is empty/None
+        """
+        if not self._connected:
+            raise RuntimeError("Not connected - call connect() first")
+
+        if not conid or not str(conid).strip():
+            raise ValueError("Contract ID (conid) cannot be empty")
+
+        # Endpoint to get market data
+        endpoint = "/iserver/marketdata/snapshot"
+        params = {
+            "conids": conid,
+            "fields": "31,70,71,84,85,86,87,88,7295,7741,83",
+        }
+
+        try:
+            response = self._request("GET", endpoint, params=params)
+            logger.debug(
+                f"Extended market data response for {conid}: {response}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Extended market data request failed for {conid}: {e}"
+            )
+            raise
+
+        # Handle empty response
+        if not isinstance(response, dict) or not response:
+            logger.debug(f"Empty extended market data response for {conid}")
+            return {}
+
+        # Check if data exists for this conid
+        if conid not in response:
+            logger.debug(f"No data found for conid {conid}")
+            return {}
+
+        data = response.get(conid, {})
+        if not isinstance(data, dict):
+            logger.warning(f"Invalid data format for {conid}: {data}")
+            return {}
+
+        # Field mappings: IBKR field code -> (human-readable name, type converter)
+        field_mappings = {
+            "31": ("last_price", float),
+            "70": ("high", float),
+            "71": ("low", float),
+            "84": ("bid", float),
+            "85": ("ask_size", int),
+            "86": ("ask", float),
+            "87": ("volume", int),
+            "88": ("bid_size", int),
+            "7295": ("today_open", float),
+            "7741": ("previous_close", float),
+            "83": ("change_percent", float),
+        }
+
+        # Extract and parse market data
+        result = {}
+        for field_code, (field_name, field_type) in field_mappings.items():
+            raw_value = data.get(field_code)
+            if raw_value is not None:
+                try:
+                    if field_type is float:
+                        result[field_name] = float(raw_value)
+                    elif field_type is int:
+                        result[field_name] = int(float(raw_value))
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"Failed to parse {field_name} ({field_code}) for {conid}: {e}"
+                    )
+                    result[field_name] = 0 if field_type is int else 0.0
+
+        return result
 
     # ========== Order Management ==========
 
