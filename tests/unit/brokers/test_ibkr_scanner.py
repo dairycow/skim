@@ -420,5 +420,5 @@ class TestIBKRGapScannerConfig:
         assert scanner.scanner_config.price_filter == 0.05
         assert scanner.scanner_config.or_duration_minutes == 10
         assert scanner.scanner_config.or_poll_interval_seconds == 30
-        assert scanner.scanner_config.gap_fill_tolerance == 1.0
+        assert scanner.scanner_config.gap_fill_tolerance == 0.05
         assert scanner.scanner_config.or_breakout_buffer == 0.1

@@ -64,6 +64,7 @@ class TestCronScheduleValidation:
             if parsed:
                 command_name = self.extract_command_name(parsed["command"])
                 if command_name in [
+                    "scan_ibkr_gaps",
                     "scan_ibkr",
                     "scan",
                     "track_or_breakouts",

@@ -78,7 +78,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --log-level=WARNING"
 markers = [
     "manual: marks tests that require real IBKR credentials (not run in CI)",
     "integration: marks tests as integration tests (requires external services)",
@@ -109,4 +109,5 @@ dev = [
     "responses>=0.25.8",
     "freezegun>=1.5.5",
     "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.5.0",
 ]

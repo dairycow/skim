@@ -156,6 +156,10 @@ def ibkr_client_mock_oauth():
     Note:
         This is different from `mock_ibkr_client` which returns a MagicMock.
         Use this when you need to test actual IBKRClient methods.
+
+    Session scope: This fixture is created once per test session and reused
+    across all tests. Since tests use @responses.activate to mock HTTP calls,
+    shared state is not an issue.
     """
     from skim.brokers.ibkr_client import IBKRClient
 
@@ -228,9 +232,13 @@ def mock_bot_config():
     return config
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def scanner_config():
-    """Create ScannerConfig instance for testing"""
+    """Create ScannerConfig instance for testing
+
+    Session scope: This is a read-only immutable configuration object,
+    so it's safe to share across all tests.
+    """
     from skim.core.config import ScannerConfig
 
     return ScannerConfig(
@@ -291,18 +299,24 @@ def mock_trading_bot(mock_bot_config):
 # ==============================================================================
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def fixtures_dir():
-    """Return path to test fixtures directory"""
+    """Return path to test fixtures directory
+
+    Session scope: This is just a path lookup, immutable across all tests.
+    """
     return Path(__file__).parent / "fixtures"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_rsa_keys(fixtures_dir):
     """Provide paths to test RSA keys
 
     These are test-only keys safe to commit to version control.
     They should NEVER be used in production.
+
+    Session scope: These are static paths to test files, immutable
+    across all tests.
     """
     sig_key = fixtures_dir / "rsa_keys/test_signature_key.pem"
     enc_key = fixtures_dir / "rsa_keys/test_encryption_key.pem"
@@ -333,9 +347,12 @@ def mock_oauth_env(monkeypatch, test_rsa_keys):
     monkeypatch.setenv("OAUTH_ENCRYPTION_PATH", enc_path)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def load_fixture(fixtures_dir):
-    """Helper to load JSON fixture files"""
+    """Helper to load JSON fixture files
+
+    Session scope: Fixture loading is immutable and cached.
+    """
 
     def _load(filename):
         fixture_path = fixtures_dir / "ibkr_responses" / filename
@@ -345,33 +362,48 @@ def load_fixture(fixtures_dir):
     return _load
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mock_lst_response(load_fixture):
-    """Mock LST generation response from IBKR"""
+    """Mock LST generation response from IBKR
+
+    Session scope: Fixture data is immutable.
+    """
     return load_fixture("lst_success.json")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mock_session_init_response(load_fixture):
-    """Mock session init response from IBKR"""
+    """Mock session init response from IBKR
+
+    Session scope: Fixture data is immutable.
+    """
     return load_fixture("session_init_success.json")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mock_account_list_response(load_fixture):
-    """Mock account list response from IBKR"""
+    """Mock account list response from IBKR
+
+    Session scope: Fixture data is immutable.
+    """
     return load_fixture("account_list.json")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mock_contract_search_bhp(load_fixture):
-    """Mock contract search response for BHP"""
+    """Mock contract search response for BHP
+
+    Session scope: Fixture data is immutable.
+    """
     return load_fixture("contract_search_bhp.json")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mock_order_placed_response(load_fixture):
-    """Mock order placement response from IBKR"""
+    """Mock order placement response from IBKR
+
+    Session scope: Fixture data is immutable.
+    """
     return load_fixture("order_placed.json")
 
 

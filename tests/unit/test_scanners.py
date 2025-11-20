@@ -688,76 +688,25 @@ class TestIBKRGapScanner:
             ),
         ]
 
-        # Mock market data responses for each ticker
-        def mock_get_market_data_or_tracking(ticker):
-            if ticker == "BHP":
+        # Mock market data responses for each ticker or conid
+        def mock_get_market_data(ticker_or_conid):
+            ticker_or_conid = str(ticker_or_conid)
+            # Handle both ticker and conid inputs
+            if ticker_or_conid in ["BHP", "8644"]:
                 mock_data = Mock()
                 mock_data.last_price = 47.80
+                mock_data.prior_close = 45.20
+                mock_data.high = 48.50
+                mock_data.low = 46.80
+                mock_data.open = 45.90
                 return mock_data
-            elif ticker == "RIO":
+            elif ticker_or_conid in ["RIO", "8653"]:
                 mock_data = Mock()
                 mock_data.last_price = 124.80
-                return mock_data
-            return None
-
-        # Mock extended market data for previous close
-        def mock_get_market_data_extended(conid):
-            if conid == "8644":  # BHP
-                return {"previous_close": 45.20}
-            elif conid == "8653":  # RIO
-                return {"previous_close": 120.50}
-            return {}
-
-        mock_client = Mock()
-        mock_client.get_market_data.side_effect = (
-            mock_get_market_data_or_tracking
-        )
-        mock_client.get_market_data_extended.side_effect = (
-            mock_get_market_data_extended
-        )
-        mock_client.is_connected.return_value = True
-
-        # Patch IBKRClient before creating scanner
-        mocker.patch(
-            "skim.scanners.ibkr_gap_scanner.IBKRClient",
-            return_value=mock_client,
-        )
-
-        scanner = IBKRGapScanner()
-
-        # Mock the connect method to avoid real API calls and set connected state
-        mocker.patch.object(scanner, "connect")
-        scanner._connected = True  # Set connected state manually
-
-        scanner = IBKRGapScanner()
-
-        # Mock the connect method to avoid real API calls and set connected state
-        mocker.patch.object(scanner, "connect")
-        scanner._connected = True  # Set connected state manually
-
-        # Mock gap stocks
-        gap_stocks = [
-            GapStock(
-                ticker="BHP",
-                gap_percent=5.5,
-                conid=8644,
-            ),
-            GapStock(
-                ticker="RIO",
-                gap_percent=4.2,
-                conid=8653,
-            ),
-        ]
-
-        # Mock market data responses for each ticker
-        def mock_get_market_data(ticker):
-            if ticker == "BHP":
-                mock_data = Mock()
-                mock_data.last_price = 47.80
-                return mock_data
-            elif ticker == "RIO":
-                mock_data = Mock()
-                mock_data.last_price = 124.80
+                mock_data.prior_close = 120.50
+                mock_data.high = 125.80
+                mock_data.low = 123.50
+                mock_data.open = 121.50
                 return mock_data
             return None
 
@@ -769,6 +718,10 @@ class TestIBKRGapScanner:
             "skim.scanners.ibkr_gap_scanner.IBKRClient",
             return_value=mock_client,
         )
+
+        scanner = IBKRGapScanner()
+        mocker.patch.object(scanner, "connect")
+        scanner._connected = True
 
         # Mock time.sleep to speed up test and time.time to control loop
         mocker.patch("time.sleep")
@@ -806,16 +759,28 @@ class TestIBKRGapScanner:
         def mock_get_market_data_gap_fail(ticker):
             nonlocal call_count
             call_count += 1
-            if ticker == "BHP":
+            if ticker == "BHP" or str(ticker) == "8644":
                 mock_data = Mock()
                 if call_count == 1:
                     mock_data.last_price = 44.80  # First call - opening price
+                    mock_data.prior_close = 45.20
+                    mock_data.high = 44.80
+                    mock_data.low = 44.80
+                    mock_data.open = 44.80
                 elif call_count == 2:
                     mock_data.last_price = (
                         40.00  # Second call - drops more than 5%
                     )
+                    mock_data.prior_close = 45.20
+                    mock_data.high = 44.80
+                    mock_data.low = 40.00
+                    mock_data.open = 44.80
                 else:
                     mock_data.last_price = 40.00  # Subsequent calls
+                    mock_data.prior_close = 45.20
+                    mock_data.high = 44.80
+                    mock_data.low = 40.00
+                    mock_data.open = 44.80
                 return mock_data
             return None
 
