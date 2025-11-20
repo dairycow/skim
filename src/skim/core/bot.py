@@ -11,7 +11,6 @@ from loguru import logger
 from skim.brokers.ibkr_client import IBKRClient
 from skim.core.config import Config
 from skim.data.database import Database
-from skim.data.models import Candidate
 from skim.notifications.discord import DiscordNotifier
 from skim.scanners.asx_announcements import ASXAnnouncementScanner
 from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
@@ -81,83 +80,14 @@ class TradingBot:
             self._ensure_connection()
             self.ibkr_scanner.connect()
 
-        # Query IBKR for stocks with gaps > configured threshold
-        gap_stocks = self.ibkr_scanner.scan_for_gaps(
-            min_gap=self.config.scanner_config.gap_threshold
+        # Use enhanced scanner for complete gap scanning workflow
+        gap_stocks, new_candidates = (
+            self.ibkr_scanner.scan_gaps_with_announcements(
+                price_sensitive_tickers=price_sensitive_tickers, db=self.db
+            )
         )
 
-        if not gap_stocks:
-            logger.info("No stocks found in scan")
-            # Send Discord notification for no candidates
-            try:
-                self.discord_notifier.send_scan_results(0, [])
-            except Exception as e:
-                logger.error(f"Failed to send Discord notification: {e}")
-            return 0
-
-        candidates_found = 0
-        new_candidates = []
-
-        for stock in gap_stocks:
-            # Only process if ticker has price-sensitive announcement
-            if str(stock.conid) not in price_sensitive_tickers:
-                logger.debug(
-                    f"{str(stock.conid)}: Skipped (no price-sensitive announcement)"
-                )
-                continue
-
-            try:
-                # Get current price for display and database
-                current_price = None
-                try:
-                    market_data = self.ibkr_scanner.client.get_market_data(
-                        str(stock.conid)
-                    )
-                    if market_data and market_data.last_price:
-                        current_price = float(market_data.last_price)
-                except Exception as e:
-                    logger.debug(
-                        f"Could not fetch market data for {str(stock.conid)}: {e}"
-                    )
-
-                price_display = (
-                    f"${current_price:.4f}"
-                    if current_price
-                    else "Price unavailable"
-                )
-                logger.info(
-                    f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
-                )
-
-                # Check if already in candidates
-                existing = self.db.get_candidate(str(stock.conid))
-
-                if not existing or existing.status != "watching":
-                    # Add to candidates
-                    candidate = Candidate(
-                        ticker=str(stock.conid),
-                        headline=f"Gap detected: {stock.gap_percent:.2f}%",
-                        scan_date=datetime.now().isoformat(),
-                        status="watching",
-                        gap_percent=stock.gap_percent,
-                        prev_close=current_price,  # Use current price as fallback
-                    )
-                    self.db.save_candidate(candidate)
-                    candidates_found += 1
-                    new_candidates.append(
-                        {
-                            "ticker": str(stock.conid),
-                            "gap_percent": stock.gap_percent,
-                            "price": current_price,
-                        }
-                    )
-                    logger.info(
-                        f"Added {str(stock.conid)} to candidates (gap: {stock.gap_percent:.2f}%, price-sensitive announcement)"
-                    )
-
-            except Exception as e:
-                logger.error(f"Error adding candidate {str(stock.conid)}: {e}")
-                continue
+        candidates_found = len(new_candidates)
 
         # Send Discord notification
         try:
@@ -180,79 +110,23 @@ class TradingBot:
         """
         logger.info("Monitoring for gaps at market open...")
 
-        # Query IBKR for stocks with gaps >= threshold
-        gap_stocks = self.ibkr_scanner.scan_for_gaps(
-            min_gap=self.config.scanner_config.gap_threshold
-        )
-
-        if not gap_stocks:
-            logger.info("No stocks meeting gap threshold")
-            return 0
-
-        gaps_found = 0
-
         # Get existing candidates
         candidates = self.db.get_watching_candidates()
-        candidate_tickers = {c.ticker for c in candidates}
 
-        for stock in gap_stocks:
-            try:
-                # Get current price for display and database
-                current_price = None
-                try:
-                    market_data = self.ibkr_scanner.client.get_market_data(
-                        str(stock.conid)
-                    )
-                    if market_data and market_data.last_price:
-                        current_price = float(market_data.last_price)
-                except Exception as e:
-                    logger.debug(
-                        f"Could not fetch market data for {str(stock.conid)}: {e}"
-                    )
+        # Connect to IBKR if needed
+        if not self.ibkr_scanner.is_connected():
+            self._ensure_connection()
+            self.ibkr_scanner.connect()
 
-                price_display = (
-                    f"${current_price:.4f}"
-                    if current_price
-                    else "Price unavailable"
-                )
-                logger.info(
-                    f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
-                )
+        # Use enhanced scanner for complete gap monitoring workflow
+        gap_stocks, gaps_triggered = self.ibkr_scanner.scan_and_monitor_gaps(
+            existing_candidates=candidates, db=self.db
+        )
 
-                # Check if this ticker is in our candidates
-                if str(stock.conid) in candidate_tickers:
-                    # Trigger existing candidate
-                    logger.warning(
-                        f"{str(stock.conid)}: CANDIDATE TRIGGERED! Gap: {stock.gap_percent:.2f}%"
-                    )
-
-                    self.db.update_candidate_status(
-                        str(stock.conid), "triggered", stock.gap_percent
-                    )
-                    gaps_found += 1
-                else:
-                    # New stock meeting threshold - add directly as triggered
-                    logger.warning(
-                        f"{str(stock.conid)}: NEW STOCK TRIGGERED! Gap: {stock.gap_percent:.2f}%"
-                    )
-
-                    candidate = Candidate(
-                        ticker=str(stock.conid),
-                        headline=f"Gap triggered: {stock.gap_percent:.2f}%",
-                        scan_date=datetime.now().isoformat(),
-                        status="triggered",
-                        gap_percent=stock.gap_percent,
-                        prev_close=current_price,  # Use current price as fallback
-                    )
-                    self.db.save_candidate(candidate)
-                    gaps_found += 1
-
-            except Exception as e:
-                logger.error(f"Error monitoring {str(stock.conid)}: {e}")
-                continue
-
-        logger.info(f"Monitoring complete. Found {gaps_found} triggered stocks")
-        return gaps_found
+        logger.info(
+            f"Monitoring complete. Found {gaps_triggered} triggered stocks"
+        )
+        return gaps_triggered
 
     def execute(self) -> int:
         """Execute orders for triggered candidates
@@ -558,94 +432,6 @@ class TradingBot:
 
         logger.info("=====================")
 
-    def scan_ibkr_gaps(self) -> int:
-        """Scan for ASX gap stocks using IBKR scanner and store candidates with OR tracking status
-
-        Returns:
-            Number of new candidates found and stored for OR tracking
-        """
-        logger.info("Starting IBKR gap scan for OR tracking candidates...")
-
-        try:
-            # Connect to IBKR if needed
-            if not self.ibkr_scanner.is_connected():
-                self._ensure_connection()
-                self.ibkr_scanner.connect()
-
-            # Scan for gaps > 3% (configured threshold)
-            gap_stocks = self.ibkr_scanner.scan_for_gaps(
-                min_gap=self.config.scanner_config.gap_threshold
-            )
-
-            if not gap_stocks:
-                logger.info("No gap stocks found in IBKR scan")
-                return 0
-
-            candidates_found = 0
-
-            for stock in gap_stocks:
-                try:
-                    # Get current price for display and database
-                    current_price = None
-                    try:
-                        market_data = self.ibkr_scanner.client.get_market_data(
-                            str(stock.conid)
-                        )
-                        if market_data and market_data.last_price:
-                            current_price = float(market_data.last_price)
-                    except Exception as e:
-                        logger.debug(
-                            f"Could not fetch market data for {str(stock.conid)}: {e}"
-                        )
-
-                    price_display = (
-                        f"${current_price:.4f}"
-                        if current_price
-                        else "Price unavailable"
-                    )
-                    logger.info(
-                        f"{str(stock.conid)}: Gap {stock.gap_percent:.2f}% @ {price_display}"
-                    )
-
-                    # Check if already exists
-                    existing = self.db.get_candidate(str(stock.conid))
-
-                    if not existing or existing.status not in (
-                        "or_tracking",
-                        "orh_breakout",
-                    ):
-                        # Create candidate with OR tracking status
-                        candidate = Candidate(
-                            ticker=str(stock.conid),
-                            headline=f"Gap detected: {stock.gap_percent:.2f}%",
-                            scan_date=datetime.now().isoformat(),
-                            status="or_tracking",
-                            gap_percent=stock.gap_percent,
-                            prev_close=current_price,  # Use current price as fallback
-                            conid=stock.conid,
-                            source="ibkr",
-                        )
-                        self.db.save_candidate(candidate)
-                        candidates_found += 1
-                        logger.info(
-                            f"Added {str(stock.conid)} to OR tracking (gap: {stock.gap_percent:.2f}%)"
-                        )
-
-                except Exception as e:
-                    logger.error(
-                        f"Error adding OR tracking candidate {str(stock.conid)}: {e}"
-                    )
-                    continue
-
-            logger.info(
-                f"IBKR gap scan complete. Found {candidates_found} OR tracking candidates"
-            )
-            return candidates_found
-
-        except Exception as e:
-            logger.error(f"Error in IBKR gap scan: {e}")
-            return 0
-
     def track_or_breakouts(self) -> int:
         """Track opening range for OR tracking candidates and detect breakouts
 
@@ -683,6 +469,93 @@ class TradingBot:
             if not self.ibkr_scanner.is_connected():
                 self._ensure_connection()
                 self.ibkr_scanner.connect()
+
+            # Track opening range for 10 minutes
+            or_data = self.ibkr_scanner.track_opening_range(
+                gap_stocks, duration_seconds=600, poll_interval=30
+            )
+
+            # Filter for breakouts
+            breakouts = self.ibkr_scanner.filter_breakouts(or_data)
+
+            breakout_count = 0
+            for breakout in breakouts:
+                try:
+                    # Update candidate with OR data and breakout status
+                    self.db.update_candidate_or_data(
+                        ticker=breakout.ticker,
+                        or_high=breakout.or_high,
+                        or_low=breakout.or_low,
+                        or_timestamp=breakout.timestamp.isoformat(),
+                    )
+
+                    # Update status to ORH breakout
+                    self.db.update_candidate_status(
+                        breakout.ticker, "orh_breakout"
+                    )
+                    breakout_count += 1
+
+                    logger.info(
+                        f"ORH breakout detected: {breakout.ticker} @ ${breakout.current_price:.4f} (ORH: ${breakout.or_high:.4f})"
+                    )
+
+                except Exception as e:
+                    logger.error(
+                        f"Error updating ORH breakout {breakout.ticker}: {e}"
+                    )
+                    continue
+
+            logger.info(
+                f"OR tracking complete. Found {breakout_count} ORH breakouts"
+            )
+            return breakout_count
+
+        except Exception as e:
+            logger.error(f"Error in OR tracking: {e}")
+            return 0
+
+    def scan_for_or_breakouts(self) -> int:
+        """Scan for gaps and track OR breakouts in one workflow
+
+        Returns:
+            Number of ORH breakout candidates detected
+        """
+        logger.info("Scanning for gaps and tracking OR breakouts...")
+
+        try:
+            # Connect scanner if needed
+            if not self.ibkr_scanner.is_connected():
+                self._ensure_connection()
+                self.ibkr_scanner.connect()
+
+            # Use enhanced scanner for OR tracking workflow
+            candidates_found = self.ibkr_scanner.scan_for_or_tracking(
+                db=self.db
+            )
+
+            if candidates_found == 0:
+                logger.info("No OR tracking candidates found")
+                return 0
+
+            # Get OR tracking candidates for breakout detection
+            candidates = self.db.get_or_tracking_candidates()
+
+            # Convert to GapStock objects for scanner
+            gap_stocks = []
+            for candidate in candidates:
+                if candidate.conid:
+                    from skim.scanners.ibkr_gap_scanner import GapStock
+
+                    gap_stock = GapStock(
+                        ticker=candidate.ticker,
+                        gap_percent=candidate.gap_percent or 0.0,
+                        conid=candidate.conid,
+                    )
+                    gap_stocks.append(gap_stock)
+
+            if not gap_stocks:
+                logger.warning("No valid gap stocks for OR tracking")
+                return 0
 
             # Track opening range for 10 minutes
             or_data = self.ibkr_scanner.track_opening_range(
@@ -919,7 +792,7 @@ def main():
         else:
             logger.error(f"Unknown method: {method}")
             logger.info(
-                "Available methods: scan, monitor, execute, manage_positions, status, run, scan_ibkr_gaps, track_or_breakouts, execute_orh_breakouts"
+                "Available methods: scan, monitor, execute, manage_positions, status, run, scan_for_or_breakouts, track_or_breakouts, execute_orh_breakouts"
             )
             sys.exit(1)
     else:
