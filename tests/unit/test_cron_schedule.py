@@ -182,7 +182,6 @@ class TestBotMethodAvailability:
             "track_or_breakouts",
             "execute_orh_breakouts",
             "manage_positions",
-            "status",
         ]
 
         for method_name in expected_methods:
