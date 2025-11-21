@@ -132,8 +132,11 @@ class TestIBKRScanner:
         assert len(result["STK"]["filter"]) == 3
 
     @responses.activate
-    def test_get_scanner_params_api_error(self, ibkr_client_mock_oauth):
+    def test_get_scanner_params_api_error(self, ibkr_client_mock_oauth, mocker):
         """Test scanner parameters retrieval with API error"""
+        # Mock time.sleep to avoid 31s of retry delays during error handling
+        mocker.patch("time.sleep")
+
         responses.get(
             f"{ibkr_client_mock_oauth.BASE_URL}/iserver/scanner/params",
             json={"error": "Service unavailable"},

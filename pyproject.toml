@@ -78,7 +78,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short --log-level=WARNING"
+addopts = "-v --tb=short --log-level=WARNING --timeout=5"
+timeout_func_only = true
 markers = [
     "manual: marks tests that require real IBKR credentials (not run in CI)",
     "integration: marks tests as integration tests (requires external services)",
@@ -110,4 +111,5 @@ dev = [
     "freezegun>=1.5.5",
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.5.0",
+    "pytest-timeout>=2.2.0",
 ]
