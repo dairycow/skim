@@ -20,6 +20,14 @@ def test_save_and_get_candidate(test_db, sample_candidate):
     assert retrieved.ticker == "BHP"
     assert retrieved.gap_percent == 3.5
     assert retrieved.status == "watching"
+    # Test enhanced market data fields
+    assert retrieved.open_price == 46.50
+    assert retrieved.session_high == 47.80
+    assert retrieved.session_low == 45.90
+    assert retrieved.volume == 1500000
+    assert retrieved.bid == 46.95
+    assert retrieved.ask == 47.05
+    assert retrieved.market_data_timestamp == "2025-11-03T10:15:30"
 
 
 def test_get_nonexistent_candidate(test_db):
@@ -196,6 +204,68 @@ def test_count_open_positions(test_db):
 
     count = test_db.count_open_positions()
     assert count == 2
+
+
+def test_save_candidate_with_enhanced_market_data(test_db):
+    """Test saving candidate with enhanced market data fields"""
+    candidate = Candidate(
+        ticker="RIO",
+        headline="Gap detected: 4.20%",
+        scan_date="2025-11-03T10:00:00",
+        status="watching",
+        gap_percent=4.2,
+        prev_close=120.50,
+        conid=8645,
+        source="ibkr",
+        # Enhanced market data fields
+        open_price=122.00,
+        session_high=124.50,
+        session_low=119.80,
+        volume=980000,
+        bid=123.95,
+        ask=124.05,
+        market_data_timestamp="2025-11-03T10:20:15",
+    )
+
+    test_db.save_candidate(candidate)
+
+    retrieved = test_db.get_candidate("RIO")
+    assert retrieved is not None
+    assert retrieved.ticker == "RIO"
+    assert retrieved.open_price == 122.00
+    assert retrieved.session_high == 124.50
+    assert retrieved.session_low == 119.80
+    assert retrieved.volume == 980000
+    assert retrieved.bid == 123.95
+    assert retrieved.ask == 124.05
+    assert retrieved.market_data_timestamp == "2025-11-03T10:20:15"
+
+
+def test_save_candidate_without_enhanced_market_data(test_db):
+    """Test saving candidate without enhanced market data fields (backward compatibility)"""
+    candidate = Candidate(
+        ticker="FMG",
+        headline="Gap detected: 2.80%",
+        scan_date="2025-11-03T10:00:00",
+        status="watching",
+        gap_percent=2.8,
+        prev_close=18.90,
+        # No enhanced market data fields
+    )
+
+    test_db.save_candidate(candidate)
+
+    retrieved = test_db.get_candidate("FMG")
+    assert retrieved is not None
+    assert retrieved.ticker == "FMG"
+    # Enhanced fields should be None
+    assert retrieved.open_price is None
+    assert retrieved.session_high is None
+    assert retrieved.session_low is None
+    assert retrieved.volume is None
+    assert retrieved.bid is None
+    assert retrieved.ask is None
+    assert retrieved.market_data_timestamp is None
 
 
 def test_update_position_exit(test_db):

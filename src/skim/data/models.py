@@ -20,6 +20,14 @@ class Candidate:
     or_timestamp: str | None = None
     conid: int | None = None
     source: str | None = None
+    # Enhanced market data fields
+    open_price: float | None = None
+    session_high: float | None = None
+    session_low: float | None = None
+    volume: int | None = None
+    bid: float | None = None
+    ask: float | None = None
+    market_data_timestamp: str | None = None
 
     @classmethod
     def from_db_row(cls, row: dict) -> "Candidate":
@@ -37,6 +45,13 @@ class Candidate:
             or_timestamp=row.get("or_timestamp"),
             conid=row.get("conid"),
             source=row.get("source"),
+            open_price=row.get("open_price"),
+            session_high=row.get("session_high"),
+            session_low=row.get("session_low"),
+            volume=row.get("volume"),
+            bid=row.get("bid"),
+            ask=row.get("ask"),
+            market_data_timestamp=row.get("market_data_timestamp"),
         )
 
 

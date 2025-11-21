@@ -68,6 +68,16 @@ def sample_candidate() -> Candidate:
         status="watching",
         gap_percent=3.5,
         prev_close=45.20,
+        conid=8644,
+        source="ibkr",
+        # Enhanced market data fields
+        open_price=46.50,
+        session_high=47.80,
+        session_low=45.90,
+        volume=1500000,
+        bid=46.95,
+        ask=47.05,
+        market_data_timestamp="2025-11-03T10:15:30",
     )
 
 

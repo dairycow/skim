@@ -23,6 +23,14 @@ def test_candidate_from_db_row():
     assert candidate.headline == "Strong earnings"
     assert candidate.gap_percent == 3.5
     assert candidate.status == "watching"
+    # Test new market data fields default to None
+    assert candidate.open_price is None
+    assert candidate.session_high is None
+    assert candidate.session_low is None
+    assert candidate.volume is None
+    assert candidate.bid is None
+    assert candidate.ask is None
+    assert candidate.market_data_timestamp is None
 
 
 def test_position_from_db_row():
@@ -178,6 +186,14 @@ def test_candidate_from_db_row_with_or_fields():
     assert candidate.or_timestamp == "2025-11-03T10:30:00"
     assert candidate.conid == 8314
     assert candidate.source == "ibkr"
+    # Test new market data fields default to None when not provided
+    assert candidate.open_price is None
+    assert candidate.session_high is None
+    assert candidate.session_low is None
+    assert candidate.volume is None
+    assert candidate.bid is None
+    assert candidate.ask is None
+    assert candidate.market_data_timestamp is None
 
 
 def test_candidate_from_db_row_missing_or_fields():
@@ -201,3 +217,71 @@ def test_candidate_from_db_row_missing_or_fields():
     assert candidate.or_timestamp is None
     assert candidate.conid is None
     assert candidate.source is None
+
+
+def test_candidate_from_db_row_with_enhanced_market_data():
+    """Test creating Candidate from database row with enhanced market data fields"""
+    row = {
+        "ticker": "BHP",
+        "headline": "Strong earnings",
+        "scan_date": "2025-11-03",
+        "status": "watching",
+        "gap_percent": 3.5,
+        "prev_close": 45.20,
+        "created_at": "2025-11-03T09:00:00",
+        "or_high": 47.50,
+        "or_low": 44.80,
+        "or_timestamp": "2025-11-03T10:30:00",
+        "conid": 8314,
+        "source": "ibkr",
+        # Enhanced market data fields
+        "open_price": 46.50,
+        "session_high": 47.80,
+        "session_low": 45.90,
+        "volume": 1500000,
+        "bid": 46.95,
+        "ask": 47.05,
+        "market_data_timestamp": "2025-11-03T10:15:30",
+    }
+
+    candidate = Candidate.from_db_row(row)
+
+    assert candidate.ticker == "BHP"
+    assert candidate.open_price == 46.50
+    assert candidate.session_high == 47.80
+    assert candidate.session_low == 45.90
+    assert candidate.volume == 1500000
+    assert candidate.bid == 46.95
+    assert candidate.ask == 47.05
+    assert candidate.market_data_timestamp == "2025-11-03T10:15:30"
+
+
+def test_candidate_creation_with_enhanced_market_data():
+    """Test creating Candidate directly with enhanced market data fields"""
+    candidate = Candidate(
+        ticker="BHP",
+        headline="Gap detected: 3.50%",
+        scan_date="2025-11-03T10:00:00",
+        status="watching",
+        gap_percent=3.5,
+        prev_close=45.20,
+        conid=8314,
+        source="ibkr",
+        # Enhanced market data fields
+        open_price=46.50,
+        session_high=47.80,
+        session_low=45.90,
+        volume=1500000,
+        bid=46.95,
+        ask=47.05,
+        market_data_timestamp="2025-11-03T10:15:30",
+    )
+
+    assert candidate.ticker == "BHP"
+    assert candidate.open_price == 46.50
+    assert candidate.session_high == 47.80
+    assert candidate.session_low == 45.90
+    assert candidate.volume == 1500000
+    assert candidate.bid == 46.95
+    assert candidate.ask == 47.05
+    assert candidate.market_data_timestamp == "2025-11-03T10:15:30"

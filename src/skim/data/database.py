@@ -41,7 +41,14 @@ class Database:
                 or_low REAL,
                 or_timestamp TEXT,
                 conid INTEGER,
-                source TEXT DEFAULT 'ibkr'
+                source TEXT DEFAULT 'ibkr',
+                open_price REAL,
+                session_high REAL,
+                session_low REAL,
+                volume INTEGER,
+                bid REAL,
+                ask REAL,
+                market_data_timestamp TEXT
             )
         """)
 
@@ -93,8 +100,9 @@ class Database:
             """
             INSERT OR REPLACE INTO candidates
             (ticker, headline, scan_date, status, gap_percent, prev_close,
-             or_high, or_low, or_timestamp, conid, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             or_high, or_low, or_timestamp, conid, source,
+             open_price, session_high, session_low, volume, bid, ask, market_data_timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 candidate.ticker,
@@ -108,6 +116,13 @@ class Database:
                 candidate.or_timestamp,
                 candidate.conid,
                 candidate.source,
+                candidate.open_price,
+                candidate.session_high,
+                candidate.session_low,
+                candidate.volume,
+                candidate.bid,
+                candidate.ask,
+                candidate.market_data_timestamp,
             ),
         )
         self.db.commit()

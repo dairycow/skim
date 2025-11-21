@@ -104,14 +104,12 @@ class TradingBot:
             candidates_for_db = []
 
             for stock in filtered_gap_stocks:
-                # Get current price for display
-                current_price = None
+                # Get comprehensive market data
+                market_data = None
                 try:
                     market_data = self.ibkr_scanner.get_market_data(
                         str(stock.conid)
                     )
-                    if market_data and market_data.last_price:
-                        current_price = float(market_data.last_price)
                 except Exception as e:
                     logger.debug(
                         f"Could not fetch market data for {stock.ticker}: {e}"
@@ -122,13 +120,15 @@ class TradingBot:
                     "ticker": stock.ticker,
                     "headline": f"Gap detected: {stock.gap_percent:.2f}%",
                     "gap_percent": stock.gap_percent,
-                    "price": current_price,
+                    "price": market_data.last_price
+                    if market_data and market_data.last_price
+                    else None,
                     "status": "watching",
                     "scan_date": datetime.now().isoformat(),
                 }
                 candidates_for_notification.append(candidate_dict)
 
-                # Prepare candidate for database
+                # Prepare candidate for database with full market data
                 from skim.data.models import Candidate
 
                 candidate = Candidate(
@@ -137,7 +137,19 @@ class TradingBot:
                     scan_date=candidate_dict["scan_date"],
                     status=candidate_dict["status"],
                     gap_percent=stock.gap_percent,
-                    prev_close=current_price,
+                    prev_close=market_data.prior_close if market_data else None,
+                    conid=stock.conid,
+                    source="ibkr",
+                    # Enhanced market data fields
+                    open_price=market_data.open if market_data else None,
+                    session_high=market_data.high if market_data else None,
+                    session_low=market_data.low if market_data else None,
+                    volume=market_data.volume if market_data else None,
+                    bid=market_data.bid if market_data else None,
+                    ask=market_data.ask if market_data else None,
+                    market_data_timestamp=datetime.now().isoformat()
+                    if market_data
+                    else None,
                 )
                 candidates_for_db.append(candidate)
 
@@ -330,22 +342,39 @@ class TradingBot:
                 logger.info("No OR tracking candidates found")
                 return 0
 
+            # Filter candidates with valid market data using validation utilities
+            from skim.validation.market_data import (
+                filter_candidates_by_market_data_quality,
+            )
+
+            valid_candidates, invalid_candidates = (
+                filter_candidates_by_market_data_quality(
+                    candidates, max_age_minutes=30
+                )
+            )
+
+            if invalid_candidates:
+                logger.info(
+                    f"Skipping {len(invalid_candidates)} candidates with stale/incomplete market data"
+                )
+
+            if not valid_candidates:
+                logger.warning(
+                    "No candidates with fresh market data for OR tracking"
+                )
+                return 0
+
             # Convert to GapStock objects for scanner
             gap_stocks = []
-            for candidate in candidates:
-                if candidate.conid:
-                    from skim.scanners.ibkr_gap_scanner import GapStock
+            for candidate in valid_candidates:
+                from skim.scanners.ibkr_gap_scanner import GapStock
 
-                    gap_stock = GapStock(
-                        ticker=candidate.ticker,
-                        gap_percent=candidate.gap_percent or 0.0,
-                        conid=candidate.conid,
-                    )
-                    gap_stocks.append(gap_stock)
-
-            if not gap_stocks:
-                logger.warning("No valid gap stocks for OR tracking")
-                return 0
+                gap_stock = GapStock(
+                    ticker=candidate.ticker,
+                    gap_percent=candidate.gap_percent or 0.0,
+                    conid=candidate.conid,
+                )
+                gap_stocks.append(gap_stock)
 
             # Connect scanner if needed
             if not self.ibkr_scanner.is_connected():
@@ -388,7 +417,7 @@ class TradingBot:
                     continue
 
             logger.info(
-                f"OR tracking complete. Found {breakout_count} ORH breakouts"
+                f"OR tracking complete. Found {breakout_count} ORH breakouts from {len(valid_candidates)} candidates with fresh data"
             )
             return breakout_count
 

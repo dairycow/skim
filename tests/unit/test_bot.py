@@ -114,7 +114,7 @@ class TestTradingBotIBKRIntegration:
     def test_scan_uses_ibkr_scanner(
         self, mock_trading_bot, mock_gap_stocks, mocker
     ):
-        """Test that scan uses IBKRGapScanner"""
+        """Test that scan uses IBKRGapScanner and captures enhanced market data"""
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
         mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers.return_value = {
@@ -122,7 +122,18 @@ class TestTradingBotIBKRIntegration:
             "RIO",
         }
         mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
-        mock_scanner.get_market_data.return_value = Mock(last_price=50.0)
+
+        # Mock enhanced market data response
+        mock_market_data = Mock()
+        mock_market_data.last_price = 50.0
+        mock_market_data.prior_close = 45.20
+        mock_market_data.open = 46.50
+        mock_market_data.high = 47.80
+        mock_market_data.low = 45.90
+        mock_market_data.volume = 1500000
+        mock_market_data.bid = 46.95
+        mock_market_data.ask = 47.05
+        mock_scanner.get_market_data.return_value = mock_market_data
         mock_scanner.is_connected.return_value = True
 
         result = mock_trading_bot.scan()
@@ -131,10 +142,13 @@ class TestTradingBotIBKRIntegration:
         mock_scanner.scan_for_gaps.assert_called_once()
         assert isinstance(result, int)
 
-    def test_scan_stores_candidates_with_or_tracking_status(
+        # Verify market data was captured for each stock
+        assert mock_scanner.get_market_data.call_count == 2
+
+    def test_scan_stores_candidates_with_enhanced_market_data(
         self, mock_trading_bot, mock_gap_stocks
     ):
-        """Test that scan stores candidates with 'watching' status"""
+        """Test that scan stores candidates with enhanced market data"""
         # Get the mocked scanner instance from the bot
         mock_scanner = mock_trading_bot.ibkr_scanner
         mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers.return_value = {
@@ -142,7 +156,18 @@ class TestTradingBotIBKRIntegration:
             "RIO",
         }
         mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
-        mock_scanner.get_market_data.return_value = Mock(last_price=50.0)
+
+        # Mock enhanced market data response
+        mock_market_data = Mock()
+        mock_market_data.last_price = 50.0
+        mock_market_data.prior_close = 45.20
+        mock_market_data.open = 46.50
+        mock_market_data.high = 47.80
+        mock_market_data.low = 45.90
+        mock_market_data.volume = 1500000
+        mock_market_data.bid = 46.95
+        mock_market_data.ask = 47.05
+        mock_scanner.get_market_data.return_value = mock_market_data
         mock_scanner.is_connected.return_value = True
 
         # Mock database methods
@@ -153,6 +178,22 @@ class TestTradingBotIBKRIntegration:
         # Verify scanner was used
         mock_scanner.scan_for_gaps.assert_called_once()
         assert isinstance(result, int)
+
+        # Verify save_candidate was called with enhanced market data
+        assert mock_trading_bot.db.save_candidate.call_count == 2
+
+        # Check the first call arguments (BHP)
+        first_call_args = mock_trading_bot.db.save_candidate.call_args_list[0][
+            0
+        ][0]
+        assert first_call_args.ticker == "BHP"
+        assert first_call_args.open_price == 46.50
+        assert first_call_args.session_high == 47.80
+        assert first_call_args.session_low == 45.90
+        assert first_call_args.volume == 1500000
+        assert first_call_args.bid == 46.95
+        assert first_call_args.ask == 47.05
+        assert first_call_args.market_data_timestamp is not None
 
     def test_track_or_breakouts_uses_existing_ibkr_client(
         self, mock_trading_bot
@@ -176,7 +217,11 @@ class TestTradingBotIBKRIntegration:
         mock_scanner.filter_breakouts.return_value = mock_breakout_signals
         mock_scanner.is_connected.return_value = True
 
-        # Mock database methods
+        # Mock database methods with enhanced market data
+        from datetime import datetime, timedelta
+
+        fresh_timestamp = (datetime.now() - timedelta(minutes=15)).isoformat()
+
         mock_trading_bot.db.get_or_tracking_candidates = Mock(
             return_value=[
                 Mock(
@@ -184,6 +229,13 @@ class TestTradingBotIBKRIntegration:
                     conid=8644,
                     prev_close=45.20,
                     gap_percent=5.5,
+                    open_price=46.50,
+                    session_high=47.80,
+                    session_low=45.90,
+                    volume=1500000,
+                    bid=46.95,
+                    ask=47.05,
+                    market_data_timestamp=fresh_timestamp,
                 )
             ]
         )
@@ -193,6 +245,47 @@ class TestTradingBotIBKRIntegration:
 
         # Should return the number of breakouts found
         assert isinstance(result, int)
+
+    def test_track_or_breakouts_filters_stale_market_data(
+        self, mock_trading_bot, mock_breakout_signals
+    ):
+        """Test that track_or_breakouts filters candidates with stale market data"""
+        # Get the mocked scanner instance from the bot
+        mock_scanner = mock_trading_bot.ibkr_scanner
+        mock_scanner.track_opening_range.return_value = []
+        mock_scanner.filter_breakouts.return_value = mock_breakout_signals
+        mock_scanner.is_connected.return_value = True
+
+        # Mock database methods with stale market data
+        from datetime import datetime, timedelta
+
+        stale_timestamp = (datetime.now() - timedelta(hours=2)).isoformat()
+
+        mock_trading_bot.db.get_or_tracking_candidates = Mock(
+            return_value=[
+                Mock(
+                    ticker="BHP",
+                    conid=8644,
+                    prev_close=45.20,
+                    gap_percent=5.5,
+                    open_price=46.50,
+                    session_high=47.80,
+                    session_low=45.90,
+                    volume=1500000,
+                    bid=46.95,
+                    ask=47.05,
+                    market_data_timestamp=stale_timestamp,  # Stale data
+                )
+            ]
+        )
+        mock_trading_bot.db.update_candidate_or_data = Mock()
+
+        result = mock_trading_bot.track_or_breakouts()
+
+        # Should return 0 since no candidates with fresh data
+        assert result == 0
+        # Should not attempt OR tracking with stale data
+        mock_scanner.track_opening_range.assert_not_called()
 
     def test_execute_orh_breakouts_uses_existing_execute_breakout_orders(
         self, mock_trading_bot
@@ -476,9 +569,19 @@ class TestTradingBotCoreMethods:
         mock_candidates = [
             Mock(
                 ticker="BHP",
+                headline="Test headline",
+                scan_date="2023-01-01",
+                status="or_tracking",
                 conid=8644,
                 prev_close=45.20,
                 gap_percent=5.5,
+                open_price=46.00,
+                session_high=47.80,
+                session_low=45.30,
+                volume=1000000,
+                bid=47.45,
+                ask=47.55,
+                market_data_timestamp=datetime.now().isoformat(),
             )
         ]
 
@@ -1034,7 +1137,23 @@ class TestTradingBotScannerConfig:
         mock_scanner.filter_breakouts.return_value = []
 
         # Mock candidates with valid data
-        mock_candidates = [Mock(ticker="BHP", conid=8644, gap_percent=5.5)]
+        mock_candidates = [
+            Mock(
+                ticker="BHP",
+                headline="Test headline",
+                scan_date="2023-01-01",
+                status="or_tracking",
+                conid=8644,
+                gap_percent=5.5,
+                open_price=46.00,
+                session_high=47.80,
+                session_low=45.30,
+                volume=1000000,
+                bid=47.45,
+                ask=47.55,
+                market_data_timestamp=datetime.now().isoformat(),
+            )
+        ]
         bot.db.get_or_tracking_candidates = Mock(return_value=mock_candidates)
 
         bot.track_or_breakouts()
