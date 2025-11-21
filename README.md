@@ -2,16 +2,13 @@
 
 Automated ASX trading bot that connects directly to Interactive Brokers via OAuth 1.0a.
 
-
-
 ## Features
 
-- Direct OAuth 1.0a IBKR integration
 - ORH breakout strategy
 - Cron-scheduled trading workflow
 - SQLite data persistence
 - Discord webhook notifications
-- Lightweight deployment (256-512 MB RAM)
+- Lightweight deployment
 
 ## Documentation
 

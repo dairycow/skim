@@ -41,16 +41,6 @@ See code for actual flow; the architecture is composed of a small, cohesive set 
 
 - Key dependencies and dev-tools are listed in `pyproject.toml`
 
-## Development Tools
-
-- Ruff, pytest, pre-commit (as configured in `pyproject.toml` and dev-dependencies)
-
-## Security Architecture
-
-- OAuth 1.0a with RSA signatures; token encryption/decryption with private keys
-- No plaintext secrets in code; volume-mounted key files
-- Environment-based configuration; minimized attack surface
-
 ## Deployment Architecture
 
 - Containerized deployment using Docker; single lightweight container
@@ -64,5 +54,3 @@ See code for actual flow; the architecture is composed of a small, cohesive set 
 - SQLite vs PostgreSQL: simplicity for a single account
 - Cron vs Real-Time: predictable schedule, low resource use
 - ORH breakout strategy: gap + opening range momentum
-
-End of file
