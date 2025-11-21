@@ -4,10 +4,10 @@
 # IBKR ORH-based scanning strategy
 
 # IBKR gap scan - Monday morning AEDT (Sunday 23:00:30 UTC)
-30 23 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot scan_ibkr_gaps >> /var/log/cron.log 2>&1
+30 23 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
 
 # IBKR gap scan - Tuesday-Friday morning AEDT (Monday-Thursday 23:00:30 UTC)
-30 23 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot scan_ibkr_gaps >> /var/log/cron.log 2>&1
+30 23 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
 
 # OR tracking and breakout detection - Monday morning AEDT (Sunday 23:10:30 UTC)
 10 23 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot track_or_breakouts >> /var/log/cron.log 2>&1
