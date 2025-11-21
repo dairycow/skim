@@ -15,7 +15,6 @@ from skim.brokers.ibkr_client import IBKRClient
 from skim.core.config import ScannerConfig
 from skim.validation.scanners import (
     BreakoutSignal,
-    GapScanResult,
     GapStock,
     MonitoringResult,
     OpeningRangeData,
@@ -411,85 +410,6 @@ class IBKRGapScanner:
             return None
 
         return self.client.get_market_data(conid)
-
-    def scan_gaps_with_announcements(
-        self, price_sensitive_tickers: set[str]
-    ) -> GapScanResult:
-        """Scan for gaps and filter by price-sensitive announcements
-
-        Args:
-            price_sensitive_tickers: Set of tickers with price-sensitive announcements
-
-        Returns:
-            GapScanResult containing:
-            - gap_stocks: List of GapStock objects with announcements
-            - new_candidates: List of candidate dicts for notifications
-        """
-        logger.info("Scanning for gaps with announcement filtering...")
-
-        # Scan for gaps
-        gap_stocks = self.scan_for_gaps(
-            min_gap=self.scanner_config.gap_threshold
-        )
-
-        if not gap_stocks:
-            logger.info("No gap stocks found in scan")
-            return GapScanResult(gap_stocks=[], new_candidates=[])
-
-        filtered_stocks = []
-        new_candidates = []
-
-        for stock in gap_stocks:
-            # Only process if ticker has price-sensitive announcement
-            if stock.ticker not in price_sensitive_tickers:
-                logger.debug(
-                    f"{stock.ticker}: Skipped (no price-sensitive announcement)"
-                )
-                continue
-
-            # Get current price for display
-            current_price = None
-            try:
-                market_data = self.get_market_data(stock.ticker)
-                if market_data and market_data.last_price:
-                    current_price = float(market_data.last_price)
-            except Exception as e:
-                logger.debug(
-                    f"Could not fetch market data for {stock.ticker}: {e}"
-                )
-
-            price_display = (
-                f"${current_price:.4f}"
-                if current_price
-                else "Price unavailable"
-            )
-            logger.info(
-                f"{stock.ticker}: Gap {stock.gap_percent:.2f}% @ {price_display}"
-            )
-
-            # Create candidate for notification and persistence
-            candidate_dict = {
-                "ticker": stock.ticker,
-                "headline": f"Gap detected: {stock.gap_percent:.2f}%",
-                "gap_percent": stock.gap_percent,
-                "price": current_price,
-                "status": "watching",
-                "scan_date": datetime.now().isoformat(),
-            }
-            new_candidates.append(candidate_dict)
-
-            logger.info(
-                f"Found {stock.ticker}: gap {stock.gap_percent:.2f}% with price-sensitive announcement"
-            )
-
-            filtered_stocks.append(stock)
-
-        logger.info(
-            f"Gap scan with announcements complete. Found {len(filtered_stocks)} gap stocks with announcements"
-        )
-        return GapScanResult(
-            gap_stocks=filtered_stocks, new_candidates=new_candidates
-        )
 
     def scan_and_monitor_gaps(
         self,
