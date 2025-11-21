@@ -1,36 +1,42 @@
-"""Unit tests for data models"""
+"""Unit tests for data models - simplified design"""
 
-from datetime import datetime
-
-from skim.data.models import Candidate, MarketData, Position, Trade
+from skim.data.models import Candidate, MarketData, Position
 
 
 def test_candidate_from_db_row():
     """Test creating Candidate from database row"""
     row = {
         "ticker": "BHP",
-        "headline": "Strong earnings",
+        "or_high": 47.50,
+        "or_low": 44.80,
         "scan_date": "2025-11-03",
         "status": "watching",
-        "gap_percent": 3.5,
-        "prev_close": 45.20,
-        "created_at": "2025-11-03T09:00:00",
     }
 
     candidate = Candidate.from_db_row(row)
 
     assert candidate.ticker == "BHP"
-    assert candidate.headline == "Strong earnings"
-    assert candidate.gap_percent == 3.5
+    assert candidate.or_high == 47.50
+    assert candidate.or_low == 44.80
+    assert candidate.scan_date == "2025-11-03"
     assert candidate.status == "watching"
-    # Test new market data fields default to None
-    assert candidate.open_price is None
-    assert candidate.session_high is None
-    assert candidate.session_low is None
-    assert candidate.volume is None
-    assert candidate.bid is None
-    assert candidate.ask is None
-    assert candidate.market_data_timestamp is None
+
+
+def test_candidate_creation():
+    """Test creating Candidate directly"""
+    candidate = Candidate(
+        ticker="BHP",
+        or_high=47.50,
+        or_low=44.80,
+        scan_date="2025-11-03T10:00:00",
+        status="watching",
+    )
+
+    assert candidate.ticker == "BHP"
+    assert candidate.or_high == 47.50
+    assert candidate.or_low == 44.80
+    assert candidate.scan_date == "2025-11-03T10:00:00"
+    assert candidate.status == "watching"
 
 
 def test_position_from_db_row():
@@ -43,10 +49,8 @@ def test_position_from_db_row():
         "stop_loss": 43.00,
         "entry_date": "2025-11-03T10:15:00",
         "status": "open",
-        "half_sold": 0,
-        "exit_date": None,
         "exit_price": None,
-        "created_at": "2025-11-03T10:15:00",
+        "exit_date": None,
     }
 
     position = Position.from_db_row(row)
@@ -54,89 +58,77 @@ def test_position_from_db_row():
     assert position.id == 1
     assert position.ticker == "BHP"
     assert position.quantity == 100
+    assert position.entry_price == 46.50
+    assert position.stop_loss == 43.00
     assert position.status == "open"
-    assert position.half_sold is False
+    assert position.exit_price is None
+    assert position.exit_date is None
 
 
-def test_position_is_open():
-    """Test Position.is_open property"""
-    pos1 = Position(
-        ticker="BHP",
-        quantity=100,
-        entry_price=46.50,
-        stop_loss=43.00,
-        entry_date="2025-11-03",
-        status="open",
-    )
-
-    pos2 = Position(
-        ticker="RIO",
-        quantity=50,
-        entry_price=120.00,
-        stop_loss=115.00,
-        entry_date="2025-11-03",
-        status="half_exited",
-    )
-
-    pos3 = Position(
-        ticker="FMG",
-        quantity=200,
-        entry_price=18.00,
-        stop_loss=16.50,
-        entry_date="2025-11-03",
-        status="closed",
-    )
-
-    assert pos1.is_open is True
-    assert pos2.is_open is True
-    assert pos3.is_open is False
-
-
-def test_position_days_held():
-    """Test Position.days_held calculation"""
-    # Create position from 5 days ago using timedelta
-    from datetime import timedelta
-
-    five_days_ago = datetime.now() - timedelta(days=5)
-    five_days_ago = five_days_ago.replace(
-        hour=10, minute=0, second=0, microsecond=0
-    ).isoformat()
-
+def test_position_creation():
+    """Test creating Position directly"""
     position = Position(
         ticker="BHP",
         quantity=100,
         entry_price=46.50,
         stop_loss=43.00,
-        entry_date=five_days_ago,
+        entry_date="2025-11-03T10:15:00",
         status="open",
     )
 
-    # Should be approximately 5 days (may be 4 or 5 depending on time of day)
-    assert position.days_held >= 4
-    assert position.days_held <= 5
+    assert position.ticker == "BHP"
+    assert position.quantity == 100
+    assert position.entry_price == 46.50
+    assert position.stop_loss == 43.00
+    assert position.status == "open"
 
 
-def test_trade_from_db_row():
-    """Test creating Trade from database row"""
-    row = {
-        "id": 1,
-        "ticker": "BHP",
-        "action": "BUY",
-        "quantity": 100,
-        "price": 46.50,
-        "timestamp": "2025-11-03T10:15:00",
-        "position_id": 1,
-        "pnl": None,
-        "notes": "Entry trade",
-    }
+def test_position_is_open():
+    """Test Position.is_open property"""
+    pos_open = Position(
+        ticker="BHP",
+        quantity=100,
+        entry_price=46.50,
+        stop_loss=43.00,
+        entry_date="2025-11-03",
+        status="open",
+    )
 
-    trade = Trade.from_db_row(row)
+    pos_closed = Position(
+        ticker="RIO",
+        quantity=50,
+        entry_price=120.00,
+        stop_loss=115.00,
+        entry_date="2025-11-03",
+        status="closed",
+    )
 
-    assert trade.id == 1
-    assert trade.ticker == "BHP"
-    assert trade.action == "BUY"
-    assert trade.quantity == 100
-    assert trade.price == 46.50
+    assert pos_open.is_open is True
+    assert pos_closed.is_open is False
+
+
+def test_market_data_creation():
+    """Test creating MarketData"""
+    data = MarketData(
+        ticker="BHP",
+        conid="8644",
+        last_price=46.05,
+        high=47.00,
+        low=45.50,
+        bid=46.00,
+        ask=46.10,
+        bid_size=100,
+        ask_size=200,
+        volume=1_000_000,
+        open=46.50,
+        prior_close=45.80,
+        change_percent=0.54,
+    )
+
+    assert data.ticker == "BHP"
+    assert data.last_price == 46.05
+    assert data.high == 47.00
+    assert data.low == 45.50
 
 
 def test_market_data_mid_price():
@@ -160,128 +152,65 @@ def test_market_data_mid_price():
     assert data.mid_price == 46.05  # (46.00 + 46.10) / 2
 
 
-def test_candidate_from_db_row_with_or_fields():
-    """Test creating Candidate from database row with OR tracking fields"""
-    row = {
-        "ticker": "BHP",
-        "headline": "Strong earnings",
-        "scan_date": "2025-11-03",
-        "status": "or_tracking",
-        "gap_percent": 3.5,
-        "prev_close": 45.20,
-        "created_at": "2025-11-03T09:00:00",
-        "or_high": 47.50,
-        "or_low": 44.80,
-        "or_timestamp": "2025-11-03T10:30:00",
-        "conid": 8314,
-        "source": "ibkr",
-    }
-
-    candidate = Candidate.from_db_row(row)
-
-    assert candidate.ticker == "BHP"
-    assert candidate.status == "or_tracking"
-    assert candidate.or_high == 47.50
-    assert candidate.or_low == 44.80
-    assert candidate.or_timestamp == "2025-11-03T10:30:00"
-    assert candidate.conid == 8314
-    assert candidate.source == "ibkr"
-    # Test new market data fields default to None when not provided
-    assert candidate.open_price is None
-    assert candidate.session_high is None
-    assert candidate.session_low is None
-    assert candidate.volume is None
-    assert candidate.bid is None
-    assert candidate.ask is None
-    assert candidate.market_data_timestamp is None
-
-
-def test_candidate_from_db_row_missing_or_fields():
-    """Test creating Candidate from database row without OR tracking fields"""
-    row = {
-        "ticker": "BHP",
-        "headline": "Strong earnings",
-        "scan_date": "2025-11-03",
-        "status": "watching",
-        "gap_percent": 3.5,
-        "prev_close": 45.20,
-        "created_at": "2025-11-03T09:00:00",
-    }
-
-    candidate = Candidate.from_db_row(row)
-
-    assert candidate.ticker == "BHP"
-    assert candidate.status == "watching"
-    assert candidate.or_high is None
-    assert candidate.or_low is None
-    assert candidate.or_timestamp is None
-    assert candidate.conid is None
-    assert candidate.source is None
-
-
-def test_candidate_from_db_row_with_enhanced_market_data():
-    """Test creating Candidate from database row with enhanced market data fields"""
-    row = {
-        "ticker": "BHP",
-        "headline": "Strong earnings",
-        "scan_date": "2025-11-03",
-        "status": "watching",
-        "gap_percent": 3.5,
-        "prev_close": 45.20,
-        "created_at": "2025-11-03T09:00:00",
-        "or_high": 47.50,
-        "or_low": 44.80,
-        "or_timestamp": "2025-11-03T10:30:00",
-        "conid": 8314,
-        "source": "ibkr",
-        # Enhanced market data fields
-        "open_price": 46.50,
-        "session_high": 47.80,
-        "session_low": 45.90,
-        "volume": 1500000,
-        "bid": 46.95,
-        "ask": 47.05,
-        "market_data_timestamp": "2025-11-03T10:15:30",
-    }
-
-    candidate = Candidate.from_db_row(row)
-
-    assert candidate.ticker == "BHP"
-    assert candidate.open_price == 46.50
-    assert candidate.session_high == 47.80
-    assert candidate.session_low == 45.90
-    assert candidate.volume == 1500000
-    assert candidate.bid == 46.95
-    assert candidate.ask == 47.05
-    assert candidate.market_data_timestamp == "2025-11-03T10:15:30"
-
-
-def test_candidate_creation_with_enhanced_market_data():
-    """Test creating Candidate directly with enhanced market data fields"""
+def test_candidate_status_transitions():
+    """Test candidate status transitions through workflow"""
+    # Start as watching
     candidate = Candidate(
         ticker="BHP",
-        headline="Gap detected: 3.50%",
+        or_high=47.50,
+        or_low=44.80,
         scan_date="2025-11-03T10:00:00",
         status="watching",
-        gap_percent=3.5,
-        prev_close=45.20,
-        conid=8314,
-        source="ibkr",
-        # Enhanced market data fields
-        open_price=46.50,
-        session_high=47.80,
-        session_low=45.90,
-        volume=1500000,
-        bid=46.95,
-        ask=47.05,
-        market_data_timestamp="2025-11-03T10:15:30",
     )
+    assert candidate.status == "watching"
 
-    assert candidate.ticker == "BHP"
-    assert candidate.open_price == 46.50
-    assert candidate.session_high == 47.80
-    assert candidate.session_low == 45.90
-    assert candidate.volume == 1500000
-    assert candidate.bid == 46.95
-    assert candidate.ask == 47.05
-    assert candidate.market_data_timestamp == "2025-11-03T10:15:30"
+    # Create new instance with entered status
+    entered = Candidate(
+        ticker="BHP",
+        or_high=47.50,
+        or_low=44.80,
+        scan_date="2025-11-03T10:00:00",
+        status="entered",
+    )
+    assert entered.status == "entered"
+
+    # Create new instance with closed status
+    closed = Candidate(
+        ticker="BHP",
+        or_high=47.50,
+        or_low=44.80,
+        scan_date="2025-11-03T10:00:00",
+        status="closed",
+    )
+    assert closed.status == "closed"
+
+
+def test_position_status_transitions():
+    """Test position status transitions"""
+    # Open position
+    open_pos = Position(
+        ticker="BHP",
+        quantity=100,
+        entry_price=46.50,
+        stop_loss=43.00,
+        entry_date="2025-11-03T10:15:00",
+        status="open",
+    )
+    assert open_pos.status == "open"
+    assert open_pos.is_open is True
+
+    # Closed position
+    closed_pos = Position(
+        ticker="BHP",
+        quantity=100,
+        entry_price=46.50,
+        stop_loss=43.00,
+        entry_date="2025-11-03T10:15:00",
+        status="closed",
+        exit_price=44.00,
+        exit_date="2025-11-03T11:00:00",
+    )
+    assert closed_pos.status == "closed"
+    assert closed_pos.is_open is False
+    assert closed_pos.exit_price == 44.00
+    assert closed_pos.exit_date == "2025-11-03T11:00:00"
