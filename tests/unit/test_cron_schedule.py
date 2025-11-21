@@ -134,28 +134,6 @@ class TestCronScheduleValidation:
                     f"Execute: {execute['hour']}:{execute['minute']}"
                 )
 
-    def test_status_command_scheduled(self, crontab_content):
-        """FAILING TEST: status command should be scheduled daily"""
-        entries = []
-        for line in crontab_content.split("\n"):
-            parsed = self.parse_crontab_line(line)
-            if parsed:
-                command_name = self.extract_command_name(parsed["command"])
-                if command_name == "status":
-                    entries.append(parsed)
-
-        # This should FAIL initially - no status command in crontab
-        assert len(entries) > 0, "No status command found in crontab"
-
-        # Check it's scheduled for 05:30 UTC
-        status_entry = entries[0]
-        assert status_entry["hour"] == "5", (
-            f"Status should run at hour 5, got {status_entry['hour']}"
-        )
-        assert status_entry["minute"] == "30", (
-            f"Status should run at minute 30, got {status_entry['minute']}"
-        )
-
     def test_position_management_covers_market_open(self, crontab_content):
         """FAILING TEST: position management should cover 23:00-00:00"""
         entries = []

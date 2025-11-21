@@ -27,10 +27,4 @@
 # Position management - Tuesday-Friday market hours (Monday-Thursday 23:00 - Tuesday-Friday 05:00 UTC)
 */5 23,0,1,2,3,4,5 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot manage_positions >> /var/log/cron.log 2>&1
 
-# Daily status report - Monday AEDT (Sunday 05:30 UTC)
-30 5 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot status >> /var/log/cron.log 2>&1
-
-# Daily status report - Tuesday-Friday AEDT (Monday-Thursday 05:30 UTC)
-30 5 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot status >> /var/log/cron.log 2>&1
-
 # Blank line required at end of cron file
