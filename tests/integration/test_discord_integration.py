@@ -2,10 +2,13 @@
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from skim.core.bot import TradingBot
 from skim.core.config import Config, ScannerConfig
 
 
+@pytest.mark.integration
 class TestTradingBotDiscordIntegration:
     """Tests for Discord integration in TradingBot"""
 
@@ -17,6 +20,8 @@ class TestTradingBotDiscordIntegration:
         self, mock_requests_post, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
         """Test scan method with Discord notification success"""
+        from skim.validation.scanners import GapScanResult
+
         # Setup config
         config = Config(
             ib_client_id=1,
@@ -42,14 +47,21 @@ class TestTradingBotDiscordIntegration:
             "RIO",
         }
 
-        mock_gap_stock = Mock()
-        mock_gap_stock.ticker = "BHP"
-        mock_gap_stock.gap_percent = 5.5
-        mock_gap_stock.close_price = 45.20
+        # Create mock result with proper GapScanResult structure
+        mock_candidate = {
+            "ticker": "BHP",
+            "headline": "BHP announces earnings",
+            "scan_date": "2025-11-21",
+            "status": "watching",
+            "gap_percent": 5.5,
+            "price": 45.20,
+        }
 
-        mock_ibkr_scanner.return_value.scan_for_gaps.return_value = [
-            mock_gap_stock
-        ]
+        mock_scan_result = GapScanResult(
+            gap_stocks=[], new_candidates=[mock_candidate]
+        )
+        mock_ibkr_scanner.return_value.is_connected.return_value = True
+        mock_ibkr_scanner.return_value.scan_gaps_with_announcements.return_value = mock_scan_result
 
         mock_db.return_value.get_candidate.return_value = None
         mock_db.return_value.save_candidate = Mock()
@@ -89,6 +101,8 @@ class TestTradingBotDiscordIntegration:
         self, mock_requests_post, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
         """Test scan method with no candidates and Discord notification"""
+        from skim.validation.scanners import GapScanResult
+
         # Setup config
         config = Config(
             ib_client_id=1,
@@ -110,7 +124,9 @@ class TestTradingBotDiscordIntegration:
 
         # Setup mocks - no gap stocks found
         mock_asx_scanner.return_value.fetch_price_sensitive_tickers.return_value = set()
-        mock_ibkr_scanner.return_value.scan_for_gaps.return_value = []
+        mock_scan_result = GapScanResult(gap_stocks=[], new_candidates=[])
+        mock_ibkr_scanner.return_value.is_connected.return_value = True
+        mock_ibkr_scanner.return_value.scan_gaps_with_announcements.return_value = mock_scan_result
 
         # Mock successful Discord response
         mock_response = Mock()
@@ -140,6 +156,8 @@ class TestTradingBotDiscordIntegration:
         self, mock_requests_post, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
         """Test scan method with Discord notification error"""
+        from skim.validation.scanners import GapScanResult
+
         # Setup config
         config = Config(
             ib_client_id=1,
@@ -164,14 +182,20 @@ class TestTradingBotDiscordIntegration:
             "BHP",
         }
 
-        mock_gap_stock = Mock()
-        mock_gap_stock.ticker = "BHP"
-        mock_gap_stock.gap_percent = 5.5
-        mock_gap_stock.close_price = 45.20
+        mock_candidate = {
+            "ticker": "BHP",
+            "headline": "BHP announces earnings",
+            "scan_date": "2025-11-21",
+            "status": "watching",
+            "gap_percent": 5.5,
+            "price": 45.20,
+        }
 
-        mock_ibkr_scanner.return_value.scan_for_gaps.return_value = [
-            mock_gap_stock
-        ]
+        mock_scan_result = GapScanResult(
+            gap_stocks=[], new_candidates=[mock_candidate]
+        )
+        mock_ibkr_scanner.return_value.is_connected.return_value = True
+        mock_ibkr_scanner.return_value.scan_gaps_with_announcements.return_value = mock_scan_result
 
         mock_db.return_value.get_candidate.return_value = None
         mock_db.return_value.save_candidate = Mock()
@@ -194,6 +218,8 @@ class TestTradingBotDiscordIntegration:
         self, mock_db, mock_ibkr_scanner, mock_asx_scanner
     ):
         """Test scan method without Discord webhook configured"""
+        from skim.validation.scanners import GapScanResult
+
         # Setup config without Discord webhook
         config = Config(
             ib_client_id=1,
@@ -201,7 +227,7 @@ class TestTradingBotDiscordIntegration:
             max_position_size=1000,
             max_positions=5,
             db_path="test.db",
-            discord_webhook_url="https://discord.com/api/webhooks/test/webhook",
+            discord_webhook_url=None,
             scanner_config=ScannerConfig(
                 gap_threshold=3.0,
                 volume_filter=50000,
@@ -218,14 +244,20 @@ class TestTradingBotDiscordIntegration:
             "BHP",
         }
 
-        mock_gap_stock = Mock()
-        mock_gap_stock.ticker = "BHP"
-        mock_gap_stock.gap_percent = 5.5
-        mock_gap_stock.close_price = 45.20
+        mock_candidate = {
+            "ticker": "BHP",
+            "headline": "BHP announces earnings",
+            "scan_date": "2025-11-21",
+            "status": "watching",
+            "gap_percent": 5.5,
+            "price": 45.20,
+        }
 
-        mock_ibkr_scanner.return_value.scan_for_gaps.return_value = [
-            mock_gap_stock
-        ]
+        mock_scan_result = GapScanResult(
+            gap_stocks=[], new_candidates=[mock_candidate]
+        )
+        mock_ibkr_scanner.return_value.is_connected.return_value = True
+        mock_ibkr_scanner.return_value.scan_gaps_with_announcements.return_value = mock_scan_result
 
         mock_db.return_value.get_candidate.return_value = None
         mock_db.return_value.save_candidate = Mock()

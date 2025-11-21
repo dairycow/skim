@@ -554,3 +554,34 @@ def create_or_tracking_result(gap_stocks=None, or_tracking_candidates=None):
         gap_stocks=gap_stocks or [],
         or_tracking_candidates=or_tracking_candidates or [],
     )
+
+
+# =============================================================================
+# pytest-timeout Configuration
+# =============================================================================
+
+
+def pytest_configure(config):
+    """Configure pytest-timeout to skip integration tests"""
+    config.addinivalue_line(
+        "markers",
+        "timeout: set test timeout in seconds (integration tests have no limit)",
+    )
+
+
+@pytest.fixture
+def _disable_timeout_for_integration(request):
+    """Disable timeout for integration tests that need real API calls"""
+    if "integration" in request.keywords or "manual" in request.keywords:
+        request.getfixturevalue("_disallow_timeout")
+
+
+@pytest.hookimpl
+def pytest_collection_modifyitems(config, items):
+    """Mark integration tests to not have timeouts"""
+    for item in items:
+        if item.get_closest_marker("integration") or item.get_closest_marker(
+            "manual"
+        ):
+            # Add a high timeout for integration tests (300 seconds / 5 minutes)
+            item.add_marker(pytest.mark.timeout(300))
