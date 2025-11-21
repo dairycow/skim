@@ -1,56 +1,106 @@
 # Architecture
 
-The Skim trading bot is implemented as a cron-driven, containerized Python application. See the codebase for details; this summary references implementation files rather than re-writing behavior.
+Skim is a minimal, cron-driven ASX trading bot using an Opening Range High (ORH) breakout strategy.
 
-## High-Level Overview
+## Philosophy
 
-See code for actual flow; the architecture is composed of a small, cohesive set of modules under `src/skim/`.
+**Clean minimalism.** We do one thing well:
+1. Scan for gaps with price-sensitive announcements
+2. Buy when opening range highs are broken
+3. Sell when stops are hit
 
-## Core Components
+## Core Modules
 
-- `src/skim/core/bot.py` – CLI entry points and cron integration
-- `src/skim/core/config.py` – environment configuration and ScannerConfig
-- `src/skim/brokers/ibkr_client.py` – OAuth 1.0a client, IBKR interactions
-- `src/skim/brokers/ibkr_oauth.py` – RSA signatures and token management
-- `src/skim/brokers/ib_interface.py` – trading operations and market data
-- `src/skim/scanners/ibkr_gap_scanner.py` – gap detection
-- `src/skim/scanners/asx_announcements.py` – price-sensitive news filter
-- `src/skim/strategy/entry.py` – ORH breakout logic
-- `src/skim/strategy/exit.py` – stop-loss and take-profit
-- `src/skim/strategy/position_manager.py` – risk and positions
-- `src/skim/data/database.py` – sqlite CRUD
-- `src/skim/data/models.py` – domain models
-- `src/skim/notifications/discord.py` – alerts
+- `src/skim/scanner.py` – Find candidates with ORH/ORL
+- `src/skim/trader.py` – Execute breakout entries and stops
+- `src/skim/monitor.py` – Check positions, trigger stops
+- `src/skim/core/bot.py` – Thin orchestrator, dispatches to modules
+- `src/skim/data/database.py` – SQLite persistence
+- `src/skim/brokers/ibkr_client.py` – IBKR OAuth integration
+
+Supporting modules:
+- `src/skim/core/config.py` – Environment configuration
+- `src/skim/notifications/discord.py` – Alert webhooks
 
 ## Trading Workflow
 
-- Cron-driven sequence drives scanning, tracking, execution, management, and reporting
-- Exact schedule is defined in `crontab` (see file for timings)
+### 1. Morning Scan (10:00 AM)
+```
+scan() → Find gaps + announcements → Calculate ORH/ORL → Save candidates
+```
 
-## Data Flow
+### 2. Execution (10:15 AM, then every 5 min)
+```
+trade() → Get watching candidates → Check if price > ORH → Buy with stop = ORL
+```
 
-- Tables and status transitions are defined in `src/skim/data/models.py`
-- Typical progression: candidates → or_tracking → orh_breakout → entered; positions: entered → half_exited → closed
+### 3. Monitoring (every 5 min during market)
+```
+manage() → Get open positions → Check if price < stop_loss → Sell
+```
 
-## Technology Stack
+## Data Model
+
+Two tables only:
+
+**candidates**
+```sql
+ticker TEXT PRIMARY KEY
+or_high REAL             -- Opening range high
+or_low REAL              -- Opening range low
+scan_date TEXT           -- When added
+status TEXT              -- 'watching' | 'entered' | 'closed'
+```
+
+**positions**
+```sql
+id INTEGER PRIMARY KEY
+ticker TEXT
+quantity INTEGER
+entry_price REAL
+stop_loss REAL           -- Set at entry = ORL
+entry_date TEXT
+exit_price REAL
+exit_date TEXT
+status TEXT              -- 'open' | 'closed'
+```
+
+## Status Transitions
+
+**Candidates:**
+- `watching` → candidate identified, waiting for ORH breakout
+- `entered` → price broke ORH, position opened
+- `closed` → position closed (exit via manage)
+
+**Positions:**
+- `open` → entry executed
+- `closed` → stop hit or manual exit
+
+## Cron Schedule
+
+```cron
+# 10:00 AM - Market open, scan for candidates
+00 10 * * 1-5  bot scan
+
+# 10:15 AM - 4:00 PM, every 5 min - Execute breakouts
+*/5 10-16 * * 1-5  bot trade
+
+# 10:15 AM - 4:00 PM, every 5 min - Monitor and exit stops
+*/5 10-16 * * 1-5  bot manage
+```
+
+## Technology
 
 - Python 3.12
 - SQLite
-- OAuth 1.0a
+- OAuth 1.0a (IBKR)
 - Docker
+- Cron scheduling
 
-- Key dependencies and dev-tools are listed in `pyproject.toml`
+## Why This Design
 
-## Deployment Architecture
-
-- Containerized deployment using Docker; single lightweight container
-- Data and logs persisted via mounted volumes
-- Cron daemon for scheduling; GitOps webhook automation
-- See `docker-compose.yml` and `crontab` for specifics
-
-## Design Decisions
-
-- OAuth 1.0a vs Gateway: lightweight direct IBKR access, lower footprint
-- SQLite vs PostgreSQL: simplicity for a single account
-- Cron vs Real-Time: predictable schedule, low resource use
-- ORH breakout strategy: gap + opening range momentum
+- **Zero complexity**: Single status flow per table
+- **Clear responsibilities**: Scanner finds, Trader buys, Monitor exits
+- **No half-exit logic**: Sell entire position on stop
+- **~350 lines of code**: Clean, testable, maintainable
+- **Easy to extend**: Add rules without rewriting architecture
