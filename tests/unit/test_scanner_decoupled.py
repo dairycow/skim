@@ -11,7 +11,6 @@ import pytest
 from skim.brokers.ib_interface import MarketData
 from skim.scanners.ibkr_gap_scanner import GapStock, IBKRGapScanner
 from skim.validation.scanners import (
-    GapScanResult,
     MonitoringResult,
     ORTrackingResult,
 )
@@ -25,76 +24,6 @@ def scanner_with_mocked_client(mocker):
     scanner.client = mocker.MagicMock()
     scanner._connected = True
     return scanner
-
-
-@pytest.mark.unit
-class TestDecoupledGapScannerGapScanWithAnnouncements:
-    """Tests for scan_gaps_with_announcements - no database coupling"""
-
-    def test_returns_gap_scan_result(self, scanner_with_mocked_client):
-        """Verify method returns GapScanResult dataclass"""
-        scanner_with_mocked_client.scan_for_gaps = MagicMock(return_value=[])
-
-        result = scanner_with_mocked_client.scan_gaps_with_announcements(
-            price_sensitive_tickers={"BHP"}
-        )
-
-        assert isinstance(result, GapScanResult)
-        assert isinstance(result.gap_stocks, list)
-        assert isinstance(result.new_candidates, list)
-
-    def test_no_db_parameter(self, scanner_with_mocked_client):
-        """Verify method signature has no db parameter"""
-        import inspect
-
-        sig = inspect.signature(
-            scanner_with_mocked_client.scan_gaps_with_announcements
-        )
-
-        params = list(sig.parameters.keys())
-        assert "db" not in params
-        assert "price_sensitive_tickers" in params
-
-    def test_returns_candidate_data_for_persistence(
-        self, scanner_with_mocked_client
-    ):
-        """Verify candidates returned contain fields needed for database persistence"""
-        gap_stock = GapStock(conid=265598, gap_percent=5.5, ticker="BHP")
-        scanner_with_mocked_client.scan_for_gaps = MagicMock(
-            return_value=[gap_stock]
-        )
-        scanner_with_mocked_client.get_market_data = MagicMock(
-            return_value=MarketData(
-                ticker="BHP",
-                conid="265598",
-                last_price=50.0,
-                high=51.0,
-                low=49.0,
-                bid=49.95,
-                ask=50.05,
-                bid_size=100,
-                ask_size=200,
-                volume=1000,
-                open=49.5,
-                prior_close=48.0,
-                change_percent=4.17,
-            )
-        )
-
-        result = scanner_with_mocked_client.scan_gaps_with_announcements(
-            price_sensitive_tickers={"BHP"}
-        )
-
-        assert len(result.new_candidates) == 1
-        candidate = result.new_candidates[0]
-
-        # Verify it has fields needed for Candidate model
-        assert candidate["ticker"] == gap_stock.ticker
-        assert candidate["headline"] is not None
-        assert candidate["gap_percent"] == 5.5
-        assert candidate["price"] == 50.0
-        assert candidate["status"] == "watching"
-        assert candidate["scan_date"] is not None
 
 
 @pytest.mark.unit

@@ -84,37 +84,70 @@ class TradingBot:
                 self._ensure_connection()
                 self.ibkr_scanner.connect()
 
-            # Use scanner for complete gap scanning workflow
-            scan_result = self.ibkr_scanner.scan_gaps_with_announcements(
-                price_sensitive_tickers=price_sensitive_tickers
+            # Scan for all gaps
+            gap_stocks = self.ibkr_scanner.scan_for_gaps(
+                min_gap=self.config.scanner_config.gap_threshold
             )
 
-            # Persist candidates to database
-            for candidate_data in scan_result.new_candidates:
+            # Filter gap stocks using set intersection with price-sensitive tickers
+            filtered_gap_stocks = [
+                stock
+                for stock in gap_stocks
+                if stock.ticker in price_sensitive_tickers
+            ]
+
+            # Build candidate data and persist to database
+            new_candidates = []
+            for stock in filtered_gap_stocks:
+                # Get current price for display
+                current_price = None
+                try:
+                    market_data = self.ibkr_scanner.get_market_data(
+                        str(stock.conid)
+                    )
+                    if market_data and market_data.last_price:
+                        current_price = float(market_data.last_price)
+                except Exception as e:
+                    logger.debug(
+                        f"Could not fetch market data for {stock.ticker}: {e}"
+                    )
+
+                # Build candidate dict for Discord notification
+                candidate_dict = {
+                    "ticker": stock.ticker,
+                    "headline": f"Gap detected: {stock.gap_percent:.2f}%",
+                    "gap_percent": stock.gap_percent,
+                    "price": current_price,
+                    "status": "watching",
+                    "scan_date": datetime.now().isoformat(),
+                }
+                new_candidates.append(candidate_dict)
+
+                # Persist candidate to database
                 from skim.data.models import Candidate
 
                 candidate = Candidate(
-                    ticker=candidate_data["ticker"],
-                    headline=candidate_data["headline"],
-                    scan_date=candidate_data["scan_date"],
-                    status=candidate_data["status"],
-                    gap_percent=candidate_data["gap_percent"],
-                    prev_close=candidate_data["price"],
+                    ticker=stock.ticker,
+                    headline=candidate_dict["headline"],
+                    scan_date=candidate_dict["scan_date"],
+                    status=candidate_dict["status"],
+                    gap_percent=stock.gap_percent,
+                    prev_close=current_price,
                 )
                 self.db.save_candidate(candidate)
 
-            candidates_found = len(scan_result.new_candidates)
+            candidates_found = len(filtered_gap_stocks)
 
             # Send Discord notification
             try:
                 self.discord_notifier.send_scan_results(
-                    candidates_found, scan_result.new_candidates
+                    candidates_found, new_candidates
                 )
             except Exception as e:
                 logger.error(f"Failed to send Discord notification: {e}")
 
             logger.info(
-                f"Scan complete. Found {candidates_found} new candidates with both momentum and announcements"
+                f"Scan complete. Found {candidates_found} new candidates with announcements"
             )
             return candidates_found
 
