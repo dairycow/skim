@@ -70,6 +70,9 @@ class TradingBot:
 
         Returns:
             Number of new candidates found
+
+        Note: Database persistence and Discord notifications are independent operations.
+        Failure in one will not prevent the other from executing.
         """
         logger.info("Starting IBKR market scan for candidates...")
 
@@ -96,8 +99,10 @@ class TradingBot:
                 if stock.ticker in price_sensitive_tickers
             ]
 
-            # Build candidate data and persist to database
-            new_candidates = []
+            # Build candidate data (in-memory) before persisting
+            candidates_for_notification = []
+            candidates_for_db = []
+
             for stock in filtered_gap_stocks:
                 # Get current price for display
                 current_price = None
@@ -121,9 +126,9 @@ class TradingBot:
                     "status": "watching",
                     "scan_date": datetime.now().isoformat(),
                 }
-                new_candidates.append(candidate_dict)
+                candidates_for_notification.append(candidate_dict)
 
-                # Persist candidate to database
+                # Prepare candidate for database
                 from skim.data.models import Candidate
 
                 candidate = Candidate(
@@ -134,17 +139,17 @@ class TradingBot:
                     gap_percent=stock.gap_percent,
                     prev_close=current_price,
                 )
-                self.db.save_candidate(candidate)
+                candidates_for_db.append(candidate)
 
             candidates_found = len(filtered_gap_stocks)
 
-            # Send Discord notification
-            try:
-                self.discord_notifier.send_scan_results(
-                    candidates_found, new_candidates
-                )
-            except Exception as e:
-                logger.error(f"Failed to send Discord notification: {e}")
+            # Persist candidates to database (independent operation with own error handling)
+            self._persist_scan_candidates(candidates_for_db)
+
+            # Send Discord notification (independent operation with own error handling)
+            self._send_scan_notification(
+                candidates_found, candidates_for_notification
+            )
 
             logger.info(
                 f"Scan complete. Found {candidates_found} new candidates with announcements"
@@ -154,6 +159,32 @@ class TradingBot:
         except Exception as e:
             logger.error(f"Error in scan workflow: {e}")
             return 0
+
+    def _persist_scan_candidates(self, candidates: list) -> None:
+        """Persist scan candidates to database with error handling per candidate
+
+        Args:
+            candidates: List of Candidate objects to persist
+        """
+        for candidate in candidates:
+            try:
+                self.db.save_candidate(candidate)
+            except Exception as e:
+                logger.error(
+                    f"Failed to persist candidate {candidate.ticker}: {e}"
+                )
+
+    def _send_scan_notification(self, count: int, candidates: list) -> None:
+        """Send scan results to Discord with error handling
+
+        Args:
+            count: Number of candidates found
+            candidates: List of candidate dictionaries for notification
+        """
+        try:
+            self.discord_notifier.send_scan_results(count, candidates)
+        except Exception as e:
+            logger.error(f"Failed to send Discord notification: {e}")
 
     def monitor(self) -> int:
         """Monitor candidates and trigger on gap threshold
