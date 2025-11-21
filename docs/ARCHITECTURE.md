@@ -1,175 +1,68 @@
 # Architecture
 
-System design, components, and trading workflow for the Skim trading bot.
+The Skim trading bot is implemented as a cron-driven, containerized Python application. See the codebase for details; this summary references implementation files rather than re-writing behavior.
 
-## High-Level Architecture
+## High-Level Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Skim Trading Bot                         │
-├─────────────────────────────────────────────────────────────┤
-│  Cron Scheduler (Container Startup)                         │
-│  ├── SCAN (00:00 UTC)     ──→ Market Scanning               │
-│  ├── TRACK (00:10 UTC)    ──→ OR Tracking                   │
-│  ├── EXECUTE (00:12 UTC)  ──→ Order Execution               │
-│  ├── MANAGE (*/5 min)     ──→ Position Management           │
-│  └── STATUS (05:30 UTC)   ──→ Daily Reporting               │
-├─────────────────────────────────────────────────────────────┤
-│  Core Components                                            │
-│  ├── Market Scanners     ──→ IBKR Gap Scanner               │
-│  ├── Trading Strategy    ──→ ORH Breakout Detection         │
-│  ├── Position Manager    ──→ Risk & Exit Management         │
-│  └── IBKR Interface      ──→ OAuth 1.0a API Client          │
-├─────────────────────────────────────────────────────────────┤
-│  Data Layer                                                 │
-│  ├── SQLite Database     ──→ Candidates, Positions, Trades  │
-│  └── Log Files           ──→ Execution Logs                 │
-└─────────────────────────────────────────────────────────────┘
-```
+See code for actual flow; the architecture is composed of a small, cohesive set of modules under `src/skim/`.
 
 ## Core Components
 
-### src/skim/core/
-- **bot.py**: CLI commands and cron entry points
-- **config.py**: Environment configuration with ScannerConfig
-
-### src/skim/brokers/
-- **ibkr_client.py**: Custom OAuth 1.0a client (no Gateway)
-- **ibkr_oauth.py**: RSA signatures and token management
-- **ib_interface.py**: Trading operations and market data
-
-### src/skim/scanners/
-- **ibkr_gap_scanner.py**: Gap detection via IBKR scanner
-- **asx_announcements.py**: Price-sensitive news filter
-
-### src/skim/strategy/
-- **entry.py**: ORH breakout detection
-- **exit.py**: Stop-loss and profit-taking
-- **position_manager.py**: Position sizing and risk
-
-### src/skim/data/
-- **database.py**: SQLite CRUD operations
-- **models.py**: Candidates, positions, trades models
-
-### src/skim/notifications/
-- **discord.py**: Rich embeds for alerts
+- `src/skim/core/bot.py` – CLI entry points and cron integration
+- `src/skim/core/config.py` – environment configuration and ScannerConfig
+- `src/skim/brokers/ibkr_client.py` – OAuth 1.0a client, IBKR interactions
+- `src/skim/brokers/ibkr_oauth.py` – RSA signatures and token management
+- `src/skim/brokers/ib_interface.py` – trading operations and market data
+- `src/skim/scanners/ibkr_gap_scanner.py` – gap detection
+- `src/skim/scanners/asx_announcements.py` – price-sensitive news filter
+- `src/skim/strategy/entry.py` – ORH breakout logic
+- `src/skim/strategy/exit.py` – stop-loss and take-profit
+- `src/skim/strategy/position_manager.py` – risk and positions
+- `src/skim/data/database.py` – sqlite CRUD
+- `src/skim/data/models.py` – domain models
+- `src/skim/notifications/discord.py` – alerts
 
 ## Trading Workflow
 
-### Cron-Managed Automated Flow
+- Cron-driven sequence drives scanning, tracking, execution, management, and reporting
+- Exact schedule is defined in `crontab` (see file for timings)
 
-```
-Market Open (00:00:30 UTC / 10:00:30 AEDT)
-├── SCAN_IBKR_GAPS
-│   ├── Query IBKR scanner for gaps ≥ 3%
-│   ├── Filter ASX stocks with volume > 50k
-│   └── Save to DB (status: or_tracking)
-│
-10 Minutes Later (00:10:30 UTC / 10:10:30 AEDT)
-├── TRACK_OR_BREAKOUTS
-│   ├── Get or_tracking candidates
-│   ├── Monitor price for 10 minutes
-│   ├── Calculate opening range high (ORH)
-│   └── Update breakouts (status: orh_breakout)
-│
-12 Minutes After Open (00:12:00 UTC / 10:12:00 AEDT)
-├── EXECUTE_ORH_BREAKOUTS
-│   ├── Check max positions limit
-│   ├── Get orh_breakout candidates
-│   ├── Place BUY orders via OAuth client
-│   └── Record positions (status: entered)
-│
-Every 5 Minutes During Market Hours
-├── MANAGE_POSITIONS
-│   ├── Get open positions
-│   ├── Day 3? → Sell 50% (status: half_exited)
-│   ├── Price ≤ stop_loss? → Sell all (status: closed)
-│   └── Continue monitoring
-│
-End of Day (05:30 UTC / 4:30 PM AEDT)
-└── STATUS
-    └── Report: candidates, positions, P&L
-```
+## Data Flow
 
-### Data Flow
-
-**Candidates Table**: watching → or_tracking → orh_breakout → entered
-**Positions Table**: entered → half_exited → closed
-**Trades Table**: All buy/sell transactions with timestamps
+- Tables and status transitions are defined in `src/skim/data/models.py`
+- Typical progression: candidates → or_tracking → orh_breakout → entered; positions: entered → half_exited → closed
 
 ## Technology Stack
 
-### Backend
-- **Python 3.12**: Core language
-- **SQLite**: Database
-- **OAuth 1.0a**: Direct IBKR authentication
-- **Docker**: Containerization
+- Python 3.12
+- SQLite
+- OAuth 1.0a
+- Docker
 
-### Key Dependencies
-- requests (HTTP client)
-- beautifulsoup4 (HTML parsing)
-- pycryptodome (RSA cryptography)
-- loguru (logging)
-- python-dotenv (environment management)
+- Key dependencies and dev-tools are listed in `pyproject.toml`
 
-### Development Tools
-- uv (package management)
-- ruff (linting and formatting)
-- pytest (testing framework)
-- pre-commit (git hooks)
+## Development Tools
+
+- Ruff, pytest, pre-commit (as configured in `pyproject.toml` and dev-dependencies)
 
 ## Security Architecture
 
-### OAuth 1.0a Implementation
-- RSA signature generation for each request
-- Token encryption/decryption with private keys
-- No plaintext secrets in code
-- Volume-mounted key files (not in container image)
-
-### Data Protection
-- Environment-based configuration
-- Database encryption (SQLite)
-- Log sanitization
-- Minimal attack surface (no web server)
+- OAuth 1.0a with RSA signatures; token encryption/decryption with private keys
+- No plaintext secrets in code; volume-mounted key files
+- Environment-based configuration; minimized attack surface
 
 ## Deployment Architecture
 
-### Container-Based Deployment
-- Single lightweight container
-- Python 3.12-slim base image
-- Volume-mounted persistent data:
-  - `/app/data/` - SQLite database
-  - `/app/logs/` - Log files
-  - `/opt/skim/oauth_keys/` - RSA keys
-- Cron daemon for scheduling
-- GitOps webhook automation
-
-### Resource Optimization
-- 256-512 MB RAM usage
-- No Java/JVM overhead
-- Minimal dependencies (7 packages)
-- Cron-based execution (idle most of time)
+- Containerized deployment using Docker; single lightweight container
+- Data and logs persisted via mounted volumes
+- Cron daemon for scheduling; GitOps webhook automation
+- See `docker-compose.yml` and `crontab` for specifics
 
 ## Design Decisions
 
-### OAuth 1.0a vs Gateway
-- 50-75% cost reduction (1 GB vs 2-4 GB RAM)
-- No IB Gateway or IBeam containers
-- Direct lightweight API access
-- Better reliability (no Gateway crashes)
+- OAuth 1.0a vs Gateway: lightweight direct IBKR access, lower footprint
+- SQLite vs PostgreSQL: simplicity for a single account
+- Cron vs Real-Time: predictable schedule, low resource use
+- ORH breakout strategy: gap + opening range momentum
 
-### SQLite vs PostgreSQL
-- Single-account trading (no concurrent writes)
-- Simplicity (no separate database server)
-- Portability (single file backups)
-
-### Cron vs Real-Time
-- Predictable ASX market schedule
-- Resource efficient (bot idle 23 hrs/day)
-- Simple, battle-tested scheduling
-
-### ORH Breakout Strategy
-- Gap + opening range momentum
-- Objective entry signal
-- Stop at low of day
-- Day 3 half-sell reduces exposure
+End of file
