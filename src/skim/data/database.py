@@ -208,14 +208,17 @@ class Database:
         return row["count"]
 
     def get_or_tracking_candidates(self) -> list[Candidate]:
-        """Get all candidates with status='or_tracking'
+        """Get all candidates with status='watching' for opening range tracking.
+
+        Retrieves candidates identified by the scan() method that are ready for
+        opening range (OR) tracking and breakout detection.
 
         Returns:
-            List of Candidate objects
+            List of Candidate objects with status='watching'
         """
         cursor = self.db.cursor()
         cursor.execute(
-            "SELECT * FROM candidates WHERE status = ?", ("or_tracking",)
+            "SELECT * FROM candidates WHERE status = ?", ("watching",)
         )
         rows = cursor.fetchall()
         return [Candidate.from_db_row(dict(row)) for row in rows]
