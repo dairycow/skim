@@ -358,7 +358,7 @@ def test_get_total_pnl_with_trades(test_db):
 @pytest.mark.parametrize(
     "target_status,method_name,expected_tickers",
     [
-        ("or_tracking", "get_or_tracking_candidates", {"BHP", "FMG"}),
+        ("watching", "get_or_tracking_candidates", {"BHP", "FMG"}),
         ("orh_breakout", "get_orh_breakout_candidates", {"RIO"}),
     ],
 )
@@ -371,7 +371,7 @@ def test_get_or_candidates_by_status(
         ticker="BHP",
         headline="Test 1",
         scan_date="2025-11-03",
-        status="or_tracking",
+        status="watching",
         gap_percent=3.5,
         prev_close=45.20,
     )
@@ -387,7 +387,7 @@ def test_get_or_candidates_by_status(
         ticker="FMG",
         headline="Test 3",
         scan_date="2025-11-03",
-        status="or_tracking",
+        status="watching",
         gap_percent=3.8,
         prev_close=18.90,
     )
@@ -434,6 +434,33 @@ def test_get_or_tracking_candidates_empty(test_db):
     """Test getting OR tracking candidates when none exist"""
     or_tracking = test_db.get_or_tracking_candidates()
     assert or_tracking == []
+
+
+def test_get_or_tracking_candidates_with_watching_status(test_db):
+    """Test that get_or_tracking_candidates returns watching candidates for OR tracking.
+
+    This test verifies that the method correctly retrieves candidates with status='watching'
+    which are identified by the scan() method and need to be tracked for opening range breakouts.
+    """
+    # Create candidates with watching status (as set by bot.scan())
+    watching_cand = Candidate(
+        ticker="BHP",
+        headline="Gap detected: 5.2%",
+        scan_date="2025-11-03",
+        status="watching",
+        gap_percent=5.2,
+        prev_close=45.20,
+    )
+    test_db.save_candidate(watching_cand)
+
+    # Retrieve using get_or_tracking_candidates
+    or_tracking = test_db.get_or_tracking_candidates()
+
+    # Should find the watching candidate
+    assert len(or_tracking) == 1
+    assert or_tracking[0].ticker == "BHP"
+    assert or_tracking[0].status == "watching"
+    assert or_tracking[0].gap_percent == 5.2
 
 
 def test_get_orh_breakout_candidates_empty(test_db):
