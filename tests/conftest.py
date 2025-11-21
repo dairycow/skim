@@ -26,6 +26,27 @@ if env_path.exists():
     load_dotenv(env_path)
 
 
+# =============================================================================
+# Fixture Data Caching (Phase 3 Optimisation)
+# =============================================================================
+
+_FIXTURE_CACHE = {}
+
+
+def _cached_fixture_load(fixtures_dir: Path, filename: str) -> dict:
+    """Load and cache fixture files to avoid repeated file I/O.
+
+    This implements Phase 3 optimisation: Fixture Data Caching.
+    Loads each fixture file only once per session.
+    """
+    cache_key = str(fixtures_dir / "ibkr_responses" / filename)
+    if cache_key not in _FIXTURE_CACHE:
+        fixture_path = fixtures_dir / "ibkr_responses" / filename
+        with open(fixture_path) as f:
+            _FIXTURE_CACHE[cache_key] = json.load(f)
+    return _FIXTURE_CACHE[cache_key]
+
+
 @pytest.fixture
 def test_db():
     """In-memory SQLite database for testing"""
@@ -34,9 +55,12 @@ def test_db():
     db.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample_candidate() -> Candidate:
-    """Sample candidate for testing"""
+    """Sample candidate for testing
+
+    Session scope: Immutable dataclass, safe to share across all tests.
+    """
     return Candidate(
         ticker="BHP",
         headline="Strong earnings report",
@@ -47,9 +71,12 @@ def sample_candidate() -> Candidate:
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample_position() -> Position:
-    """Sample open position for testing"""
+    """Sample open position for testing
+
+    Session scope: Immutable dataclass, safe to share across all tests.
+    """
     return Position(
         ticker="BHP",
         quantity=100,
@@ -61,9 +88,12 @@ def sample_position() -> Position:
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample_trade() -> Trade:
-    """Sample trade for testing"""
+    """Sample trade for testing
+
+    Session scope: Immutable dataclass, safe to share across all tests.
+    """
     return Trade(
         ticker="BHP",
         action="BUY",
@@ -74,9 +104,12 @@ def sample_trade() -> Trade:
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample_market_data() -> MarketData:
-    """Sample market data for testing"""
+    """Sample market data for testing
+
+    Session scope: Immutable dataclass, safe to share across all tests.
+    """
     return MarketData(
         ticker="BHP",
         conid="8644",
@@ -349,15 +382,15 @@ def mock_oauth_env(monkeypatch, test_rsa_keys):
 
 @pytest.fixture(scope="session")
 def load_fixture(fixtures_dir):
-    """Helper to load JSON fixture files
+    """Helper to load JSON fixture files with caching.
 
     Session scope: Fixture loading is immutable and cached.
+    Implements Phase 3 optimisation: Eliminates repeated file I/O
+    by caching loaded fixtures in memory for the entire session.
     """
 
     def _load(filename):
-        fixture_path = fixtures_dir / "ibkr_responses" / filename
-        with open(fixture_path) as f:
-            return json.load(f)
+        return _cached_fixture_load(fixtures_dir, filename)
 
     return _load
 
