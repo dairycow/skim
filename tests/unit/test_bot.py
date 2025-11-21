@@ -11,9 +11,6 @@ from skim.scanners.ibkr_gap_scanner import (
     GapStock,
     OpeningRangeData,
 )
-from tests.conftest import (
-    create_monitoring_result,
-)
 
 
 class TestTradingBotIBKRIntegration:
@@ -790,24 +787,6 @@ class TestTradingBotWorkflowMethods:
         # When there are no price-sensitive announcements, no candidates should be saved
         assert result == 0
 
-    def test_monitor_workflow_no_triggered_stocks(self, bot):
-        """Test monitor workflow with no triggered stocks"""
-        # Setup mocks
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = True
-        # scan_and_monitor_gaps returns (gap_stocks, gaps_triggered)
-        mock_scanner.scan_and_monitor_gaps.return_value = (
-            create_monitoring_result()
-        )
-
-        bot.db.get_watching_candidates = Mock(return_value=[])
-
-        result = bot.monitor()
-
-        assert result == 0
-        bot.db.update_candidate_status.assert_not_called()
-        bot.db.save_candidate.assert_not_called()
-
     def test_execute_workflow_with_orders(self, bot):
         """Test execute workflow with orders placed"""
         # Setup mocks
@@ -986,32 +965,6 @@ class TestTradingBotWorkflowMethods:
         result = bot.manage_positions()
 
         assert result == 0
-
-    def test_status_display(self, bot):
-        """Test status display method"""
-        # Setup mocks
-        bot.db.count_watching_candidates = Mock(return_value=3)
-        bot.db.count_open_positions = Mock(return_value=2)
-        bot.db.get_open_positions = Mock(
-            return_value=[
-                Mock(
-                    ticker="BHP", quantity=100, entry_price=45.00, status="open"
-                ),
-                Mock(
-                    ticker="RIO", quantity=50, entry_price=120.00, status="open"
-                ),
-            ]
-        )
-        bot.db.get_total_pnl = Mock(return_value=1250.50)
-
-        # Should not raise any exceptions
-        bot.status()
-
-        # Verify all database methods were called
-        bot.db.count_watching_candidates.assert_called_once()
-        bot.db.count_open_positions.assert_called_once()
-        bot.db.get_open_positions.assert_called_once()
-        bot.db.get_total_pnl.assert_called_once()
 
 
 class TestTradingBotScannerConfig:

@@ -144,12 +144,21 @@ class TradingBot:
             candidates_found = len(filtered_gap_stocks)
 
             # Persist candidates to database (independent operation with own error handling)
-            self._persist_scan_candidates(candidates_for_db)
+            for candidate in candidates_for_db:
+                try:
+                    self.db.save_candidate(candidate)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to persist candidate {candidate.ticker}: {e}"
+                    )
 
             # Send Discord notification (independent operation with own error handling)
-            self._send_scan_notification(
-                candidates_found, candidates_for_notification
-            )
+            try:
+                self.discord_notifier.send_scan_results(
+                    candidates_found, candidates_for_notification
+                )
+            except Exception as e:
+                logger.error(f"Failed to send Discord notification: {e}")
 
             logger.info(
                 f"Scan complete. Found {candidates_found} new candidates with announcements"
@@ -159,83 +168,6 @@ class TradingBot:
         except Exception as e:
             logger.error(f"Error in scan workflow: {e}")
             return 0
-
-    def _persist_scan_candidates(self, candidates: list) -> None:
-        """Persist scan candidates to database with error handling per candidate
-
-        Args:
-            candidates: List of Candidate objects to persist
-        """
-        for candidate in candidates:
-            try:
-                self.db.save_candidate(candidate)
-            except Exception as e:
-                logger.error(
-                    f"Failed to persist candidate {candidate.ticker}: {e}"
-                )
-
-    def _send_scan_notification(self, count: int, candidates: list) -> None:
-        """Send scan results to Discord with error handling
-
-        Args:
-            count: Number of candidates found
-            candidates: List of candidate dictionaries for notification
-        """
-        try:
-            self.discord_notifier.send_scan_results(count, candidates)
-        except Exception as e:
-            logger.error(f"Failed to send Discord notification: {e}")
-
-    def monitor(self) -> int:
-        """Monitor candidates and trigger on gap threshold
-
-        Returns:
-            Number of stocks triggered
-        """
-        logger.info("Monitoring for gaps at market open...")
-
-        # Get existing candidates
-        candidates = self.db.get_watching_candidates()
-
-        # Connect to IBKR if needed
-        if not self.ibkr_scanner.is_connected():
-            self._ensure_connection()
-            self.ibkr_scanner.connect()
-
-        # Use scanner for complete gap monitoring workflow
-        monitoring_result = self.ibkr_scanner.scan_and_monitor_gaps(
-            existing_candidates=candidates
-        )
-
-        # Process triggered candidates
-        triggered_count = 0
-        for candidate_data in monitoring_result.triggered_candidates:
-            if candidate_data.get("is_existing"):
-                # Update existing candidate status
-                self.db.update_candidate_status(
-                    candidate_data["ticker"],
-                    candidate_data["status"],
-                    candidate_data["gap_percent"],
-                )
-            else:
-                # Save new triggered candidate
-                from skim.data.models import Candidate
-
-                candidate = Candidate(
-                    ticker=candidate_data["ticker"],
-                    headline=candidate_data["headline"],
-                    scan_date=candidate_data["scan_date"],
-                    status=candidate_data["status"],
-                    gap_percent=candidate_data["gap_percent"],
-                    prev_close=candidate_data["price"],
-                )
-                self.db.save_candidate(candidate)
-            triggered_count += 1
-
-        logger.info(
-            f"Monitoring complete. Found {triggered_count} triggered stocks"
-        )
-        return triggered_count
 
     def execute(self) -> int:
         """Execute orders for triggered candidates
@@ -382,32 +314,6 @@ class TradingBot:
         )
         return actions_taken
 
-    def status(self):
-        """Display current bot status and positions"""
-        logger.info("=== SKIM BOT STATUS ===")
-
-        # Candidates
-        watching = self.db.count_watching_candidates()
-        logger.info(f"Watching candidates: {watching}")
-
-        # Positions
-        open_positions = self.db.count_open_positions()
-        logger.info(f"Open positions: {open_positions}")
-
-        # Display open positions
-        positions = self.db.get_open_positions()
-
-        for pos in positions:
-            logger.info(
-                f"  {pos.ticker}: {pos.quantity} shares @ ${pos.entry_price:.4f} ({pos.status})"
-            )
-
-        # Total PnL
-        total_pnl = self.db.get_total_pnl()
-        logger.info(f"Total PnL: ${total_pnl:.4f}")
-
-        logger.info("=====================")
-
     def track_or_breakouts(self) -> int:
         """Track opening range for OR tracking candidates and detect breakouts
 
@@ -490,107 +396,6 @@ class TradingBot:
             logger.error(f"Error in OR tracking: {e}")
             return 0
 
-    def scan_for_or_breakouts(self) -> int:
-        """Scan for gaps and track OR breakouts in one workflow
-
-        Returns:
-            Number of ORH breakout candidates detected
-        """
-        logger.info("Scanning for gaps and tracking OR breakouts...")
-
-        try:
-            # Connect scanner if needed
-            if not self.ibkr_scanner.is_connected():
-                self._ensure_connection()
-                self.ibkr_scanner.connect()
-
-            # Use scanner for OR tracking workflow
-            or_result = self.ibkr_scanner.scan_for_or_tracking()
-
-            # Persist OR tracking candidates to database
-            for candidate_data in or_result.or_tracking_candidates:
-                from skim.data.models import Candidate
-
-                candidate = Candidate(
-                    ticker=candidate_data["ticker"],
-                    headline=candidate_data["headline"],
-                    scan_date=candidate_data["scan_date"],
-                    status=candidate_data["status"],
-                    gap_percent=candidate_data["gap_percent"],
-                    prev_close=candidate_data["prev_close"],
-                    conid=candidate_data["conid"],
-                    source=candidate_data["source"],
-                )
-                self.db.save_candidate(candidate)
-
-            if len(or_result.or_tracking_candidates) == 0:
-                logger.info("No OR tracking candidates found")
-                return 0
-
-            # Get OR tracking candidates for breakout detection
-            candidates = self.db.get_or_tracking_candidates()
-
-            # Convert to GapStock objects for scanner
-            gap_stocks = []
-            for candidate in candidates:
-                if candidate.conid:
-                    from skim.scanners.ibkr_gap_scanner import GapStock
-
-                    gap_stock = GapStock(
-                        ticker=candidate.ticker,
-                        gap_percent=candidate.gap_percent or 0.0,
-                        conid=candidate.conid,
-                    )
-                    gap_stocks.append(gap_stock)
-
-            if not gap_stocks:
-                logger.warning("No valid gap stocks for OR tracking")
-                return 0
-
-            # Track opening range for 10 minutes
-            or_data = self.ibkr_scanner.track_opening_range(
-                gap_stocks, duration_seconds=600, poll_interval=30
-            )
-
-            # Filter for breakouts
-            breakouts = self.ibkr_scanner.filter_breakouts(or_data)
-
-            breakout_count = 0
-            for breakout in breakouts:
-                try:
-                    # Update candidate with OR data and breakout status
-                    self.db.update_candidate_or_data(
-                        ticker=breakout.ticker,
-                        or_high=breakout.or_high,
-                        or_low=breakout.or_low,
-                        or_timestamp=breakout.timestamp.isoformat(),
-                    )
-
-                    # Update status to ORH breakout
-                    self.db.update_candidate_status(
-                        breakout.ticker, "orh_breakout"
-                    )
-                    breakout_count += 1
-
-                    logger.info(
-                        f"ORH breakout detected: {breakout.ticker} @ ${breakout.current_price:.4f} (ORH: ${breakout.or_high:.4f})"
-                    )
-
-                except Exception as e:
-                    logger.error(
-                        f"Error updating ORH breakout {breakout.ticker}: {e}"
-                    )
-                    continue
-
-            logger.info(
-                f"OR tracking complete. Found {breakout_count} ORH breakouts"
-            )
-            return breakout_count
-
-        except Exception as e:
-            logger.error(f"Error in OR tracking: {e}")
-            return 0
-
     def execute_orh_breakouts(self) -> int:
         """Execute orders for ORH breakout candidates using existing breakout order logic
 
@@ -607,86 +412,50 @@ class TradingBot:
                 logger.info("No ORH breakout candidates to execute")
                 return 0
 
-            # Use fallback execution logic
-            return self._execute_orh_orders_fallback(candidates)
+            # Execute ORH breakout orders
+            self._ensure_connection()
+
+            # Check if we can open new positions
+            if not can_open_new_position(
+                self.db.count_open_positions(),
+                self.config.max_positions,
+            ):
+                logger.warning(
+                    "Maximum positions reached, skipping ORH execution"
+                )
+                return 0
+
+            # Create order executor
+            executor = OrderExecutor(self.ib_client, self.db, logger)
+
+            orders_placed = 0
+
+            for candidate in candidates:
+                try:
+                    position_id = executor.execute_entry(
+                        candidate,
+                        stop_loss_source="or_low",
+                        max_position_size=self.config.max_position_size,
+                        position_value=5000.0,
+                    )
+
+                    if position_id:
+                        orders_placed += 1
+
+                except Exception as e:
+                    logger.error(
+                        f"Error executing ORH order for {candidate.ticker}: {e}"
+                    )
+                    continue
+
+            logger.info(
+                f"ORH execution complete. Placed {orders_placed} orders"
+            )
+            return orders_placed
 
         except Exception as e:
             logger.error(f"Error executing ORH breakout orders: {e}")
             return 0
-
-    def _execute_orh_orders_fallback(self, candidates) -> int:
-        """Fallback method for executing ORH breakout orders
-
-        Args:
-            candidates: List of ORH breakout candidates
-
-        Returns:
-            Number of orders placed
-        """
-        logger.info("Using fallback ORH breakout execution...")
-
-        self._ensure_connection()
-
-        # Check if we can open new positions
-        if not can_open_new_position(
-            self.db.count_open_positions(),
-            self.config.max_positions,
-        ):
-            logger.warning("Maximum positions reached, skipping ORH execution")
-            return 0
-
-        # Create order executor
-        executor = OrderExecutor(self.ib_client, self.db, logger)
-
-        orders_placed = 0
-
-        for candidate in candidates:
-            try:
-                position_id = executor.execute_entry(
-                    candidate,
-                    stop_loss_source="or_low",
-                    max_position_size=self.config.max_position_size,
-                    position_value=5000.0,
-                )
-
-                if position_id:
-                    orders_placed += 1
-
-            except Exception as e:
-                logger.error(
-                    f"Error executing ORH order for {candidate.ticker}: {e}"
-                )
-                continue
-
-        logger.info(f"ORH execution complete. Placed {orders_placed} orders")
-        return orders_placed
-
-    def run(self):
-        """Main orchestration - run all workflows"""
-        logger.info("Running full trading workflow...")
-
-        try:
-            self.scan()
-            self.monitor()
-            # Only execute if we can connect to IB
-            try:
-                self.execute()
-                self.manage_positions()
-            except Exception as e:
-                logger.error(
-                    f"Skipping trading operations due to IB connection issue: {e}"
-                )
-            self.status()
-
-            logger.info("Workflow complete")
-
-        except Exception as e:
-            logger.error(f"Error in workflow: {e}")
-        finally:
-            # Cleanup
-            if self.ib_client.is_connected():
-                self.ib_client.disconnect()
-            self.db.close()
 
 
 def main():
@@ -723,12 +492,14 @@ def main():
         else:
             logger.error(f"Unknown method: {method}")
             logger.info(
-                "Available methods: scan, monitor, execute, manage_positions, status, run, scan_for_or_breakouts, track_or_breakouts, execute_orh_breakouts"
+                "Available methods: scan, track_or_breakouts, execute_orh_breakouts, manage_positions"
             )
             sys.exit(1)
     else:
-        # No argument - run full workflow
-        bot.run()
+        logger.error(
+            "No method specified. Use one of: scan, track_or_breakouts, execute_orh_breakouts, manage_positions"
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
