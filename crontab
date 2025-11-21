@@ -1,30 +1,25 @@
-# Skim Trading Bot - Cron Schedule
+# Skim Trading Bot - Simplified Cron Schedule
 # Times are in UTC (convert from AEDT)
 # ASX market hours: 10:00 AM - 4:00 PM AEDT (23:00 - 05:00 UTC)
-# IBKR ORH-based scanning strategy
 
-# IBKR gap scan
-# Monday morning AEDT (Sunday 23:00:30 UTC)
-# Tuesday-Friday morning AEDT (Monday-Thursday 23:00:30 UTC)
-30 23 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
-30 23 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
+# Morning scan (10:00 AM AEDT = 23:00 UTC previous day)
+# Find candidates with gap + announcement + opening range
+30 22 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
+30 22 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot scan >> /var/log/cron.log 2>&1
 
-# OR tracking and breakout detection
-# Monday morning AEDT (Sunday 23:10:30 UTC)
-# Tuesday-Friday morning AEDT (Monday-Thursday 23:10:30 UTC)
-10 23 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot track_or_breakouts >> /var/log/cron.log 2>&1
-10 23 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot track_or_breakouts >> /var/log/cron.log 2>&1
+# Execute breakouts (10:15 AM AEDT onwards, every 5 minutes)
+# Check candidates and buy when price > ORH
+15,20,25,30,35,40,45,50,55 22 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot trade >> /var/log/cron.log 2>&1
+0,5,10,15,20,25,30,35,40,45,50,55 23 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot trade >> /var/log/cron.log 2>&1
+0,5,10,15,20,25,30,35,40,45,50,55 0,1,2,3,4,5 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot trade >> /var/log/cron.log 2>&1
 
-# Execute ORH breakout orders
-# Monday morning AEDT (Sunday 23:12:00 UTC)
-# Tuesday-Friday morning AEDT (Monday-Thursday 23:12:00 UTC)
-12 23 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot execute_orh_breakouts >> /var/log/cron.log 2>&1
-12 23 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot execute_orh_breakouts >> /var/log/cron.log 2>&1
+15,20,25,30,35,40,45,50,55 22 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot trade >> /var/log/cron.log 2>&1
+0,5,10,15,20,25,30,35,40,45,50,55 23 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot trade >> /var/log/cron.log 2>&1
+0,5,10,15,20,25,30,35,40,45,50,55 0,1,2,3,4,5 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot trade >> /var/log/cron.log 2>&1
 
-# Position management
-# Monday market hours (Sunday 23:00 - Monday 05:00 UTC)
-# Tuesday-Friday market hours (Monday-Thursday 23:00 - Tuesday-Friday 05:00 UTC)
-*/5 23,0,1,2,3,4,5 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot manage_positions >> /var/log/cron.log 2>&1
-*/5 23,0,1,2,3,4,5 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot manage_positions >> /var/log/cron.log 2>&1
+# Monitor positions (every 5 minutes during market hours)
+# Check for stop loss triggers
+*/5 22,23,0,1,2,3,4,5 * * 0 cd /app && /app/.venv/bin/python -m skim.core.bot manage >> /var/log/cron.log 2>&1
+*/5 22,23,0,1,2,3,4,5 * * 1-4 cd /app && /app/.venv/bin/python -m skim.core.bot manage >> /var/log/cron.log 2>&1
 
 # Blank line required at end of cron file

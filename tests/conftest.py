@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from skim.brokers.ib_interface import OrderResult
 from skim.data.database import Database
-from skim.data.models import Candidate, MarketData, Position, Trade
+from skim.data.models import Candidate, MarketData, Position
 
 # =============================================================================
 # Global Test Setup
@@ -63,21 +63,10 @@ def sample_candidate() -> Candidate:
     """
     return Candidate(
         ticker="BHP",
-        headline="Strong earnings report",
+        or_high=47.80,
+        or_low=45.90,
         scan_date="2025-11-03",
         status="watching",
-        gap_percent=3.5,
-        prev_close=45.20,
-        conid=8644,
-        source="ibkr",
-        # Enhanced market data fields
-        open_price=46.50,
-        session_high=47.80,
-        session_low=45.90,
-        volume=1500000,
-        bid=46.95,
-        ask=47.05,
-        market_data_timestamp="2025-11-03T10:15:30",
     )
 
 
@@ -94,23 +83,6 @@ def sample_position() -> Position:
         stop_loss=43.00,
         entry_date="2025-11-03T10:15:00",
         status="open",
-        half_sold=False,
-    )
-
-
-@pytest.fixture(scope="session")
-def sample_trade() -> Trade:
-    """Sample trade for testing
-
-    Session scope: Immutable dataclass, safe to share across all tests.
-    """
-    return Trade(
-        ticker="BHP",
-        action="BUY",
-        quantity=100,
-        price=46.50,
-        timestamp="2025-11-03T10:15:00",
-        position_id=1,
     )
 
 
