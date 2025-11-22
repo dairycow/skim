@@ -95,3 +95,17 @@ class IBInterface(Protocol):
             Account ID string
         """
         ...
+
+    def run_scanner(self, scan_params: dict) -> list[dict]:
+        """Run market scanner with specified parameters
+
+        Args:
+            scan_params: Scanner parameters including instrument, filters, location
+
+        Returns:
+            List of scan results
+
+        Raises:
+            RuntimeError: If not connected or request fails
+        """
+        ...

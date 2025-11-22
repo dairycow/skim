@@ -39,9 +39,9 @@ class TradingBot:
         # Initialise IB client (lazy connection)
         self.ib_client = IBKRClient(paper_trading=config.paper_trading)
 
-        # Initialise core modules
+        # Initialise core modules with shared client
         self.scanner = Scanner(
-            paper_trading=config.paper_trading,
+            ib_client=self.ib_client,
             gap_threshold=config.scanner_config.gap_threshold,
         )
         self.trader = Trader(self.ib_client, self.db)

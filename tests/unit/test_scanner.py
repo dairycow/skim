@@ -10,26 +10,25 @@ from skim.scanner import Scanner
 @pytest.fixture
 def scanner(mocker):
     """Create a Scanner instance with mocked IBKR and ASX clients"""
-    # Mock the clients before creating the scanner
+    # Mock the clients
     mock_ib_client = mocker.Mock()
+    mock_ib_client.is_connected.return_value = True
     mock_gap_scanner = mocker.Mock()
     mock_asx_scanner = mocker.Mock()
 
-    # Patch the imports
-    mocker.patch("skim.scanner.IBKRClient", return_value=mock_ib_client)
+    # Patch the scanner constructors
     mocker.patch("skim.scanner.IBKRGapScanner", return_value=mock_gap_scanner)
     mocker.patch(
         "skim.scanner.ASXAnnouncementScanner", return_value=mock_asx_scanner
     )
 
-    # Create scanner - it will use the mocked clients
+    # Create scanner with injected client
     scanner = Scanner(
-        paper_trading=True,
+        ib_client=mock_ib_client,
         gap_threshold=3.0,
     )
 
     # Return the scanner with mocked clients accessible
-    scanner.ib_client = mock_ib_client
     scanner.gap_scanner = mock_gap_scanner
     scanner.asx_scanner = mock_asx_scanner
 

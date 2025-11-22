@@ -19,10 +19,12 @@ from skim.validation.scanners import (
 @pytest.fixture
 def scanner_with_mocked_client(mocker):
     """Real IBKRGapScanner with mocked IBKR client"""
-    scanner = IBKRGapScanner(paper_trading=True)
-    # Mock the internal IBKR client to avoid real API calls
-    scanner.client = mocker.MagicMock()
-    scanner._connected = True
+    # Create mock client
+    mock_client = mocker.MagicMock()
+    mock_client.is_connected.return_value = True
+
+    # Create scanner with injected client
+    scanner = IBKRGapScanner(client=mock_client)
     return scanner
 
 

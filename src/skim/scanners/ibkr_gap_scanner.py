@@ -10,8 +10,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from skim.brokers.ib_interface import MarketData
-from skim.brokers.ibkr_client import IBKRClient
+from skim.brokers.ib_interface import IBInterface, MarketData
 from skim.core.config import ScannerConfig
 from skim.validation.scanners import (
     BreakoutSignal,
@@ -31,17 +30,16 @@ class IBKRGapScanner:
 
     def __init__(
         self,
-        paper_trading: bool = True,
+        client: IBInterface,
         scanner_config: ScannerConfig | None = None,
     ):
         """Initialise IBKR gap scanner
 
         Args:
-            paper_trading: If True, connect to paper trading account
+            client: IBKR client implementing IBInterface protocol
             scanner_config: Scanner configuration parameters
         """
-        self.client = IBKRClient(paper_trading=paper_trading)
-        self._connected = False
+        self.client = client
         self.scanner_config = scanner_config or ScannerConfig()
 
     def _create_gap_scan_params(self, min_gap: float) -> dict:
@@ -87,8 +85,10 @@ class IBKRGapScanner:
         Returns:
             List of GapStock objects sorted by gap percentage (descending)
         """
-        if not self._connected:
-            logger.error("Scanner not connected - call connect() first")
+        if not self.client.is_connected():
+            logger.error(
+                "Scanner not connected - client must be connected first"
+            )
             return []
 
         try:
@@ -171,8 +171,10 @@ class IBKRGapScanner:
         Returns:
             List of OpeningRangeData objects with tracking results
         """
-        if not self._connected or not self.client.is_connected():
-            logger.error("Scanner not connected - call connect() first")
+        if not self.client.is_connected():
+            logger.error(
+                "Scanner not connected - client must be connected first"
+            )
             return []
 
         if not candidates:
@@ -370,32 +372,6 @@ class IBKRGapScanner:
         logger.info(f"Found {len(breakouts)} valid breakouts")
         return breakouts
 
-    def connect(self, timeout: int = 20) -> None:
-        """Connect to IBKR
-
-        Args:
-            timeout: Connection timeout in seconds
-        """
-        try:
-            self.client.connect(timeout)
-            self._connected = True
-            logger.info("IBKR gap scanner connected successfully")
-        except Exception as e:
-            logger.error(f"Failed to connect IBKR gap scanner: {e}")
-            self._connected = False
-            raise ConnectionError(
-                f"Failed to connect IBKR gap scanner: {e}"
-            ) from e
-
-    def disconnect(self) -> None:
-        """Disconnect from IBKR"""
-        try:
-            self.client.disconnect()
-            self._connected = False
-            logger.info("IBKR gap scanner disconnected")
-        except Exception as e:
-            logger.error(f"Error disconnecting IBKR gap scanner: {e}")
-
     def get_market_data(self, conid: str) -> MarketData | None:
         """Get market data for a contract using the underlying client
 
@@ -405,8 +381,10 @@ class IBKRGapScanner:
         Returns:
             MarketData object if successful, None on failure
         """
-        if not self._connected or not self.client.is_connected():
-            logger.error("Scanner not connected - call connect() first")
+        if not self.client.is_connected():
+            logger.error(
+                "Scanner not connected - client must be connected first"
+            )
             return None
 
         return self.client.get_market_data(conid)
@@ -569,4 +547,4 @@ class IBKRGapScanner:
 
     def is_connected(self) -> bool:
         """Check if scanner is connected"""
-        return self._connected and self.client.is_connected()
+        return self.client.is_connected()

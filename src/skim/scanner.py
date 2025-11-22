@@ -4,7 +4,8 @@ from datetime import datetime
 
 from loguru import logger
 
-from skim.brokers.ibkr_client import IBKRClient
+from skim.brokers.ib_interface import IBInterface
+from skim.core.config import ScannerConfig
 from skim.data.models import Candidate
 from skim.scanners.asx_announcements import ASXAnnouncementScanner
 from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
@@ -13,19 +14,21 @@ from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
 class Scanner:
     """Scans market for trading candidates"""
 
-    def __init__(self, paper_trading: bool = True, gap_threshold: float = 3.0):
+    def __init__(self, ib_client: IBInterface, gap_threshold: float = 3.0):
         """Initialise scanner
 
         Args:
-            paper_trading: Whether to use paper trading
+            ib_client: IBKR client implementing IBInterface protocol
             gap_threshold: Minimum gap percentage to consider
         """
         self.gap_threshold = gap_threshold
-        self.paper_trading = paper_trading
+        self.ib_client = ib_client
 
-        # Initialize clients
-        self.ib_client = IBKRClient(paper_trading=paper_trading)
-        self.gap_scanner = IBKRGapScanner(paper_trading=paper_trading)
+        # Initialize scanners with shared client
+        self.gap_scanner = IBKRGapScanner(
+            client=ib_client,
+            scanner_config=ScannerConfig(gap_threshold=gap_threshold),
+        )
         self.asx_scanner = ASXAnnouncementScanner()
 
     def find_candidates(self) -> list[Candidate]:
@@ -61,11 +64,6 @@ class Scanner:
             if not self.ib_client.is_connected():
                 logger.info("Connecting to IBKR...")
                 self.ib_client.connect(timeout=20)
-
-            # Connect gap scanner if needed
-            if not self.gap_scanner.is_connected():
-                logger.info("Connecting gap scanner to IBKR...")
-                self.gap_scanner.connect()
 
             # Scan for gaps
             logger.info(
