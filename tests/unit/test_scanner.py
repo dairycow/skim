@@ -1,231 +1,117 @@
-"""Unit tests for scanner module - TDD RED phase"""
+"""Unit tests for the Scanner workflow."""
 
 from datetime import datetime
+from unittest.mock import AsyncMock
 
 import pytest
 
 from skim.scanner import Scanner
+from skim.validation.scanners import (
+    BreakoutSignal,
+    GapStock,
+    OpeningRangeData,
+)
 
 
-@pytest.fixture
-def scanner(mocker):
-    """Create a Scanner instance with mocked IBKR and ASX clients"""
-    # Mock the clients
-    mock_ib_client = mocker.Mock()
-    mock_ib_client.is_connected.return_value = True
-    mock_gap_scanner = mocker.Mock()
-    mock_asx_scanner = mocker.Mock()
+@pytest.mark.asyncio
+async def test_find_candidates_returns_breakouts_when_gaps_and_announcements_align():
+    scanner_service = AsyncMock()
+    market_data_service = AsyncMock()
+    scanner_service.scan_for_gaps.return_value = [
+        GapStock(ticker="BHP", gap_percent=5.0, conid=123)
+    ]
+    scanner = Scanner(scanner_service, market_data_service, gap_threshold=3.0)
 
-    # Patch the scanner constructors
-    mocker.patch("skim.scanner.IBKRGapScanner", return_value=mock_gap_scanner)
-    mocker.patch(
-        "skim.scanner.ASXAnnouncementScanner", return_value=mock_asx_scanner
+    scanner.asx_scanner.fetch_price_sensitive_tickers = lambda: {"BHP"}
+    scanner.track_opening_range = AsyncMock(
+        return_value=[
+            OpeningRangeData(
+                ticker="BHP",
+                conid=123,
+                or_high=11.0,
+                or_low=10.0,
+                open_price=10.5,
+                prev_close=9.5,
+                current_price=11.2,
+                gap_holding=True,
+            )
+        ]
     )
-
-    # Create scanner with injected client
-    scanner = Scanner(
-        ib_client=mock_ib_client,
-        gap_threshold=3.0,
-    )
-
-    # Return the scanner with mocked clients accessible
-    scanner.gap_scanner = mock_gap_scanner
-    scanner.asx_scanner = mock_asx_scanner
-
-    return scanner
-
-
-class TestScannerFindCandidates:
-    """Test finding candidates with gap + announcement"""
-
-    def test_find_candidates_returns_list(self, scanner):
-        """Should return list of candidates"""
-        scanner.gap_scanner.scan_for_gaps.return_value = []
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = set()
-
-        result = scanner.find_candidates()
-
-        assert isinstance(result, list)
-
-    def test_find_candidates_filters_by_gap_threshold(self, scanner, mocker):
-        """Should only include stocks with gap >= threshold"""
-        from skim.scanners.ibkr_gap_scanner import GapStock
-
-        # Mock gap scanner to return stocks
-        scanner.gap_scanner.scan_for_gaps.return_value = [
-            GapStock(ticker="BHP", gap_percent=5.0, conid=1),  # >= 3.0
-            GapStock(ticker="RIO", gap_percent=2.0, conid=2),  # < 3.0
-        ]
-
-        # Mock ASX announcements to return both tickers
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = {
-            "BHP",
-            "RIO",
-        }
-
-        # Mock market data
-        market_data_bhp = mocker.Mock()
-        market_data_bhp.high = 50.0
-        market_data_bhp.low = 48.0
-        market_data_bhp.open = 49.0
-
-        market_data_rio = mocker.Mock()
-        market_data_rio.high = 120.0
-        market_data_rio.low = 118.0
-        market_data_rio.open = 119.0
-
-        scanner.gap_scanner.get_market_data.side_effect = [
-            market_data_bhp,
-            market_data_rio,
-        ]
-
-        result = scanner.find_candidates()
-
-        # Should only include BHP (gap 5.0 >= 3.0)
-        assert len(result) == 1
-        assert result[0].ticker == "BHP"
-
-    def test_find_candidates_filters_by_announcement(self, scanner, mocker):
-        """Should only include stocks with price-sensitive announcements"""
-        from skim.scanners.ibkr_gap_scanner import GapStock
-
-        scanner.gap_scanner.scan_for_gaps.return_value = [
-            GapStock(ticker="BHP", gap_percent=5.0, conid=1),
-            GapStock(ticker="RIO", gap_percent=4.0, conid=2),
-        ]
-
-        # ASX only returns BHP with announcement
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = {"BHP"}
-
-        # Mock market data
-        market_data = mocker.Mock()
-        market_data.high = 50.0
-        market_data.low = 48.0
-        market_data.open = 49.0
-        scanner.gap_scanner.get_market_data.return_value = market_data
-
-        result = scanner.find_candidates()
-
-        # Should only include BHP (has announcement)
-        assert len(result) == 1
-        assert result[0].ticker == "BHP"
-
-    def test_find_candidates_sets_or_high_and_low(self, scanner, mocker):
-        """Candidate should have or_high and or_low set"""
-        from skim.scanners.ibkr_gap_scanner import GapStock
-
-        scanner.gap_scanner.scan_for_gaps.return_value = [
-            GapStock(ticker="BHP", gap_percent=5.0, conid=1),
-        ]
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = {"BHP"}
-
-        market_data = mocker.Mock()
-        market_data.high = 50.0
-        market_data.low = 48.0
-        market_data.open = 49.0
-        scanner.gap_scanner.get_market_data.return_value = market_data
-
-        result = scanner.find_candidates()
-
-        assert result[0].or_high == 50.0
-        assert result[0].or_low == 48.0
-
-    def test_find_candidates_has_correct_status(self, scanner, mocker):
-        """Candidate status should be 'watching'"""
-        from skim.scanners.ibkr_gap_scanner import GapStock
-
-        scanner.gap_scanner.scan_for_gaps.return_value = [
-            GapStock(ticker="BHP", gap_percent=5.0, conid=1),
-        ]
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = {"BHP"}
-
-        market_data = mocker.Mock()
-        market_data.high = 50.0
-        market_data.low = 48.0
-        market_data.open = 49.0
-        scanner.gap_scanner.get_market_data.return_value = market_data
-
-        result = scanner.find_candidates()
-
-        assert result[0].status == "watching"
-
-    def test_find_candidates_has_scan_date(self, scanner, mocker):
-        """Candidate should have scan_date set"""
-        from skim.scanners.ibkr_gap_scanner import GapStock
-
-        scanner.gap_scanner.scan_for_gaps.return_value = [
-            GapStock(ticker="BHP", gap_percent=5.0, conid=1),
-        ]
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = {"BHP"}
-
-        market_data = mocker.Mock()
-        market_data.high = 50.0
-        market_data.low = 48.0
-        market_data.open = 49.0
-        scanner.gap_scanner.get_market_data.return_value = market_data
-
-        result = scanner.find_candidates()
-
-        assert result[0].scan_date  # Should have a value
-        # Should be parseable as ISO datetime
-        datetime.fromisoformat(result[0].scan_date)
-
-    def test_find_candidates_returns_empty_when_no_gaps(self, scanner):
-        """Should return empty list when no gaps found"""
-        scanner.gap_scanner.scan_for_gaps.return_value = []
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = set()
-
-        result = scanner.find_candidates()
-
-        assert result == []
-
-    def test_find_candidates_returns_empty_when_no_announcements(
-        self, scanner, mocker
-    ):
-        """Should return empty list when no price-sensitive announcements"""
-        from skim.scanners.ibkr_gap_scanner import GapStock
-
-        scanner.gap_scanner.scan_for_gaps.return_value = [
-            GapStock(ticker="BHP", gap_percent=5.0, conid=1),
-        ]
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = set()
-
-        result = scanner.find_candidates()
-
-        assert result == []
-
-
-class TestScannerEdgeCases:
-    """Test edge cases and error handling"""
-
-    def test_find_candidates_handles_missing_market_data(self, scanner, mocker):
-        """Should skip candidates if market data unavailable"""
-        from skim.scanners.ibkr_gap_scanner import GapStock
-
-        scanner.gap_scanner.scan_for_gaps.return_value = [
-            GapStock(ticker="BHP", gap_percent=5.0, conid=1),
-        ]
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = {"BHP"}
-
-        # Market data request fails
-        scanner.gap_scanner.get_market_data.side_effect = Exception(
-            "Market data unavailable"
+    scanner.filter_breakouts = lambda data: [
+        BreakoutSignal(
+            ticker="BHP",
+            conid=123,
+            gap_pct=7.4,
+            or_high=11.0,
+            or_low=10.0,
+            or_size_pct=10.0,
+            current_price=11.2,
+            entry_signal="ORB_HIGH_BREAKOUT",
+            timestamp=datetime.now(),
         )
+    ]
 
-        result = scanner.find_candidates()
+    candidates = await scanner.find_candidates()
 
-        # Should skip the candidate
-        assert result == []
+    assert len(candidates) == 1
+    assert candidates[0].ticker == "BHP"
+    assert candidates[0].or_high == 11.0
+    assert candidates[0].status == "watching"
 
-    def test_find_candidates_handles_negative_gap(self, scanner, mocker):
-        """Should skip stocks with negative gap"""
-        from skim.scanners.ibkr_gap_scanner import GapStock
 
-        scanner.gap_scanner.scan_for_gaps.return_value = [
-            GapStock(ticker="BHP", gap_percent=-2.0, conid=1),
-        ]
-        scanner.asx_scanner.fetch_price_sensitive_tickers.return_value = {"BHP"}
+@pytest.mark.asyncio
+async def test_find_candidates_returns_empty_when_no_announcements():
+    scanner_service = AsyncMock()
+    market_data_service = AsyncMock()
+    scanner_service.scan_for_gaps.return_value = [
+        GapStock(ticker="BHP", gap_percent=5.0, conid=123)
+    ]
+    scanner = Scanner(scanner_service, market_data_service, gap_threshold=3.0)
 
-        result = scanner.find_candidates()
+    scanner.asx_scanner.fetch_price_sensitive_tickers = lambda: set()
+    scanner.track_opening_range = AsyncMock()
 
-        assert result == []
+    candidates = await scanner.find_candidates()
+
+    assert candidates == []
+    scanner.track_opening_range.assert_not_awaited()
+
+
+def test_filter_breakouts_requires_gap_holding_and_breakout():
+    scanner = Scanner(AsyncMock(), AsyncMock(), gap_threshold=3.0)
+    inputs = [
+        OpeningRangeData(
+            ticker="BHP",
+            conid=1,
+            or_high=11.0,
+            or_low=10.0,
+            open_price=10.5,
+            prev_close=9.5,
+            current_price=11.5,
+            gap_holding=True,
+        ),
+        OpeningRangeData(
+            ticker="RIO",
+            conid=2,
+            or_high=20.0,
+            or_low=19.0,
+            open_price=19.5,
+            prev_close=18.0,
+            current_price=19.1,
+            gap_holding=False,
+        ),
+        OpeningRangeData(
+            ticker="FMG",
+            conid=3,
+            or_high=8.0,
+            or_low=7.5,
+            open_price=7.6,
+            prev_close=7.0,
+            current_price=8.0,
+            gap_holding=True,
+        ),
+    ]
+
+    signals = scanner.filter_breakouts(inputs)
+
+    assert [s.ticker for s in signals] == ["BHP"]

@@ -6,10 +6,16 @@ to test complete authentication and connection workflow.
 """
 
 import logging
+import os
 
 import pytest
 
 from skim.brokers.ibkr_client import IBKRClient
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("RUN_IBKR_LIVE"),
+    reason="Requires RUN_IBKR_LIVE=1 with live/paper IBKR credentials",
+)
 
 # Setup logging
 logging.basicConfig(

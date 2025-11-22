@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Test client read operations with IBKR API"""
+"""Test client read operations with IBKR API (async services)"""
 
+import asyncio
 import logging
+import os
 
 import pytest
 
-from skim.brokers.ibkr_client import IBKRClient
+from skim.brokers.ibkr_market_data import IBKRMarketData
+from skim.brokers.ibkr_orders import IBKROrders
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("RUN_IBKR_LIVE"),
+    reason="Requires RUN_IBKR_LIVE=1 and paper-trading credentials",
+)
 
 # Setup logging
 logging.basicConfig(
@@ -16,24 +24,36 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture
+def services(ibkr_client):
+    """Provide market data and orders services."""
+    market_data = IBKRMarketData(ibkr_client)
+    orders = IBKROrders(ibkr_client, market_data)
+    return market_data, orders
+
+
 @pytest.mark.integration
 @pytest.mark.manual
-def test_account_balance(ibkr_client):
+@pytest.mark.asyncio
+async def test_account_balance(services):
     """Test getting account balance."""
     logger.info("Testing account balance retrieval...")
 
-    balance = ibkr_client.get_account_balance()
+    _, orders = services
+    balance = await orders.get_account_balance()
     assert balance is not None
     logger.info(f"Account balance: {balance}")
 
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_get_positions(ibkr_client):
+@pytest.mark.asyncio
+async def test_get_positions(services):
     """Test getting current positions."""
     logger.info("Testing positions retrieval...")
 
-    positions = ibkr_client.get_positions()
+    _, orders = services
+    positions = await orders.get_positions()
     assert isinstance(positions, list)
     logger.info(f"Found {len(positions)} positions")
 
@@ -43,11 +63,13 @@ def test_get_positions(ibkr_client):
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_market_data(ibkr_client):
+@pytest.mark.asyncio
+async def test_market_data(services):
     """Test getting market data for BHP."""
     logger.info("Testing market data retrieval for BHP...")
 
-    market_data = ibkr_client.get_market_data("BHP")
+    market_data_service, _ = services
+    market_data = await market_data_service.get_market_data("BHP")
 
     # Market data might not be available if market is closed or data feed is down
     # This is expected behavior for integration tests
@@ -72,12 +94,14 @@ def test_market_data(ibkr_client):
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_contract_caching(ibkr_client):
+@pytest.mark.asyncio
+async def test_contract_caching(services):
     """Test that contract IDs are properly cached."""
     logger.info("Testing contract ID caching...")
+    market_data_service, _ = services
 
     # First call should fetch and cache
-    market_data1 = ibkr_client.get_market_data("BHP")
+    market_data1 = await market_data_service.get_market_data("BHP")
 
     # If market data is not available, we can't test caching
     if market_data1 is None:
@@ -87,7 +111,7 @@ def test_contract_caching(ibkr_client):
         return
 
     # Second call should use cached contract ID
-    market_data2 = ibkr_client.get_market_data("BHP")
+    market_data2 = await market_data_service.get_market_data("BHP")
     assert market_data2 is not None
 
     logger.info("✓ Contract ID caching working correctly")
@@ -99,14 +123,20 @@ if __name__ == "__main__":
 
     validate_oauth_environment()
 
+    from skim.brokers.ibkr_client import IBKRClient
+
     test_client = IBKRClient(paper_trading=True)
-    test_client.connect()
+    asyncio.run(test_client.connect())
+    services = (
+        IBKRMarketData(test_client),
+        IBKROrders(test_client, IBKRMarketData(test_client)),
+    )
 
     try:
-        test_account_balance(test_client)
-        test_get_positions(test_client)
-        test_market_data(test_client)
-        test_contract_caching(test_client)
+        asyncio.run(test_account_balance(services))
+        asyncio.run(test_get_positions(services))
+        asyncio.run(test_market_data(services))
+        asyncio.run(test_contract_caching(services))
 
         logger.info(
             "\n✓ All client read operation tests completed successfully!"
@@ -121,4 +151,4 @@ if __name__ == "__main__":
 
         sys.exit(1)
     finally:
-        test_client.disconnect()
+        asyncio.run(test_client.disconnect())

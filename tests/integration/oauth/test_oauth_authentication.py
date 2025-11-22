@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Test OAuth authentication and connection with IBKR API"""
 
+import asyncio
 import logging
+import os
 
 import pytest
 
@@ -14,6 +16,12 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("RUN_IBKR_LIVE"),
+    reason="Requires RUN_IBKR_LIVE=1 with live/paper IBKR credentials",
+)
 
 
 @pytest.mark.integration
@@ -34,11 +42,12 @@ def test_client_creation():
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_connection(ibkr_client):
+@pytest.mark.asyncio
+async def test_connection(ibkr_client):
     """Test connecting to IBKR."""
     logger.info("Testing connection to IBKR...")
 
-    ibkr_client.connect()
+    await ibkr_client.connect()
 
     assert ibkr_client.is_connected(), "Failed to connect to IBKR"
 
@@ -47,7 +56,8 @@ def test_connection(ibkr_client):
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_get_account(ibkr_client):
+@pytest.mark.asyncio
+async def test_get_account(ibkr_client):
     """Test getting account information."""
     logger.info("Testing account information retrieval...")
 
@@ -67,7 +77,8 @@ def test_get_account(ibkr_client):
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_session_keepalive(ibkr_client):
+@pytest.mark.asyncio
+async def test_session_keepalive(ibkr_client):
     """Test session keepalive (tickle)."""
     logger.info("Testing session keepalive...")
 
@@ -92,11 +103,12 @@ def test_session_keepalive(ibkr_client):
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_disconnection(ibkr_client):
+@pytest.mark.asyncio
+async def test_disconnection(ibkr_client):
     """Test disconnecting from IBKR."""
     logger.info("Testing disconnection from IBKR...")
 
-    ibkr_client.disconnect()
+    await ibkr_client.disconnect()
 
     assert not ibkr_client.is_connected(), "Client should be disconnected"
 
@@ -113,10 +125,10 @@ if __name__ == "__main__":
 
     try:
         test_client_creation()
-        test_connection(test_client)
-        test_get_account(test_client)
-        test_session_keepalive(test_client)
-        test_disconnection(test_client)
+        asyncio.run(test_connection(test_client))
+        asyncio.run(test_get_account(test_client))
+        asyncio.run(test_session_keepalive(test_client))
+        asyncio.run(test_disconnection(test_client))
 
         logger.info(
             "\n✓ All OAuth authentication tests completed successfully!"

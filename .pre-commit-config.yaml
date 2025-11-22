@@ -27,7 +27,7 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
 
       - id: pytest-coverage
         name: pytest with coverage

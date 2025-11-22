@@ -301,8 +301,12 @@ def mock_trading_bot(mock_bot_config):
     with (
         patch("skim.core.bot.Database"),
         patch("skim.core.bot.IBKRClient"),
-        patch("skim.core.bot.IBKRGapScanner"),
-        patch("skim.core.bot.ASXAnnouncementScanner"),
+        patch("skim.core.bot.IBKRMarketData"),
+        patch("skim.core.bot.IBKROrders"),
+        patch("skim.core.bot.IBKRScanner"),
+        patch("skim.core.bot.Scanner"),
+        patch("skim.core.bot.Trader"),
+        patch("skim.core.bot.Monitor"),
         patch("skim.core.bot.DiscordNotifier"),
     ):
         bot = TradingBot(mock_bot_config)
@@ -486,17 +490,19 @@ def ibkr_client():
     """Create and connect IBKR client for integration testing."""
     validate_oauth_environment()
 
+    import asyncio
+
     from skim.brokers.ibkr_client import IBKRClient
 
     # Create and connect client
     client = IBKRClient(paper_trading=True)
-    client.connect()
+    asyncio.run(client.connect())
 
     yield client
 
     # Cleanup
     if client.is_connected():
-        client.disconnect()
+        asyncio.run(client.disconnect())
 
 
 @pytest.fixture
