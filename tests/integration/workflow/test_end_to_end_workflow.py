@@ -2,6 +2,7 @@
 """Test end-to-end workflow with skim trading bot"""
 
 import logging
+import os
 import time
 
 import pytest
@@ -15,6 +16,11 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("RUN_IBKR_LIVE"),
+    reason="Requires RUN_IBKR_LIVE=1 with live/paper IBKR credentials",
+)
 
 
 @pytest.mark.integration

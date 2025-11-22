@@ -73,8 +73,6 @@ def test_parse_dh_parameters(oauth_config):
     assert dh_prime > 0
     assert dh_generator == 2
 
-    return dh_prime, dh_generator
-
 
 @pytest.fixture(scope="module")
 def dh_challenge():
@@ -376,10 +374,7 @@ def test_full_oauth_flow(oauth_config):
     assert len(lst) > 0
     assert expiration > 0
 
-    return {
-        "live_session_token": lst,
-        "live_session_token_expiration": expiration,
-    }
+    # No return value to keep pytest happy (warnings on non-None returns)
 
 
 if __name__ == "__main__":

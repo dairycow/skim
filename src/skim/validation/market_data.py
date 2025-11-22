@@ -343,132 +343,42 @@ class MarketDataUnavailableError(Exception):
 
 
 def validate_candidate_market_data_completeness(candidate) -> bool:
-    """Validate that candidate has comprehensive market data
-
-    Args:
-        candidate: Candidate object to validate
-
-    Returns:
-        True if candidate has complete market data, False otherwise
-    """
-    required_fields = [
-        "open_price",
-        "session_high",
-        "session_low",
-        "volume",
-        "bid",
-        "ask",
-        "market_data_timestamp",
-    ]
-
-    missing_fields = []
-    for field in required_fields:
-        if getattr(candidate, field) is None:
-            missing_fields.append(field)
-
-    if missing_fields:
-        logger.debug(
-            f"Candidate {candidate.ticker} missing market data fields: {missing_fields}"
-        )
+    """Validate that the minimal OR data on a candidate is sensible."""
+    try:
+        if candidate.or_high is None or candidate.or_low is None:
+            return False
+        if candidate.or_high <= 0 or candidate.or_low <= 0:
+            return False
+        return not candidate.or_high <= candidate.or_low
+    except AttributeError:
         return False
-
-    # Validate logical relationships
-    if candidate.session_high <= candidate.session_low:
-        logger.warning(
-            f"Candidate {candidate.ticker}: session_high ({candidate.session_high}) <= session_low ({candidate.session_low})"
-        )
-        return False
-
-    if candidate.bid >= candidate.ask:
-        logger.warning(
-            f"Candidate {candidate.ticker}: bid ({candidate.bid}) >= ask ({candidate.ask})"
-        )
-        return False
-
-    if (
-        candidate.open_price <= 0
-        or candidate.session_high <= 0
-        or candidate.session_low <= 0
-    ):
-        logger.warning(
-            f"Candidate {candidate.ticker}: invalid price values (must be > 0)"
-        )
-        return False
-
-    if candidate.volume <= 0:
-        logger.warning(
-            f"Candidate {candidate.ticker}: invalid volume ({candidate.volume})"
-        )
-        return False
-
-    return True
 
 
 def validate_candidate_market_data_freshness(
     candidate, max_age_minutes: int = 30
 ) -> bool:
-    """Validate that candidate's market data is fresh enough
-
-    Args:
-        candidate: Candidate object to validate
-        max_age_minutes: Maximum age of market data in minutes
-
-    Returns:
-        True if market data is fresh, False otherwise
-    """
-    if not candidate.market_data_timestamp:
-        logger.debug(f"Candidate {candidate.ticker}: no market data timestamp")
+    """Validate candidate recency using scan_date when available."""
+    scan_date = getattr(candidate, "scan_date", None)
+    if not scan_date:
         return False
 
     try:
-        data_time = datetime.fromisoformat(candidate.market_data_timestamp)
-        now = datetime.now()
-        age = now - data_time
-
-        if age > timedelta(minutes=max_age_minutes):
-            logger.debug(
-                f"Candidate {candidate.ticker}: stale market data ({age.total_seconds() / 60:.1f} minutes old)"
-            )
-            return False
-
-        # Also check if data is from the future (clock skew)
-        if age < timedelta(minutes=-5):
-            logger.warning(
-                f"Candidate {candidate.ticker}: future market data timestamp ({age.total_seconds() / 60:.1f} minutes from now)"
-            )
-            return False
-
-        return True
-
+        data_time = datetime.fromisoformat(scan_date)
     except ValueError:
-        logger.error(
-            f"Invalid timestamp format for {candidate.ticker}: {candidate.market_data_timestamp}"
+        logger.debug(
+            f"Candidate {getattr(candidate, 'ticker', '?')}: invalid scan_date {scan_date}"
         )
         return False
+
+    age = datetime.now() - data_time
+    return age <= timedelta(minutes=max_age_minutes)
 
 
 def validate_candidate_for_or_tracking(candidate) -> bool:
-    """Validate candidate suitability for opening range tracking
-
-    Args:
-        candidate: Candidate object to validate
-
-    Returns:
-        True if candidate is suitable for OR tracking, False otherwise
-    """
-    # Must have conid for market data requests
-    if not candidate.conid:
-        logger.debug(
-            f"Candidate {candidate.ticker}: no conid for market data requests"
-        )
-        return False
-
-    # Must have comprehensive market data
-    if not validate_candidate_market_data_completeness(candidate):
-        return False
-
-    # Market data must be fresh
-    return validate_candidate_market_data_freshness(candidate)
+    """Validate candidate suitability for opening range tracking."""
+    return validate_candidate_market_data_completeness(
+        candidate
+    ) and validate_candidate_market_data_freshness(candidate)
 
 
 def filter_candidates_by_market_data_quality(
@@ -504,13 +414,14 @@ def get_candidate_market_data_age_minutes(candidate) -> float | None:
     Returns:
         Age in minutes, or None if timestamp is invalid/missing
     """
-    if not candidate.market_data_timestamp:
+    scan_date = getattr(candidate, "scan_date", None)
+    if not scan_date:
         return None
 
     try:
-        data_time = datetime.fromisoformat(candidate.market_data_timestamp)
-        now = datetime.now()
-        age = now - data_time
-        return age.total_seconds() / 60
+        data_time = datetime.fromisoformat(scan_date)
     except ValueError:
         return None
+
+    age = datetime.now() - data_time
+    return age.total_seconds() / 60

@@ -1,1200 +1,269 @@
-"""Tests for TradingBot class"""
+"""Tests for TradingBot orchestrator using async services"""
 
-from datetime import datetime
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from skim.core.bot import TradingBot
-from skim.scanners.ibkr_gap_scanner import (
-    BreakoutSignal,
-    GapStock,
-    OpeningRangeData,
-)
+from skim.core.config import Config, ScannerConfig
+from skim.data.models import Candidate, Position
 
 
-class TestTradingBotIBKRIntegration:
-    """Test IBKR gap scanning integration with TradingBot"""
+@pytest.fixture
+def mock_bot_config():
+    """Mock configuration for the TradingBot."""
+    return Config(
+        ib_client_id=1,
+        discord_webhook_url="http://mock.discord.com",
+        scanner_config=ScannerConfig(
+            gap_threshold=3.0,
+            volume_filter=50000,
+            price_filter=0.50,
+            or_duration_minutes=10,
+            or_poll_interval_seconds=30,
+            gap_fill_tolerance=1.0,
+            or_breakout_buffer=0.1,
+        ),
+        db_path=":memory:",
+    )
 
-    @pytest.fixture
-    def mock_gap_stocks(self):
-        """Create mock gap stocks data"""
-        return [
-            GapStock(
-                ticker="BHP",
-                gap_percent=5.5,
-                conid=8644,
-            ),
-            GapStock(
-                ticker="RIO",
-                gap_percent=4.2,
-                conid=8653,
-            ),
-        ]
 
-    @pytest.fixture
-    def mock_or_data(self):
-        """Create mock opening range data"""
-        return [
-            OpeningRangeData(
-                ticker="BHP",
-                conid=8644,
-                or_high=46.50,
-                or_low=44.80,
-                open_price=45.50,
-                prev_close=45.20,
-                current_price=46.80,
-                gap_holding=True,
-            ),
-            OpeningRangeData(
-                ticker="RIO",
-                conid=8653,
-                or_high=121.50,
-                or_low=119.80,
-                open_price=120.00,
-                prev_close=120.50,
-                current_price=119.50,
-                gap_holding=False,
-            ),
-        ]
-
-    @pytest.fixture
-    def mock_breakout_signals(self):
-        """Create mock breakout signals"""
-        return [
-            BreakoutSignal(
-                ticker="BHP",
-                conid=8644,
-                gap_pct=5.5,
-                or_high=46.50,
-                or_low=44.80,
-                or_size_pct=3.8,
-                current_price=46.80,
-                entry_signal="ORB_HIGH_BREAKOUT",
-                timestamp=datetime.now(),
-            )
-        ]
-
-    def test_scan_method_exists(self, mock_trading_bot):
-        """Test that scan method exists"""
-        assert hasattr(mock_trading_bot, "scan")
-        assert callable(mock_trading_bot.scan)
-
-    def test_scan_returns_int(self, mock_trading_bot):
-        """Test that scan returns int"""
-        # Setup basic mocks
-        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers.return_value = set()
-        mock_trading_bot.ibkr_scanner.is_connected.return_value = True
-        mock_trading_bot.ibkr_scanner.scan_for_gaps.return_value = []
-        mock_trading_bot.discord_notifier.send_scan_results.return_value = None
-
-        result = mock_trading_bot.scan()
-        assert isinstance(result, int)
-
-    def test_track_or_breakouts_method_exists(self, mock_trading_bot):
-        """Test that track_or_breakouts method exists"""
-        assert hasattr(mock_trading_bot, "track_or_breakouts")
-        assert callable(mock_trading_bot.track_or_breakouts)
-
-    def test_track_or_breakouts_returns_int(self, mock_trading_bot):
-        """Test that track_or_breakouts returns int"""
-        result = mock_trading_bot.track_or_breakouts()
-        assert isinstance(result, int)
-
-    def test_execute_orh_breakouts_method_exists(self, mock_trading_bot):
-        """Test that execute_orh_breakouts method exists"""
-        assert hasattr(mock_trading_bot, "execute_orh_breakouts")
-        assert callable(mock_trading_bot.execute_orh_breakouts)
-
-    def test_execute_orh_breakouts_returns_int(self, mock_trading_bot):
-        """Test that execute_orh_breakouts returns int"""
-        result = mock_trading_bot.execute_orh_breakouts()
-        assert isinstance(result, int)
-
-    def test_scan_uses_ibkr_scanner(
-        self, mock_trading_bot, mock_gap_stocks, mocker
+@pytest.fixture
+def mock_trading_bot(mock_bot_config):
+    """Create a TradingBot instance with mocked dependencies."""
+    with (
+        patch("skim.core.bot.Database") as mock_db_class,
+        patch("skim.core.bot.IBKRClient") as mock_ibkr_client_class,
+        patch("skim.core.bot.IBKRMarketData") as mock_market_data_class,
+        patch("skim.core.bot.IBKROrders") as mock_orders_class,
+        patch("skim.core.bot.IBKRScanner") as mock_scanner_class,
+        patch("skim.core.bot.Scanner") as mock_scanner_logic_class,
+        patch("skim.core.bot.Trader") as mock_trader_logic_class,
+        patch("skim.core.bot.Monitor") as mock_monitor_logic_class,
+        patch("skim.core.bot.DiscordNotifier") as mock_discord_notifier_class,
     ):
-        """Test that scan uses IBKRGapScanner and captures enhanced market data"""
-        # Get the mocked scanner instance from the bot
-        mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers.return_value = {
-            "BHP",
-            "RIO",
-        }
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        # Mock instances
+        mock_db = mock_db_class.return_value
+        mock_ibkr_client = mock_ibkr_client_class.return_value
+        mock_market_data_service = mock_market_data_class.return_value
+        mock_orders_service = mock_orders_class.return_value
+        mock_scanner_service = mock_scanner_class.return_value
+        mock_scanner_logic = mock_scanner_logic_class.return_value
+        mock_trader_logic = mock_trader_logic_class.return_value
+        mock_monitor_logic = mock_monitor_logic_class.return_value
+        mock_discord_notifier = mock_discord_notifier_class.return_value
 
-        # Mock enhanced market data response
-        mock_market_data = Mock()
-        mock_market_data.last_price = 50.0
-        mock_market_data.prior_close = 45.20
-        mock_market_data.open = 46.50
-        mock_market_data.high = 47.80
-        mock_market_data.low = 45.90
-        mock_market_data.volume = 1500000
-        mock_market_data.bid = 46.95
-        mock_market_data.ask = 47.05
-        mock_scanner.get_market_data.return_value = mock_market_data
-        mock_scanner.is_connected.return_value = True
+        # Configure mocks for async methods
+        mock_ibkr_client.is_connected.return_value = False
+        mock_ibkr_client.connect = AsyncMock()
+        mock_ibkr_client.disconnect = AsyncMock()
 
-        result = mock_trading_bot.scan()
+        mock_scanner_logic.find_candidates = AsyncMock(return_value=[])
+        mock_trader_logic.execute_breakouts = AsyncMock(return_value=0)
+        mock_trader_logic.execute_stops = AsyncMock(return_value=0)
+        mock_monitor_logic.check_stops = AsyncMock(return_value=[])
 
-        # Verify scanner was used
-        mock_scanner.scan_for_gaps.assert_called_once()
-        assert isinstance(result, int)
+        bot = TradingBot(mock_bot_config)
 
-        # Verify market data was captured for each stock
-        assert mock_scanner.get_market_data.call_count == 2
+        # Attach mocks to the bot instance for easier access in tests
+        bot.db = mock_db
+        bot.ib_client = mock_ibkr_client
+        bot.market_data_service = mock_market_data_service
+        bot.order_service = mock_orders_service
+        bot.scanner_service = mock_scanner_service
+        bot.scanner = mock_scanner_logic
+        bot.trader = mock_trader_logic
+        bot.monitor = mock_monitor_logic
+        bot.discord = mock_discord_notifier
 
-    def test_scan_stores_candidates_with_enhanced_market_data(
-        self, mock_trading_bot, mock_gap_stocks
-    ):
-        """Test that scan stores candidates with enhanced market data"""
-        # Get the mocked scanner instance from the bot
-        mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers.return_value = {
-            "BHP",
-            "RIO",
-        }
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
+        yield bot
 
-        # Mock enhanced market data response
-        mock_market_data = Mock()
-        mock_market_data.last_price = 50.0
-        mock_market_data.prior_close = 45.20
-        mock_market_data.open = 46.50
-        mock_market_data.high = 47.80
-        mock_market_data.low = 45.90
-        mock_market_data.volume = 1500000
-        mock_market_data.bid = 46.95
-        mock_market_data.ask = 47.05
-        mock_scanner.get_market_data.return_value = mock_market_data
-        mock_scanner.is_connected.return_value = True
 
-        # Mock database methods
-        mock_trading_bot.db.save_candidate = Mock()
+@pytest.mark.asyncio
+class TestTradingBot:
+    """Tests for the refactored TradingBot orchestrator."""
 
-        result = mock_trading_bot.scan()
-
-        # Verify scanner was used
-        mock_scanner.scan_for_gaps.assert_called_once()
-        assert isinstance(result, int)
-
-        # Verify save_candidate was called with enhanced market data
-        assert mock_trading_bot.db.save_candidate.call_count == 2
-
-        # Check the first call arguments (BHP)
-        first_call_args = mock_trading_bot.db.save_candidate.call_args_list[0][
-            0
-        ][0]
-        assert first_call_args.ticker == "BHP"
-        assert first_call_args.open_price == 46.50
-        assert first_call_args.session_high == 47.80
-        assert first_call_args.session_low == 45.90
-        assert first_call_args.volume == 1500000
-        assert first_call_args.bid == 46.95
-        assert first_call_args.ask == 47.05
-        assert first_call_args.market_data_timestamp is not None
-
-    def test_track_or_breakouts_uses_existing_ibkr_client(
-        self, mock_trading_bot
-    ):
-        """Test that track_or_breakouts uses existing IBKRClient for authentication"""
-        # Mock database methods
-        mock_trading_bot.db.get_or_tracking_candidates = Mock(return_value=[])
-
-        result = mock_trading_bot.track_or_breakouts()
-
-        # Should return 0 when no candidates found
-        assert result == 0
-
-    def test_track_or_breakouts_updates_orh_breakout_status(
-        self, mock_trading_bot, mock_breakout_signals
-    ):
-        """Test that track_or_breakouts updates candidates to 'orh_breakout' status"""
-        # Get the mocked scanner instance from the bot
-        mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.track_opening_range.return_value = []
-        mock_scanner.filter_breakouts.return_value = mock_breakout_signals
-        mock_scanner.is_connected.return_value = True
-
-        # Mock database methods with enhanced market data
-        from datetime import datetime, timedelta
-
-        fresh_timestamp = (datetime.now() - timedelta(minutes=15)).isoformat()
-
-        mock_trading_bot.db.get_or_tracking_candidates = Mock(
-            return_value=[
-                Mock(
-                    ticker="BHP",
-                    conid=8644,
-                    prev_close=45.20,
-                    gap_percent=5.5,
-                    open_price=46.50,
-                    session_high=47.80,
-                    session_low=45.90,
-                    volume=1500000,
-                    bid=46.95,
-                    ask=47.05,
-                    market_data_timestamp=fresh_timestamp,
-                )
-            ]
-        )
-        mock_trading_bot.db.update_candidate_or_data = Mock()
-
-        result = mock_trading_bot.track_or_breakouts()
-
-        # Should return the number of breakouts found
-        assert isinstance(result, int)
-
-    def test_track_or_breakouts_filters_stale_market_data(
-        self, mock_trading_bot, mock_breakout_signals
-    ):
-        """Test that track_or_breakouts filters candidates with stale market data"""
-        # Get the mocked scanner instance from the bot
-        mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.track_opening_range.return_value = []
-        mock_scanner.filter_breakouts.return_value = mock_breakout_signals
-        mock_scanner.is_connected.return_value = True
-
-        # Mock database methods with stale market data
-        from datetime import datetime, timedelta
-
-        stale_timestamp = (datetime.now() - timedelta(hours=2)).isoformat()
-
-        mock_trading_bot.db.get_or_tracking_candidates = Mock(
-            return_value=[
-                Mock(
-                    ticker="BHP",
-                    conid=8644,
-                    prev_close=45.20,
-                    gap_percent=5.5,
-                    open_price=46.50,
-                    session_high=47.80,
-                    session_low=45.90,
-                    volume=1500000,
-                    bid=46.95,
-                    ask=47.05,
-                    market_data_timestamp=stale_timestamp,  # Stale data
-                )
-            ]
-        )
-        mock_trading_bot.db.update_candidate_or_data = Mock()
-
-        result = mock_trading_bot.track_or_breakouts()
-
-        # Should return 0 since no candidates with fresh data
-        assert result == 0
-        # Should not attempt OR tracking with stale data
-        mock_scanner.track_opening_range.assert_not_called()
-
-    def test_execute_orh_breakouts_uses_existing_execute_breakout_orders(
-        self, mock_trading_bot
-    ):
-        """Test that execute_orh_breakouts leverages existing _execute_breakout_orders method"""
-        # Mock the existing method
-        mock_trading_bot._execute_breakout_orders = Mock(return_value=1)
-
-        # Mock database methods
-        mock_trading_bot.db.get_orh_breakout_candidates = Mock(return_value=[])
-
-        result = mock_trading_bot.execute_orh_breakouts()
-
-        # Should return 0 when no candidates found
-        assert result == 0
-
-    def test_bot_init_uses_ibkr_scanner(self, mock_bot_config):
-        """Test that TradingBot __init__ uses IBKRGapScanner"""
+    async def test_init_instantiates_services_and_logic(self, mock_bot_config):
+        """TradingBot should wire all services and business modules."""
         with (
-            patch("skim.core.bot.Database"),
-            patch("skim.core.bot.IBKRClient"),
-            patch("skim.core.bot.DiscordNotifier"),
-            patch("skim.core.bot.IBKRGapScanner") as mock_scanner_class,
+            patch("skim.core.bot.Database") as mock_db_class,
+            patch("skim.core.bot.IBKRClient") as mock_ibkr_client_class,
+            patch("skim.core.bot.IBKRMarketData") as mock_market_data_class,
+            patch("skim.core.bot.IBKROrders") as mock_orders_class,
+            patch("skim.core.bot.IBKRScanner") as mock_scanner_service_class,
+            patch("skim.core.bot.Scanner") as mock_scanner_logic_class,
+            patch("skim.core.bot.Trader") as mock_trader_logic_class,
+            patch("skim.core.bot.Monitor") as mock_monitor_logic_class,
+            patch(
+                "skim.core.bot.DiscordNotifier"
+            ) as mock_discord_notifier_class,
         ):
             bot = TradingBot(mock_bot_config)
 
-            # Verify IBKRGapScanner is initialised
-            mock_scanner_class.assert_called_once()
+            mock_db_class.assert_called_once_with(mock_bot_config.db_path)
+            mock_ibkr_client_class.assert_called_once_with(
+                paper_trading=mock_bot_config.paper_trading
+            )
+            mock_market_data_class.assert_called_once_with(
+                mock_ibkr_client_class.return_value
+            )
+            mock_orders_class.assert_called_once_with(
+                mock_ibkr_client_class.return_value,
+                mock_market_data_class.return_value,
+            )
+            mock_scanner_service_class.assert_called_once_with(
+                mock_ibkr_client_class.return_value,
+                mock_bot_config.scanner_config,
+            )
+            mock_scanner_logic_class.assert_called_once_with(
+                scanner_service=mock_scanner_service_class.return_value,
+                market_data_service=mock_market_data_class.return_value,
+                gap_threshold=mock_bot_config.scanner_config.gap_threshold,
+            )
+            mock_trader_logic_class.assert_called_once_with(
+                mock_market_data_class.return_value,
+                mock_orders_class.return_value,
+                mock_db_class.return_value,
+            )
+            mock_monitor_logic_class.assert_called_once_with(
+                mock_market_data_class.return_value
+            )
+            mock_discord_notifier_class.assert_called_once_with(
+                mock_bot_config.discord_webhook_url
+            )
+            assert bot.db == mock_db_class.return_value
 
-            # Verify IBKR scanner is used
-            assert hasattr(bot, "ibkr_scanner")
-
-    def test_database_integration_methods_exist(self, mock_trading_bot):
-        """Test that required database methods are available"""
-        # These methods should exist from Phase 3
-        assert hasattr(mock_trading_bot.db, "get_or_tracking_candidates")
-        assert hasattr(mock_trading_bot.db, "get_orh_breakout_candidates")
-        assert hasattr(mock_trading_bot.db, "update_candidate_or_data")
-        assert callable(mock_trading_bot.db.get_or_tracking_candidates)
-        assert callable(mock_trading_bot.db.get_orh_breakout_candidates)
-        assert callable(mock_trading_bot.db.update_candidate_or_data)
-
-    def test_error_handling_scan(self, mock_trading_bot):
-        """Test error handling in scan"""
-        # Get the mocked scanner instance from the bot
-        mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.scan_for_gaps.side_effect = Exception("IBKR API Error")
-        mock_scanner.is_connected.return_value = True
-
-        result = mock_trading_bot.scan()
-
-        # Should return 0 when error occurs
-        assert result == 0
-
-    def test_error_handling_track_or_breakouts(self, mock_trading_bot):
-        """Test error handling in track_or_breakouts"""
-        # Get the mocked scanner instance from the bot
-        mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.track_opening_range.side_effect = Exception(
-            "Tracking error"
-        )
-        mock_scanner.is_connected.return_value = True
-
-        mock_trading_bot.db.get_or_tracking_candidates = Mock(return_value=[])
-
-        result = mock_trading_bot.track_or_breakouts()
-
-        # Should return 0 when error occurs
-        assert result == 0
-
-    def test_error_handling_execute_orh_breakouts(self, mock_trading_bot):
-        """Test error handling in execute_orh_breakouts"""
-        mock_trading_bot.db.get_orh_breakout_candidates = Mock(
-            side_effect=Exception("Database error")
-        )
-
-        result = mock_trading_bot.execute_orh_breakouts()
-
-        # Should return 0 when error occurs
-        assert result == 0
-
-    def test_scan_method_connects_ibkr_scanner_when_not_connected(
+    async def test_ensure_connection_connects_when_not_connected(
         self, mock_trading_bot
     ):
-        """Test that scan() method connects IBKR scanner when not connected"""
-        # Get the mocked scanner instance from the bot
-        mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = False
-        mock_scanner.scan_for_gaps.return_value = []
+        """_ensure_connection should connect when IBKR client is disconnected."""
+        mock_trading_bot.ib_client.is_connected.return_value = False
+        await mock_trading_bot._ensure_connection()
+        mock_trading_bot.ib_client.connect.assert_awaited_once()
 
-        # Mock ASX scanner
-        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(
-            return_value=set()
-        )
-
-        # Mock Discord notifier
-        mock_trading_bot.discord_notifier.send_scan_results = Mock()
-
-        result = mock_trading_bot.scan()
-
-        # Verify connection was established
-        mock_scanner.is_connected.assert_called()
-        mock_scanner.connect.assert_called_once()
-        assert isinstance(result, int)
-
-    def test_scan_method_skips_connection_when_already_connected(
+    async def test_ensure_connection_skips_when_connected(
         self, mock_trading_bot
     ):
-        """Test that scan() method skips connection when IBKR scanner is already connected"""
-        # Get the mocked scanner instance from the bot
-        mock_scanner = mock_trading_bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = []
+        """_ensure_connection should not reconnect if already connected."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        await mock_trading_bot._ensure_connection()
+        mock_trading_bot.ib_client.connect.assert_not_awaited()
 
-        # Mock ASX scanner
-        mock_trading_bot.asx_scanner.fetch_price_sensitive_tickers = Mock(
-            return_value=set()
+    async def test_scan_workflow(self, mock_trading_bot):
+        """scan should ensure connection, persist candidates, and return count."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        mock_candidates = [Mock(spec=Candidate)]
+        mock_trading_bot.scanner.find_candidates.return_value = mock_candidates
+
+        result = await mock_trading_bot.scan()
+
+        mock_trading_bot.ib_client.connect.assert_not_awaited()
+        mock_trading_bot.scanner.find_candidates.assert_awaited_once()
+        assert mock_trading_bot.db.save_candidate.call_count == len(
+            mock_candidates
+        )
+        assert result == len(mock_candidates)
+
+    async def test_scan_handles_no_candidates(self, mock_trading_bot):
+        """scan should return zero when no candidates are found."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        mock_trading_bot.scanner.find_candidates.return_value = []
+
+        result = await mock_trading_bot.scan()
+
+        mock_trading_bot.scanner.find_candidates.assert_awaited_once()
+        mock_trading_bot.db.save_candidate.assert_not_called()
+        assert result == 0
+
+    async def test_scan_handles_connection_error(self, mock_trading_bot):
+        """scan should handle connection errors gracefully."""
+        mock_trading_bot.ib_client.is_connected.return_value = False
+        mock_trading_bot.ib_client.connect.side_effect = Exception(
+            "Connection failed"
         )
 
-        # Mock Discord notifier
-        mock_trading_bot.discord_notifier.send_scan_results = Mock()
-
-        result = mock_trading_bot.scan()
-
-        # Verify connection was not attempted
-        mock_scanner.connect.assert_not_called()
-        assert isinstance(result, int)
-
-
-class TestTradingBotCoreMethods:
-    """Test core TradingBot methods"""
-
-    @pytest.fixture
-    def bot(self, mock_bot_config):
-        """Create TradingBot instance with mocked dependencies"""
-        with (
-            patch("skim.core.bot.Database"),
-            patch("skim.core.bot.IBKRClient"),
-            patch("skim.core.bot.DiscordNotifier"),
-            patch("skim.core.bot.IBKRGapScanner"),
-            patch("skim.core.bot.ASXAnnouncementScanner"),
-        ):
-            return TradingBot(mock_bot_config)
-
-    @pytest.fixture
-    def mock_gap_stocks(self):
-        """Create mock gap stocks data"""
-        return [
-            GapStock(
-                ticker="BHP",
-                gap_percent=5.5,
-                conid=8644,
-            ),
-            GapStock(
-                ticker="RIO",
-                gap_percent=4.2,
-                conid=8653,
-            ),
-        ]
-
-    @pytest.fixture
-    def mock_or_data(self):
-        """Create mock opening range data"""
-        return [
-            OpeningRangeData(
-                ticker="BHP",
-                conid=8644,
-                or_high=46.50,
-                or_low=44.80,
-                open_price=45.50,
-                prev_close=45.20,
-                current_price=46.80,
-                gap_holding=True,
-            ),
-            OpeningRangeData(
-                ticker="RIO",
-                conid=8653,
-                or_high=121.50,
-                or_low=119.80,
-                open_price=120.00,
-                prev_close=120.50,
-                current_price=119.50,
-                gap_holding=False,
-            ),
-        ]
-
-    @pytest.fixture
-    def mock_breakout_signals(self):
-        """Create mock breakout signals"""
-        return [
-            BreakoutSignal(
-                ticker="BHP",
-                conid=8644,
-                gap_pct=5.5,
-                or_high=46.50,
-                or_low=44.80,
-                or_size_pct=3.8,
-                current_price=46.80,
-                entry_signal="ORB_HIGH_BREAKOUT",
-                timestamp=datetime.now(),
-            )
-        ]
-
-    def test_scan_full_workflow(self, bot, mock_gap_stocks):
-        """Test complete scan workflow"""
-        # Setup mocks
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = False
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
-        mock_scanner.get_market_data.return_value = Mock(last_price=50.0)
-
-        bot.asx_scanner.fetch_price_sensitive_tickers.return_value = {
-            "BHP",
-            "RIO",
-        }
-
-        bot.db.save_candidate = Mock()
-        bot.discord_notifier.send_scan_results = Mock()
-
-        # Execute
-        result = bot.scan()
-
-        # Verify workflow
-        mock_scanner.is_connected.assert_called()
-        mock_scanner.connect.assert_called_once()
-        mock_scanner.scan_for_gaps.assert_called_once()
-
-        # Verify candidates were saved
-        assert result == 2
-
-    def test_scan_with_existing_candidates(self, bot, mock_gap_stocks):
-        """Test scan with existing candidates"""
-        # Setup mocks
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
-        mock_scanner.get_market_data.return_value = Mock(last_price=50.0)
-
-        bot.asx_scanner.fetch_price_sensitive_tickers.return_value = {
-            "BHP",
-            "RIO",
-        }
-
-        bot.db.save_candidate = Mock()
-        bot.discord_notifier.send_scan_results = Mock()
-
-        # Execute
-        result = bot.scan()
-
-        # Verify candidates were saved
-        assert result == 2
-
-    def test_scan_no_stocks_found(self, bot):
-        """Test scan when no stocks found"""
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = []
-        bot.asx_scanner.fetch_price_sensitive_tickers.return_value = set()
-        bot.discord_notifier.send_scan_results = Mock()
-
-        result = bot.scan()
+        result = await mock_trading_bot.scan()
 
         assert result == 0
-        mock_scanner.scan_for_gaps.assert_called_once()
+        mock_trading_bot.ib_client.connect.assert_awaited_once()
+        mock_trading_bot.scanner.find_candidates.assert_not_awaited()
 
-    def test_scan_connection_error(self, bot):
-        """Test scan with connection error"""
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = False
-        mock_scanner.connect.side_effect = Exception("Connection failed")
-
-        result = bot.scan()
-
-        assert result == 0
-
-    def test_track_or_breakouts_full_workflow(
-        self, bot, mock_or_data, mock_breakout_signals
-    ):
-        """Test complete track_or_breakouts workflow"""
-        # Setup mock candidates
-        mock_candidates = [
-            Mock(
-                ticker="BHP",
-                headline="Test headline",
-                scan_date="2023-01-01",
-                status="or_tracking",
-                conid=8644,
-                prev_close=45.20,
-                gap_percent=5.5,
-                open_price=46.00,
-                session_high=47.80,
-                session_low=45.30,
-                volume=1000000,
-                bid=47.45,
-                ask=47.55,
-                market_data_timestamp=datetime.now().isoformat(),
-            )
-        ]
-
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = True
-        mock_scanner.track_opening_range.return_value = mock_or_data
-        mock_scanner.filter_breakouts.return_value = mock_breakout_signals
-
-        bot.db.get_or_tracking_candidates = Mock(return_value=mock_candidates)
-        bot.db.update_candidate_or_data = Mock()
-        bot.db.update_candidate_status = Mock()
-
-        result = bot.track_or_breakouts()
-
-        # Verify workflow
-        bot.db.get_or_tracking_candidates.assert_called_once()
-        mock_scanner.track_opening_range.assert_called_once()
-        mock_scanner.filter_breakouts.assert_called_once_with(mock_or_data)
-
-        # Verify breakout was processed
-        bot.db.update_candidate_or_data.assert_called_once()
-        bot.db.update_candidate_status.assert_called_once_with(
-            "BHP", "orh_breakout"
+    async def test_trade_workflow(self, mock_trading_bot):
+        """trade should retrieve watching candidates and delegate to Trader."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        mock_candidates = [Mock(spec=Candidate)]
+        mock_trading_bot.db.get_watching_candidates.return_value = (
+            mock_candidates
+        )
+        mock_trading_bot.trader.execute_breakouts.return_value = len(
+            mock_candidates
         )
 
-        assert result == 1
-
-    def test_track_or_breakouts_no_candidates(self, bot):
-        """Test track_or_breakouts with no candidates"""
-        bot.db.get_or_tracking_candidates = Mock(return_value=[])
-
-        result = bot.track_or_breakouts()
-
-        assert result == 0
-        bot.db.get_or_tracking_candidates.assert_called_once()
-
-    def test_track_or_breakouts_invalid_candidates(self, bot):
-        """Test track_or_breakouts with invalid candidates (missing conid/prev_close)"""
-        mock_candidates = [
-            Mock(ticker="BHP", conid=None, prev_close=45.20),  # Missing conid
-            Mock(
-                ticker="RIO", conid=8653, prev_close=None
-            ),  # Missing prev_close
-        ]
-
-        bot.db.get_or_tracking_candidates = Mock(return_value=mock_candidates)
-
-        result = bot.track_or_breakouts()
-
-        assert result == 0
-
-    def test_track_or_breakouts_connection_error(self, bot):
-        """Test track_or_breakouts with connection error"""
-        mock_candidates = [
-            Mock(ticker="BHP", conid=8644, prev_close=45.20),
-        ]
-
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = False
-        mock_scanner.connect.side_effect = Exception("Connection failed")
-
-        bot.db.get_or_tracking_candidates = Mock(return_value=mock_candidates)
-
-        result = bot.track_or_breakouts()
-
-        assert result == 0
-
-    def test_execute_orh_breakouts_full_workflow(self, bot):
-        """Test complete execute_orh_breakouts workflow"""
-        # Setup mock candidates
-        mock_candidates = [
-            Mock(
-                ticker="BHP",
-                or_low=44.80,
-            )
-        ]
-
-        # Mock IB client
-        mock_ib_client = bot.ib_client
-        mock_ib_client._get_contract_id.return_value = "8644"
-        mock_market_data = Mock(last_price=46.80, low=44.50)
-        mock_ib_client.get_market_data.return_value = mock_market_data
-        mock_order_result = Mock(filled_price=46.75)
-        mock_ib_client.place_order.return_value = mock_order_result
-
-        # Mock database
-        bot.db.get_orh_breakout_candidates = Mock(return_value=mock_candidates)
-        bot.db.count_open_positions = Mock(return_value=0)
-        bot.db.create_position = Mock(return_value=1)
-        bot.db.create_trade = Mock()
-        bot.db.update_candidate_status = Mock()
-
-        result = bot.execute_orh_breakouts()
-
-        # Verify workflow
-        bot.db.get_orh_breakout_candidates.assert_called_once()
-        mock_ib_client._get_contract_id.assert_called_once_with("BHP")
-        mock_ib_client.get_market_data.assert_called_once_with("8644")
-        mock_ib_client.place_order.assert_called_once_with(
-            "BHP", "BUY", 106
-        )  # 5000/46.80 ≈ 106
-        bot.db.create_position.assert_called_once()
-        bot.db.create_trade.assert_called_once()
-        bot.db.update_candidate_status.assert_called_once_with("BHP", "entered")
-
-        assert result == 1
-
-    def test_execute_orh_breakouts_no_candidates(self, bot):
-        """Test execute_orh_breakouts with no candidates"""
-        bot.db.get_orh_breakout_candidates = Mock(return_value=[])
-
-        result = bot.execute_orh_breakouts()
-
-        assert result == 0
-
-    def test_execute_orh_breakouts_max_positions_reached(self, bot):
-        """Test execute_orh_breakouts when max positions reached"""
-        mock_candidates = [Mock(ticker="BHP")]
-
-        bot.db.get_orh_breakout_candidates = Mock(return_value=mock_candidates)
-        bot.db.count_open_positions = Mock(return_value=5)  # Max positions
-
-        result = bot.execute_orh_breakouts()
-
-        assert result == 0
-
-    def test_execute_orh_breakouts_no_market_data(self, bot):
-        """Test execute_orh_breakouts with no market data"""
-        mock_candidates = [Mock(ticker="BHP")]
-
-        mock_ib_client = bot.ib_client
-        mock_ib_client.get_market_data.return_value = None
-
-        bot.db.get_orh_breakout_candidates = Mock(return_value=mock_candidates)
-        bot.db.count_open_positions = Mock(return_value=0)
-
-        result = bot.execute_orh_breakouts()
-
-        assert result == 0
-
-    def test_execute_orh_breakouts_order_failed(self, bot):
-        """Test execute_orh_breakouts when order placement fails"""
-        mock_candidates = [Mock(ticker="BHP")]
-
-        mock_ib_client = bot.ib_client
-        mock_market_data = Mock(last_price=46.80)
-        mock_ib_client.get_market_data.return_value = mock_market_data
-        mock_ib_client.place_order.return_value = None  # Order failed
-
-        bot.db.get_orh_breakout_candidates = Mock(return_value=mock_candidates)
-        bot.db.count_open_positions = Mock(return_value=0)
-
-        result = bot.execute_orh_breakouts()
-
-        assert result == 0
-
-    def test_execute_orh_breakouts_fallback_stop_loss(self, bot):
-        """Test execute_orh_breakouts uses fallback stop loss when or_low unavailable"""
-        mock_candidates = [
-            Mock(ticker="BHP", or_low=None)  # No OR low
-        ]
-
-        mock_ib_client = bot.ib_client
-        mock_market_data = Mock(last_price=46.80)
-        mock_ib_client.get_market_data.return_value = mock_market_data
-        mock_order_result = Mock(filled_price=46.75)
-        mock_ib_client.place_order.return_value = mock_order_result
-
-        bot.db.get_orh_breakout_candidates = Mock(return_value=mock_candidates)
-        bot.db.count_open_positions = Mock(return_value=0)
-        bot.db.create_position = Mock(return_value=1)
-        bot.db.create_trade = Mock()
-        bot.db.update_candidate_status = Mock()
-
-        result = bot.execute_orh_breakouts()
-
-        # Verify fallback stop loss was used (5% below entry)
-        expected_stop_loss = 46.75 * 0.95  # ≈ 44.41
-        bot.db.create_position.assert_called_once()
-        call_args = bot.db.create_position.call_args
-        actual_stop_loss = call_args[1]["stop_loss"]
-        assert (
-            abs(actual_stop_loss - expected_stop_loss) < 0.1
-        )  # Allow small rounding difference
-
-        assert result == 1
-
-    def test_ensure_connection_when_not_connected(self, bot):
-        """Test _ensure_connection connects when not connected"""
-        mock_ib_client = bot.ib_client
-        mock_ib_client.is_connected.return_value = False
-
-        bot._ensure_connection()
-
-        mock_ib_client.connect.assert_called_once()
-
-    def test_ensure_connection_when_already_connected(self, bot):
-        """Test _ensure_connection skips when already connected"""
-        mock_ib_client = bot.ib_client
-        mock_ib_client.is_connected.return_value = True
-
-        bot._ensure_connection()
-
-        mock_ib_client.connect.assert_not_called()
-
-    def test_connect_ib_when_not_connected(self, bot):
-        """Test _connect_ib connects when not connected"""
-        mock_ib_client = bot.ib_client
-        mock_ib_client.is_connected.return_value = False
-
-        bot._connect_ib()
-
-        mock_ib_client.connect.assert_called_once_with(timeout=20)
-
-    def test_connect_ib_when_already_connected(self, bot):
-        """Test _connect_ib skips when already connected"""
-        mock_ib_client = bot.ib_client
-        mock_ib_client.is_connected.return_value = True
-
-        bot._connect_ib()
-
-        mock_ib_client.connect.assert_not_called()
-
-
-class TestTradingBotWorkflowMethods:
-    """Test TradingBot workflow methods"""
-
-    @pytest.fixture
-    def bot(self, mock_bot_config):
-        """Create TradingBot instance with mocked dependencies"""
-        with (
-            patch("skim.core.bot.Database"),
-            patch("skim.core.bot.IBKRClient"),
-            patch("skim.core.bot.DiscordNotifier"),
-            patch("skim.core.bot.IBKRGapScanner"),
-            patch("skim.core.bot.ASXAnnouncementScanner"),
-        ):
-            return TradingBot(mock_bot_config)
-
-    @pytest.fixture
-    def mock_gap_stocks(self):
-        """Create mock gap stocks data"""
-        return [
-            GapStock(
-                ticker="BHP",
-                gap_percent=5.5,
-                conid=8644,
-            ),
-            GapStock(
-                ticker="RIO",
-                gap_percent=4.2,
-                conid=8653,
-            ),
-        ]
-
-    def test_scan_full_workflow_with_candidates(self, bot, mock_gap_stocks):
-        """Test complete scan workflow with candidates found"""
-        # Setup mocks
-        bot.asx_scanner.fetch_price_sensitive_tickers.return_value = {
-            "BHP",
-            "RIO",
-        }
-
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = False
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
-        mock_scanner.get_market_data.return_value = Mock(last_price=50.0)
-
-        bot.db.save_candidate = Mock()
-        bot.discord_notifier.send_scan_results = Mock()
-
-        result = bot.scan()
-
-        # Verify workflow
-        bot.asx_scanner.fetch_price_sensitive_tickers.assert_called_once()
-        mock_scanner.connect.assert_called_once()
-        mock_scanner.scan_for_gaps.assert_called_once()
-
-        # Verify scan returned correct count of candidates
-        assert result == 2
-        # Verify Discord notification was sent with candidates
-        bot.discord_notifier.send_scan_results.assert_called_once()
-        call_args = bot.discord_notifier.send_scan_results.call_args
-        assert call_args[0][0] == 2
-
-    def test_scan_workflow_no_price_sensitive(self, bot, mock_gap_stocks):
-        """Test scan workflow with no price-sensitive announcements"""
-        # Setup mocks
-        bot.asx_scanner.fetch_price_sensitive_tickers.return_value = (
-            set()
-        )  # No announcements
-
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = True
-        mock_scanner.scan_for_gaps.return_value = mock_gap_stocks
-
-        bot.db.save_candidate = Mock()
-        bot.discord_notifier.send_scan_results = Mock()
-
-        result = bot.scan()
-
-        # Verify workflow
-        bot.asx_scanner.fetch_price_sensitive_tickers.assert_called_once()
-        mock_scanner.scan_for_gaps.assert_called_once()
-
-        # When there are no price-sensitive announcements, no candidates should be saved
-        assert result == 0
-
-    def test_execute_workflow_with_orders(self, bot):
-        """Test execute workflow with orders placed"""
-        # Setup mocks
-        mock_ib_client = bot.ib_client
-        mock_ib_client._get_contract_id.return_value = "8644"  # BHP conid
-        mock_market_data = Mock(last_price=46.80, low=44.50)
-        mock_ib_client.get_market_data.return_value = mock_market_data
-        mock_order_result = Mock(filled_price=46.75)
-        mock_ib_client.place_order.return_value = mock_order_result
-
-        # Mock triggered candidates
-        mock_candidates = [Mock(ticker="BHP")]
-        bot.db.get_triggered_candidates = Mock(return_value=mock_candidates)
-        bot.db.count_open_positions = Mock(return_value=0)
-        bot.db.create_position = Mock(return_value=1)
-        bot.db.create_trade = Mock()
-        bot.db.update_candidate_status = Mock()
-
-        result = bot.execute()
-
-        # Verify workflow
-        bot.db.get_triggered_candidates.assert_called_once()
-        mock_ib_client._get_contract_id.assert_called()
-        mock_ib_client.get_market_data.assert_called()  # Called twice (once for price, once for low)
-        mock_ib_client.place_order.assert_called_once_with(
-            "BHP", "BUY", 106
-        )  # 5000/46.80 ≈ 106
-        bot.db.create_position.assert_called_once()
-        bot.db.create_trade.assert_called_once()
-        bot.db.update_candidate_status.assert_called_once_with("BHP", "entered")
-
-        assert result == 1
-
-    def test_execute_workflow_max_positions_reached(self, bot):
-        """Test execute workflow when max positions reached"""
-        bot.db.count_open_positions = Mock(return_value=5)  # Max positions
-
-        result = bot.execute()
-
-        assert result == 0
-        # get_triggered_candidates is not called when max positions reached
-
-    def test_execute_workflow_no_triggered_candidates(self, bot):
-        """Test execute workflow with no triggered candidates"""
-        bot.db.count_open_positions = Mock(
-            return_value=0
-        )  # Mock return value as int
-        bot.db.get_triggered_candidates = Mock(return_value=[])
-
-        result = bot.execute()
-
-        assert result == 0
-
-    def test_execute_workflow_no_market_data(self, bot):
-        """Test execute workflow with no market data"""
-        mock_ib_client = bot.ib_client
-        mock_ib_client._get_contract_id.return_value = "8644"
-        mock_ib_client.get_market_data.return_value = None
-
-        bot.db.get_triggered_candidates = Mock(
-            return_value=[Mock(ticker="BHP")]
+        result = await mock_trading_bot.trade()
+
+        mock_trading_bot.ib_client.connect.assert_not_awaited()
+        mock_trading_bot.db.get_watching_candidates.assert_called_once()
+        mock_trading_bot.trader.execute_breakouts.assert_awaited_once_with(
+            mock_candidates
         )
-        bot.db.count_open_positions = Mock(return_value=0)
+        assert result == len(mock_candidates)
 
-        result = bot.execute()
+    async def test_trade_handles_no_candidates(self, mock_trading_bot):
+        """trade should early-exit when no watching candidates exist."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        mock_trading_bot.db.get_watching_candidates.return_value = []
 
+        result = await mock_trading_bot.trade()
+
+        mock_trading_bot.db.get_watching_candidates.assert_called_once()
+        mock_trading_bot.trader.execute_breakouts.assert_not_awaited()
         assert result == 0
 
-    def test_execute_workflow_order_failed(self, bot):
-        """Test execute workflow when order placement fails"""
-        mock_ib_client = bot.ib_client
-        mock_ib_client._get_contract_id.return_value = "8644"
-        mock_market_data = Mock(last_price=46.80)
-        mock_ib_client.get_market_data.return_value = mock_market_data
-        mock_ib_client.place_order.return_value = None  # Order failed
+    async def test_manage_workflow(self, mock_trading_bot):
+        """manage should check stops and delegate exits."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        mock_positions = [Mock(spec=Position)]
+        mock_stops_hit = [Mock(spec=Position)]
+        mock_trading_bot.db.get_open_positions.return_value = mock_positions
+        mock_trading_bot.monitor.check_stops.return_value = mock_stops_hit
+        mock_trading_bot.trader.execute_stops.return_value = len(mock_stops_hit)
 
-        bot.db.get_triggered_candidates = Mock(
-            return_value=[Mock(ticker="BHP")]
+        result = await mock_trading_bot.manage()
+
+        mock_trading_bot.ib_client.connect.assert_not_awaited()
+        mock_trading_bot.db.get_open_positions.assert_called_once()
+        mock_trading_bot.monitor.check_stops.assert_awaited_once_with(
+            mock_positions
         )
-        bot.db.count_open_positions = Mock(return_value=0)
+        mock_trading_bot.trader.execute_stops.assert_awaited_once_with(
+            mock_stops_hit
+        )
+        assert result == len(mock_stops_hit)
 
-        result = bot.execute()
+    async def test_manage_handles_no_positions(self, mock_trading_bot):
+        """manage should early-exit when no open positions exist."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        mock_trading_bot.db.get_open_positions.return_value = []
 
+        result = await mock_trading_bot.manage()
+
+        mock_trading_bot.db.get_open_positions.assert_called_once()
+        mock_trading_bot.monitor.check_stops.assert_not_awaited()
+        mock_trading_bot.trader.execute_stops.assert_not_awaited()
         assert result == 0
 
-    def test_manage_positions_day3_exit(self, bot):
-        """Test manage_positions with day 3 exit"""
-        # Setup mock position
-        mock_position = Mock(
-            ticker="BHP",
-            id=1,
-            quantity=100,
-            entry_price=45.00,
-            stop_loss=42.00,
-            days_held=3,
-            half_sold=False,
+    async def test_manage_handles_no_stops_hit(self, mock_trading_bot):
+        """manage should return zero when no stops are hit."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        mock_positions = [Mock(spec=Position)]
+        mock_trading_bot.db.get_open_positions.return_value = mock_positions
+        mock_trading_bot.monitor.check_stops.return_value = []
+
+        result = await mock_trading_bot.manage()
+
+        mock_trading_bot.db.get_open_positions.assert_called_once()
+        mock_trading_bot.monitor.check_stops.assert_awaited_once_with(
+            mock_positions
         )
-
-        mock_ib_client = bot.ib_client
-        mock_ib_client._get_contract_id.return_value = "8644"
-        mock_market_data = Mock(last_price=50.00)
-        mock_ib_client.get_market_data.return_value = mock_market_data
-        mock_order_result = Mock(filled_price=50.00)
-        mock_ib_client.place_order.return_value = mock_order_result
-
-        bot.db.get_open_positions = Mock(return_value=[mock_position])
-        bot.db.update_position_half_sold = Mock()
-        bot.db.create_trade = Mock()
-        bot.db.update_candidate_status = Mock()
-
-        result = bot.manage_positions()
-
-        # Verify day 3 exit
-        mock_ib_client.place_order.assert_called_once_with(
-            "BHP", "SELL", 50
-        )  # Half of 100
-        bot.db.update_position_half_sold.assert_called_once_with(1, True)
-        bot.db.create_trade.assert_called_once()
-        bot.db.update_candidate_status.assert_called_once_with(
-            "BHP", "half_exited"
-        )
-
-        assert result == 1
-
-    def test_manage_positions_stop_loss_triggered(self, bot):
-        """Test manage_positions with stop loss triggered"""
-        # Setup mock position
-        mock_position = Mock(
-            ticker="BHP",
-            id=1,
-            quantity=100,
-            entry_price=45.00,
-            stop_loss=42.00,
-            days_held=1,
-            half_sold=False,
-        )
-
-        mock_ib_client = bot.ib_client
-        mock_ib_client._get_contract_id.return_value = "8644"
-        mock_market_data = Mock(last_price=41.50)  # Below stop loss
-        mock_ib_client.get_market_data.return_value = mock_market_data
-        mock_order_result = Mock(filled_price=41.50)
-        mock_ib_client.place_order.return_value = mock_order_result
-
-        bot.db.get_open_positions = Mock(return_value=[mock_position])
-        bot.db.update_position_exit = Mock()
-        bot.db.create_trade = Mock()
-
-        result = bot.manage_positions()
-
-        # Verify stop loss exit
-        mock_ib_client.place_order.assert_called_once_with("BHP", "SELL", 100)
-        bot.db.update_position_exit.assert_called_once()
-        bot.db.create_trade.assert_called_once()
-
-        assert result == 1
-
-    def test_manage_positions_no_positions(self, bot):
-        """Test manage_positions with no open positions"""
-        bot.db.get_open_positions = Mock(return_value=[])
-
-        result = bot.manage_positions()
-
+        mock_trading_bot.trader.execute_stops.assert_not_awaited()
         assert result == 0
-
-    def test_manage_positions_no_market_data(self, bot):
-        """Test manage_positions with no market data"""
-        mock_position = Mock(ticker="BHP", id=1)
-
-        mock_ib_client = bot.ib_client
-        mock_ib_client._get_contract_id.return_value = "8644"
-        mock_ib_client.get_market_data.return_value = None
-
-        bot.db.get_open_positions = Mock(return_value=[mock_position])
-
-        result = bot.manage_positions()
-
-        assert result == 0
-
-
-class TestTradingBotScannerConfig:
-    """Tests for TradingBot scanner configuration integration"""
-
-    @pytest.fixture
-    def bot(self, scanner_config):
-        """Create TradingBot instance with mocked dependencies"""
-        from skim.core.config import Config
-
-        # Create proper Config object containing the scanner_config
-        config = Config(
-            ib_client_id=1,
-            discord_webhook_url="test_webhook_url",
-            scanner_config=scanner_config,
-            db_path=":memory:",
-        )
-
-        with (
-            patch("skim.core.bot.Database"),
-            patch("skim.core.bot.IBKRClient"),
-            patch("skim.core.bot.DiscordNotifier"),
-            patch("skim.core.bot.IBKRGapScanner"),
-            patch("skim.core.bot.ASXAnnouncementScanner"),
-        ):
-            return TradingBot(config)
-
-    def test_bot_initializes_scanner_with_config(self, bot, scanner_config):
-        """Test TradingBot passes scanner_config to IBKRGapScanner"""
-        # The IBKRGapScanner should have been initialised with scanner_config
-        # Since we're using mocks, we just verify the bot has the scanner
-        assert bot.ibkr_scanner is not None
-        # Verify the bot has access to the scanner config through its config
-        assert bot.config.scanner_config is not None
-        assert (
-            bot.config.scanner_config.gap_threshold
-            == scanner_config.gap_threshold
-        )
-
-    def test_scan_uses_config_filters(self, bot, scanner_config):
-        """Test scan method uses config values"""
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = True
-
-        # Mock the ASX scanner to return some tickers
-        bot.asx_scanner.fetch_price_sensitive_tickers.return_value = {
-            "BHP",
-            "RIO",
-        }
-
-        # Mock the scanner method to return expected values
-        mock_scanner.scan_for_gaps.return_value = []
-
-        # Call the scan method
-        bot.scan()
-
-        # Verify scan_for_gaps was called with the gap threshold from config
-        mock_scanner.scan_for_gaps.assert_called_once_with(
-            min_gap=scanner_config.gap_threshold
-        )
-
-    def test_track_or_breakouts_uses_config_timing(self, bot, scanner_config):
-        """Test track_or_breakouts uses config timing parameters"""
-        mock_scanner = bot.ibkr_scanner
-        mock_scanner.is_connected.return_value = True
-        mock_scanner.track_opening_range.return_value = []
-        mock_scanner.filter_breakouts.return_value = []
-
-        # Mock candidates with valid data
-        mock_candidates = [
-            Mock(
-                ticker="BHP",
-                headline="Test headline",
-                scan_date="2023-01-01",
-                status="or_tracking",
-                conid=8644,
-                gap_percent=5.5,
-                open_price=46.00,
-                session_high=47.80,
-                session_low=45.30,
-                volume=1000000,
-                bid=47.45,
-                ask=47.55,
-                market_data_timestamp=datetime.now().isoformat(),
-            )
-        ]
-        bot.db.get_or_tracking_candidates = Mock(return_value=mock_candidates)
-
-        bot.track_or_breakouts()
-
-        # Verify track_opening_range was called
-        mock_scanner.track_opening_range.assert_called_once()
-
-        # Check that it was called with candidates and correct timing
-        call_args = mock_scanner.track_opening_range.call_args
-        assert call_args is not None
-        # Verify timing parameters from config are used
-        assert call_args[1]["duration_seconds"] == 600  # 10 minutes
-        assert call_args[1]["poll_interval"] == 30  # 30 seconds
-
-    def test_execute_orh_breakouts_config_values(self, bot, scanner_config):
-        """Test execute_orh_breakouts uses config-driven values"""
-        mock_ib_client = bot.ib_client
-
-        # Mock market data and order
-        mock_market_data = Mock(last_price=46.80)
-        mock_ib_client.get_market_data.return_value = mock_market_data
-        mock_order_result = Mock(filled_price=46.75)
-        mock_ib_client.place_order.return_value = mock_order_result
-
-        # Mock candidates and database
-        mock_candidates = [Mock(ticker="BHP", or_low=44.80)]
-        bot.db.get_orh_breakout_candidates = Mock(return_value=mock_candidates)
-        bot.db.count_open_positions = Mock(return_value=0)
-        bot.db.create_position = Mock(return_value=1)
-        bot.db.create_trade = Mock()
-        bot.db.update_candidate_status = Mock()
-
-        result = bot.execute_orh_breakouts()
-
-        # Verify position size calculation uses config values
-        mock_ib_client.place_order.assert_called_once()
-        call_args = mock_ib_client.place_order.call_args
-        quantity = call_args[0][2]  # BUY, ticker, quantity
-
-        # Should use $5000 position value divided by price
-        expected_quantity = int(5000 / 46.80)
-        assert quantity == expected_quantity
-
-        assert result == 1

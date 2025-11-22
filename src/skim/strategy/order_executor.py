@@ -1,10 +1,10 @@
-"""Order execution strategy - centralizes entry and exit order placement logic"""
+"""Order execution strategy - centralises entry and exit order placement logic"""
 
 from datetime import datetime
 
 from loguru import logger as default_logger
 
-from skim.brokers.ibkr_client import IBKRClient
+from skim.brokers.protocols import MarketDataProvider, OrderManager
 from skim.data.database import Database
 from skim.data.models import Candidate, Position
 from skim.strategy.position_manager import (
@@ -16,20 +16,28 @@ from skim.strategy.position_manager import (
 class OrderExecutor:
     """Handles order execution for entries and exits"""
 
-    def __init__(self, ib_client: IBKRClient, db: Database, logger=None):
+    def __init__(
+        self,
+        orders: OrderManager,
+        market_data: MarketDataProvider,
+        db: Database,
+        logger=None,
+    ):
         """
         Initialize OrderExecutor
 
         Args:
-            ib_client: IBKR client for placing orders
+            orders: Order service for placing/cancelling orders
+            market_data: Service for retrieving market data
             db: Database for recording positions and trades
             logger: Optional logger instance (defaults to loguru logger)
         """
-        self.ib_client = ib_client
+        self.orders = orders
+        self.market_data = market_data
         self.db = db
         self.logger = logger or default_logger
 
-    def execute_entry(
+    async def execute_entry(
         self,
         candidate: Candidate,
         stop_loss_source: str = "daily_low",
@@ -51,9 +59,7 @@ class OrderExecutor:
         ticker = candidate.ticker
 
         try:
-            # Get market data
-            conid = self.ib_client._get_contract_id(ticker)
-            market_data = self.ib_client.get_market_data(conid)
+            market_data = await self.market_data.get_market_data(ticker)
 
             if (
                 not market_data
@@ -65,7 +71,6 @@ class OrderExecutor:
 
             current_price = market_data.last_price
 
-            # Calculate position size
             quantity = calculate_position_size(
                 current_price,
                 max_shares=max_position_size,
@@ -76,20 +81,17 @@ class OrderExecutor:
                 self.logger.warning(f"{ticker}: Calculated quantity too small")
                 return None
 
-            # Calculate stop loss based on source
             if stop_loss_source == "or_low" and hasattr(candidate, "or_low"):
                 stop_loss = calculate_stop_loss(
                     current_price, low_of_day=candidate.or_low
                 )
             else:
-                # Default to daily low
                 daily_low = market_data.low if market_data.low > 0 else None
                 stop_loss = calculate_stop_loss(
                     current_price,
                     low_of_day=daily_low,
                 )
 
-                # Log if falling back to percentage-based stop loss
                 if daily_low is None or daily_low <= 0:
                     self.logger.warning(
                         f"{ticker}: Using fallback stop loss: ${stop_loss:.4f} (daily low unavailable)"
@@ -99,8 +101,9 @@ class OrderExecutor:
                 f"{ticker}: Position size={quantity}, Stop loss=${stop_loss:.4f}"
             )
 
-            # Place order
-            order_result = self.ib_client.place_order(ticker, "BUY", quantity)
+            order_result = await self.orders.place_order(
+                ticker, "BUY", quantity
+            )
 
             if not order_result:
                 self.logger.warning(f"Order placement failed for {ticker}")
@@ -108,7 +111,6 @@ class OrderExecutor:
 
             self.logger.info(f"Order placed: BUY {quantity} {ticker} @ market")
 
-            # Use filled price if available, otherwise use current price
             fill_price = (
                 order_result.filled_price
                 if order_result.filled_price
@@ -119,7 +121,6 @@ class OrderExecutor:
                 f"Order {order_result.status}: {quantity} {ticker} @ ${fill_price:.4f}"
             )
 
-            # Record position
             position_id = self.db.create_position(
                 ticker=ticker,
                 quantity=quantity,
@@ -128,7 +129,6 @@ class OrderExecutor:
                 entry_date=datetime.now().isoformat(),
             )
 
-            # Record trade
             self.db.create_trade(
                 ticker=ticker,
                 action="BUY",
@@ -138,7 +138,6 @@ class OrderExecutor:
                 notes=f"Entry via {stop_loss_source}",
             )
 
-            # Update candidate status
             self.db.update_candidate_status(ticker, "entered")
 
             return position_id
@@ -147,7 +146,7 @@ class OrderExecutor:
             self.logger.error(f"Error executing order for {ticker}: {e}")
             return None
 
-    def execute_exit(
+    async def execute_exit(
         self,
         position: Position,
         quantity: int,
@@ -167,8 +166,9 @@ class OrderExecutor:
         ticker = position.ticker
 
         try:
-            # Place order
-            order_result = self.ib_client.place_order(ticker, "SELL", quantity)
+            order_result = await self.orders.place_order(
+                ticker, "SELL", quantity
+            )
 
             if not order_result:
                 self.logger.warning(f"Exit order failed for {ticker}")
@@ -176,20 +176,17 @@ class OrderExecutor:
 
             self.logger.info(f"Exit order placed: SELL {quantity} {ticker}")
 
-            # Use filled price if available
             fill_price = (
                 order_result.filled_price if order_result.filled_price else None
             )
 
             if fill_price:
-                # Calculate PnL
                 pnl = (fill_price - position.entry_price) * quantity
 
                 self.logger.info(
                     f"Exit executed: {quantity} {ticker} @ ${fill_price:.4f}, PnL: ${pnl:.4f}"
                 )
 
-                # Record trade
                 self.db.create_trade(
                     ticker=ticker,
                     action="SELL",

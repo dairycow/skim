@@ -1,23 +1,29 @@
 """Monitor module - checks positions and identifies stop loss triggers"""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from loguru import logger
 
-from skim.brokers.ibkr_client import IBKRClient
 from skim.data.models import Position
+
+if TYPE_CHECKING:
+    from skim.brokers.protocols import MarketDataProvider
 
 
 class Monitor:
     """Monitors open positions for stop loss triggers"""
 
-    def __init__(self, ib_client: IBKRClient):
+    def __init__(self, market_data_provider: MarketDataProvider):
         """Initialise monitor
 
         Args:
-            ib_client: IBKR client for fetching market data
+            market_data_provider: Provider for market data
         """
-        self.ib_client = ib_client
+        self.market_data_provider = market_data_provider
 
-    def get_current_price(self, ticker: str) -> float | None:
+    async def get_current_price(self, ticker: str) -> float | None:
         """Get current price for a ticker
 
         Args:
@@ -27,8 +33,9 @@ class Monitor:
             Current last price or None if unavailable
         """
         try:
-            conid = self.ib_client._get_contract_id(ticker)
-            market_data = self.ib_client.get_market_data(conid)
+            market_data = await self.market_data_provider.get_market_data(
+                ticker
+            )
 
             if (
                 not market_data
@@ -43,7 +50,7 @@ class Monitor:
             logger.warning(f"Error fetching price for {ticker}: {e}")
             return None
 
-    def check_stops(self, positions: list[Position]) -> list[Position]:
+    async def check_stops(self, positions: list[Position]) -> list[Position]:
         """Check which positions have hit stop losses
 
         Args:
@@ -56,7 +63,7 @@ class Monitor:
 
         for position in positions:
             try:
-                current_price = self.get_current_price(position.ticker)
+                current_price = await self.get_current_price(position.ticker)
 
                 if current_price is None:
                     logger.debug(

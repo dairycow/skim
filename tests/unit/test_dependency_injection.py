@@ -1,173 +1,21 @@
-"""Test dependency injection for scanner components - TDD RED phase
+"""Test dependency injection for core components."""
 
-This test module defines the expected behaviour after refactoring to use
-dependency injection for IBKR client instances.
-"""
-
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from skim.brokers.ib_interface import IBInterface
 from skim.core.bot import TradingBot
 from skim.core.config import Config, ScannerConfig
-from skim.scanner import Scanner
-from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
 
 
-class TestIBKRGapScannerDependencyInjection:
-    """Test IBKRGapScanner accepts injected IBInterface client"""
-
-    def test_accepts_client_parameter(self):
-        """IBKRGapScanner should accept client parameter in constructor"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-        mock_client.is_connected.return_value = True
-
-        # Act
-        scanner = IBKRGapScanner(client=mock_client)
-
-        # Assert
-        assert scanner.client is mock_client
-
-    def test_raises_error_without_client(self):
-        """IBKRGapScanner should raise TypeError if no client provided"""
-        # Act & Assert
-        with pytest.raises(TypeError):
-            IBKRGapScanner()  # Missing required 'client' parameter
-
-    def test_uses_injected_client_for_operations(self):
-        """IBKRGapScanner should use injected client for scanner operations"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-        mock_client.is_connected.return_value = True
-        mock_client.run_scanner.return_value = []
-
-        scanner = IBKRGapScanner(client=mock_client)
-
-        # Act
-        scanner.scan_for_gaps(min_gap=3.0)
-
-        # Assert
-        mock_client.run_scanner.assert_called_once()
-
-    def test_accepts_scanner_config_parameter(self):
-        """IBKRGapScanner should still accept optional scanner_config"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-        config = ScannerConfig(gap_threshold=5.0)
-
-        # Act
-        scanner = IBKRGapScanner(client=mock_client, scanner_config=config)
-
-        # Assert
-        assert scanner.scanner_config.gap_threshold == 5.0
-
-    def test_no_longer_has_connect_method(self):
-        """IBKRGapScanner should not have connect() method"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-        scanner = IBKRGapScanner(client=mock_client)
-
-        # Assert
-        assert not hasattr(scanner, "connect") or not callable(
-            getattr(scanner, "connect", None)
-        )
-
-    def test_no_longer_has_disconnect_method(self):
-        """IBKRGapScanner should not have disconnect() method"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-        scanner = IBKRGapScanner(client=mock_client)
-
-        # Assert
-        assert not hasattr(scanner, "disconnect") or not callable(
-            getattr(scanner, "disconnect", None)
-        )
-
-    def test_is_connected_delegates_to_client(self):
-        """IBKRGapScanner.is_connected() should delegate to client.is_connected()"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-        mock_client.is_connected.return_value = True
-        scanner = IBKRGapScanner(client=mock_client)
-
-        # Act
-        result = scanner.is_connected()
-
-        # Assert
-        assert result is True
-        mock_client.is_connected.assert_called_once()
-
-
-class TestScannerDependencyInjection:
-    """Test Scanner accepts injected IBInterface client"""
-
-    def test_accepts_ib_client_parameter(self):
-        """Scanner should accept ib_client parameter in constructor"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-
-        # Act
-        scanner = Scanner(ib_client=mock_client, gap_threshold=3.0)
-
-        # Assert
-        assert scanner.ib_client is mock_client
-
-    def test_raises_error_without_client(self):
-        """Scanner should raise TypeError if no client provided"""
-        # Act & Assert
-        with pytest.raises(TypeError):
-            Scanner(gap_threshold=3.0)  # Missing required 'ib_client' parameter
-
-    def test_passes_client_to_ibkr_gap_scanner(self, mocker):
-        """Scanner should pass shared client to IBKRGapScanner"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-        mock_gap_scanner_init = mocker.patch("skim.scanner.IBKRGapScanner")
-
-        # Act
-        Scanner(ib_client=mock_client, gap_threshold=3.0)
-
-        # Assert
-        # Verify IBKRGapScanner was called with the client
-        mock_gap_scanner_init.assert_called_once()
-        call_kwargs = mock_gap_scanner_init.call_args.kwargs
-        assert "client" in call_kwargs
-        assert call_kwargs["client"] is mock_client
-
-    def test_does_not_create_own_ibkr_client(self, mocker):
-        """Scanner should not create its own IBKRClient instance"""
-        # Arrange
-        mock_client = Mock(spec=IBInterface)
-        mocker.patch("skim.scanner.IBKRGapScanner")
-
-        # Act
-        scanner = Scanner(ib_client=mock_client, gap_threshold=3.0)
-
-        # Assert
-        # Scanner should use the injected client, not create its own
-        assert scanner.ib_client is mock_client
-        # IBKRClient should not even be imported in scanner module
-        import skim.scanner as scanner_module
-
-        assert not hasattr(scanner_module, "IBKRClient")
-
-
+@pytest.mark.asyncio
 class TestTradingBotDependencyInjection:
     """Test TradingBot uses shared client for all components"""
 
-    def test_passes_same_client_to_all_components(self, mocker, tmp_path):
-        """TradingBot should pass same client instance to Scanner, Trader, Monitor"""
-        # Arrange - Mock all component constructors
-        mock_scanner_init = mocker.patch("skim.core.bot.Scanner")
-        mock_trader_init = mocker.patch("skim.core.bot.Trader")
-        mock_monitor_init = mocker.patch("skim.core.bot.Monitor")
-        mocker.patch("skim.core.bot.Database")
-        mocker.patch("skim.core.bot.DiscordNotifier")
-
-        # Create test config
-        config = Config(
+    @pytest.fixture
+    def mock_config(self, tmp_path):
+        """Create a mock Config object."""
+        return Config(
             ib_client_id=1,
             db_path=str(tmp_path / "test.db"),
             discord_webhook_url="https://discord.com/webhook/test",
@@ -179,74 +27,115 @@ class TestTradingBotDependencyInjection:
             oauth_encryption_key_path=str(tmp_path / "enc.pem"),
         )
 
-        # Act
-        bot = TradingBot(config)
+    async def test_creates_only_one_ibkr_client_and_services(self, mock_config):
+        """TradingBot should create only one IBKRClient instance and related services."""
+        with (
+            patch("skim.core.bot.Database"),
+            patch("skim.core.bot.IBKRClient") as mock_ibkr_client_class,
+            patch("skim.core.bot.IBKRMarketData") as mock_market_data_class,
+            patch("skim.core.bot.IBKROrders") as mock_orders_class,
+            patch("skim.core.bot.IBKRScanner") as mock_scanner_service_class,
+            patch("skim.core.bot.Scanner"),
+            patch("skim.core.bot.Trader"),
+            patch("skim.core.bot.Monitor"),
+            patch("skim.core.bot.DiscordNotifier"),
+        ):
+            # Mock return values for the classes
+            mock_ibkr_client_instance = AsyncMock()
+            mock_ibkr_client_class.return_value = mock_ibkr_client_instance
 
-        # Assert - All components should receive the same client instance
-        scanner_client = mock_scanner_init.call_args.kwargs.get("ib_client")
-        trader_client = mock_trader_init.call_args[0][0]  # First positional arg
-        monitor_client = mock_monitor_init.call_args[0][
-            0
-        ]  # First positional arg
+            mock_market_data_instance = Mock()
+            mock_market_data_class.return_value = mock_market_data_instance
 
-        assert scanner_client is not None
-        assert scanner_client is trader_client
-        assert scanner_client is monitor_client
-        assert scanner_client is bot.ib_client
+            mock_orders_instance = Mock()
+            mock_orders_class.return_value = mock_orders_instance
 
-    def test_creates_only_one_ibkr_client(self, mocker, tmp_path):
-        """TradingBot should create only one IBKRClient instance"""
-        # Arrange
-        mock_ibkr_client_init = mocker.patch("skim.core.bot.IBKRClient")
-        mocker.patch("skim.core.bot.Scanner")
-        mocker.patch("skim.core.bot.Trader")
-        mocker.patch("skim.core.bot.Monitor")
-        mocker.patch("skim.core.bot.Database")
-        mocker.patch("skim.core.bot.DiscordNotifier")
+            mock_scanner_service_instance = Mock()
+            mock_scanner_service_class.return_value = (
+                mock_scanner_service_instance
+            )
 
-        config = Config(
-            ib_client_id=1,
-            db_path=str(tmp_path / "test.db"),
-            discord_webhook_url="https://discord.com/webhook/test",
-            paper_trading=True,
-            max_positions=3,
-            max_position_size=10000,
-            scanner_config=ScannerConfig(),
-            oauth_signature_key_path=str(tmp_path / "sig.pem"),
-            oauth_encryption_key_path=str(tmp_path / "enc.pem"),
-        )
+            bot = TradingBot(mock_config)
 
-        # Act
-        TradingBot(config)
+            # Verify IBKRClient is instantiated exactly once
+            mock_ibkr_client_class.assert_called_once_with(
+                paper_trading=mock_config.paper_trading
+            )
 
-        # Assert - IBKRClient should be instantiated exactly once
-        assert mock_ibkr_client_init.call_count == 1
-        mock_ibkr_client_init.assert_called_once_with(paper_trading=True)
+            # Verify MarketData is instantiated once with the correct client
+            mock_market_data_class.assert_called_once_with(
+                mock_ibkr_client_instance
+            )
 
-    def test_connection_managed_at_bot_level(self, mocker, tmp_path):
-        """TradingBot should manage connection, not individual components"""
-        # Arrange
-        mocker.patch("skim.core.bot.Scanner")
-        mocker.patch("skim.core.bot.Trader")
-        mocker.patch("skim.core.bot.Monitor")
-        mocker.patch("skim.core.bot.Database")
-        mocker.patch("skim.core.bot.DiscordNotifier")
+            # Verify Orders is instantiated once with the correct client and market data
+            mock_orders_class.assert_called_once_with(
+                mock_ibkr_client_instance, mock_market_data_instance
+            )
 
-        config = Config(
-            ib_client_id=1,
-            db_path=str(tmp_path / "test.db"),
-            discord_webhook_url="https://discord.com/webhook/test",
-            paper_trading=True,
-            max_positions=3,
-            max_position_size=10000,
-            scanner_config=ScannerConfig(),
-            oauth_signature_key_path=str(tmp_path / "sig.pem"),
-            oauth_encryption_key_path=str(tmp_path / "enc.pem"),
-        )
+            # Verify ScannerService is instantiated once with the correct client and config
+            mock_scanner_service_class.assert_called_once_with(
+                mock_ibkr_client_instance, mock_config.scanner_config
+            )
 
-        # Act
-        bot = TradingBot(config)
+            # Verify that the bot holds references to these single instances
+            assert bot.ib_client is mock_ibkr_client_instance
+            assert bot.market_data_service is mock_market_data_instance
+            assert bot.order_service is mock_orders_instance
+            assert bot.scanner_service is mock_scanner_service_instance
 
-        # Assert - Bot should own the client connection
-        assert hasattr(bot, "ib_client")
-        assert hasattr(bot, "_ensure_connection")
+    async def test_components_receive_correct_dependencies(self, mock_config):
+        """Test that Scanner, Trader, and Monitor receive the correct service dependencies."""
+        with (
+            patch("skim.core.bot.Database") as mock_db_class,
+            patch("skim.core.bot.IBKRClient") as mock_ibkr_client_class,
+            patch("skim.core.bot.IBKRMarketData") as mock_market_data_class,
+            patch("skim.core.bot.IBKROrders") as mock_orders_class,
+            patch("skim.core.bot.IBKRScanner") as mock_scanner_service_class,
+            patch("skim.core.bot.Scanner") as mock_scanner_logic_class,
+            patch("skim.core.bot.Trader") as mock_trader_logic_class,
+            patch("skim.core.bot.Monitor") as mock_monitor_logic_class,
+            patch("skim.core.bot.DiscordNotifier"),
+        ):
+            # Mock return values for the classes
+            mock_db_instance = Mock()
+            mock_db_class.return_value = mock_db_instance
+
+            mock_ibkr_client_instance = AsyncMock()
+            mock_ibkr_client_class.return_value = mock_ibkr_client_instance
+
+            mock_market_data_instance = Mock()
+            mock_market_data_class.return_value = mock_market_data_instance
+
+            mock_orders_instance = Mock()
+            mock_orders_class.return_value = mock_orders_instance
+
+            mock_scanner_service_instance = Mock()
+            mock_scanner_service_class.return_value = (
+                mock_scanner_service_instance
+            )
+
+            bot = TradingBot(mock_config)
+
+            # Verify Scanner logic receives correct services
+            mock_scanner_logic_class.assert_called_once_with(
+                scanner_service=mock_scanner_service_instance,
+                market_data_service=mock_market_data_instance,
+                gap_threshold=mock_config.scanner_config.gap_threshold,
+            )
+
+            # Verify Trader logic receives correct services
+            mock_trader_logic_class.assert_called_once_with(
+                mock_market_data_instance,
+                mock_orders_instance,
+                mock_db_instance,
+            )
+
+            # Verify Monitor logic receives correct services
+            mock_monitor_logic_class.assert_called_once_with(
+                mock_market_data_instance
+            )
+
+            # Verify that the bot holds references to these logic modules
+            assert bot.scanner is mock_scanner_logic_class.return_value
+            assert bot.trader is mock_trader_logic_class.return_value
+            assert bot.monitor is mock_monitor_logic_class.return_value

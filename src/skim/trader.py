@@ -1,28 +1,40 @@
 """Trader module - executes breakout entries and stop loss exits"""
 
+from __future__ import annotations
+
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from skim.brokers.ibkr_client import IBKRClient
 from skim.data.database import Database
 from skim.data.models import Candidate, Position
+
+if TYPE_CHECKING:
+    from skim.brokers.protocols import MarketDataProvider, OrderManager
 
 
 class Trader:
     """Executes trading orders for entries and exits"""
 
-    def __init__(self, ib_client: IBKRClient, db: Database):
+    def __init__(
+        self,
+        market_data_provider: MarketDataProvider,
+        order_manager: OrderManager,
+        db: Database,
+    ):
         """Initialise trader
 
         Args:
-            ib_client: IBKR client for placing orders
+            market_data_provider: Provider for market data
+            order_manager: Manager for placing orders
             db: Database for recording positions
         """
-        self.ib_client = ib_client
+        self.market_data_provider = market_data_provider
+        self.order_manager = order_manager
         self.db = db
 
-    def execute_breakouts(self, candidates: list[Candidate]) -> int:
+    async def execute_breakouts(self, candidates: list[Candidate]) -> int:
         """Execute breakout entries when price > or_high
 
         Args:
@@ -36,8 +48,9 @@ class Trader:
         for candidate in candidates:
             try:
                 # Get current market data
-                conid = self.ib_client._get_contract_id(candidate.ticker)
-                market_data = self.ib_client.get_market_data(conid)
+                market_data = await self.market_data_provider.get_market_data(
+                    candidate.ticker
+                )
 
                 if not market_data or not market_data.last_price:
                     logger.warning(f"{candidate.ticker}: No valid market data")
@@ -71,7 +84,7 @@ class Trader:
                     continue
 
                 # Place buy order
-                order_result = self.ib_client.place_order(
+                order_result = await self.order_manager.place_order(
                     candidate.ticker, "BUY", quantity
                 )
 
@@ -115,7 +128,7 @@ class Trader:
         logger.info(f"Executed {entries} breakout entries")
         return entries
 
-    def execute_stops(self, positions: list[Position]) -> int:
+    async def execute_stops(self, positions: list[Position]) -> int:
         """Execute stop loss exits when price < stop_loss
 
         Args:
@@ -129,8 +142,9 @@ class Trader:
         for position in positions:
             try:
                 # Get current market data
-                conid = self.ib_client._get_contract_id(position.ticker)
-                market_data = self.ib_client.get_market_data(conid)
+                market_data = await self.market_data_provider.get_market_data(
+                    position.ticker
+                )
 
                 if not market_data or not market_data.last_price:
                     logger.warning(f"{position.ticker}: No valid market data")
@@ -150,7 +164,7 @@ class Trader:
                 )
 
                 # Place sell order for entire position
-                order_result = self.ib_client.place_order(
+                order_result = await self.order_manager.place_order(
                     position.ticker, "SELL", position.quantity
                 )
 

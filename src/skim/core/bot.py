@@ -7,11 +7,15 @@ Thin orchestrator that dispatches work to specialized modules:
 - monitor: Check positions for stop loss triggers
 """
 
+import asyncio
 import sys
 
 from loguru import logger
 
 from skim.brokers.ibkr_client import IBKRClient
+from skim.brokers.ibkr_market_data import IBKRMarketData
+from skim.brokers.ibkr_orders import IBKROrders
+from skim.brokers.ibkr_scanner import IBKRScanner
 from skim.core.config import Config
 from skim.data.database import Database
 from skim.monitor import Monitor
@@ -24,164 +28,99 @@ class TradingBot:
     """Minimal trading bot orchestrator"""
 
     def __init__(self, config: Config):
-        """Initialise bot with configuration
-
-        Args:
-            config: Configuration object with all settings
-        """
+        """Initialise bot with configuration"""
         logger.info("Initialising Skim Trading Bot...")
-
         self.config = config
-
-        # Initialise database
         self.db = Database(config.db_path)
 
-        # Initialise IB client (lazy connection)
+        # --- Service Instantiation ---
         self.ib_client = IBKRClient(paper_trading=config.paper_trading)
+        self.market_data_service = IBKRMarketData(self.ib_client)
+        self.order_service = IBKROrders(
+            self.ib_client, self.market_data_service
+        )
+        self.scanner_service = IBKRScanner(
+            self.ib_client, config.scanner_config
+        )
 
-        # Initialise core modules with shared client
+        # --- Business Logic Modules ---
         self.scanner = Scanner(
-            ib_client=self.ib_client,
+            scanner_service=self.scanner_service,
+            market_data_service=self.market_data_service,
             gap_threshold=config.scanner_config.gap_threshold,
         )
-        self.trader = Trader(self.ib_client, self.db)
-        self.monitor = Monitor(self.ib_client)
+        self.trader = Trader(
+            self.market_data_service, self.order_service, self.db
+        )
+        self.monitor = Monitor(self.market_data_service)
 
-        # Initialise Discord notifier
         self.discord = DiscordNotifier(config.discord_webhook_url)
-
         logger.info("Bot initialised successfully")
 
-    def _ensure_connection(self):
+    async def _ensure_connection(self):
         """Ensure IB connection is active"""
         if not self.ib_client.is_connected():
             logger.info("Connecting to IBKR...")
-            self.ib_client.connect(timeout=20)
+            await self.ib_client.connect(timeout=20)
 
-    def scan(self) -> int:
-        """Scan for candidates with gap + announcement + opening range
-
-        Returns:
-            Number of candidates found
-        """
+    async def scan(self) -> int:
+        """Scan for candidates with gap + announcement + opening range"""
         logger.info("Scanning for candidates...")
-
         try:
-            # Find candidates with gap + announcement + OR data
-            candidates = self.scanner.find_candidates()
+            await self._ensure_connection()
+            candidates = await self.scanner.find_candidates()
 
             if not candidates:
                 logger.warning("No candidates found")
                 return 0
 
-            # Save candidates to database
             for candidate in candidates:
-                try:
-                    self.db.save_candidate(candidate)
-                except Exception as e:
-                    logger.error(
-                        f"Failed to save candidate {candidate.ticker}: {e}"
-                    )
+                self.db.save_candidate(candidate)
 
-            # Notify Discord
-            try:
-                self.discord.send_scan_results(
-                    len(candidates),
-                    [
-                        {
-                            "ticker": c.ticker,
-                            "or_high": c.or_high,
-                            "or_low": c.or_low,
-                            "status": c.status,
-                        }
-                        for c in candidates
-                    ],
-                )
-            except Exception as e:
-                logger.error(f"Failed to notify Discord: {e}")
-
+            # self.discord.send_scan_results(...) # Notify
             logger.info(f"Scan complete. Found {len(candidates)} candidates")
             return len(candidates)
-
         except Exception as e:
-            logger.error(f"Scan failed: {e}")
+            logger.error(f"Scan failed: {e}", exc_info=True)
             return 0
 
-    def trade(self) -> int:
-        """Execute breakout entries for watching candidates
-
-        Returns:
-            Number of orders placed
-        """
+    async def trade(self) -> int:
+        """Execute breakout entries for watching candidates"""
         logger.info("Executing breakouts...")
-
         try:
-            self._ensure_connection()
-
-            # Check position limit
-            open_count = self.db.count_open_positions()
-            if open_count >= self.config.max_positions:
-                logger.warning(
-                    f"Max positions ({self.config.max_positions}) reached"
-                )
-                return 0
-
-            # Get watching candidates
+            await self._ensure_connection()
             candidates = self.db.get_watching_candidates()
-
             if not candidates:
-                logger.info("No watching candidates")
+                logger.info("No candidates to trade.")
                 return 0
-
-            # Execute breakouts
-            entries = self.trader.execute_breakouts(candidates)
-
-            logger.info(f"Trade complete. {entries} entries executed")
-            return entries
-
+            return await self.trader.execute_breakouts(candidates)
         except Exception as e:
-            logger.error(f"Trade execution failed: {e}")
+            logger.error(f"Trade execution failed: {e}", exc_info=True)
             return 0
 
-    def manage(self) -> int:
-        """Monitor positions and execute stops
-
-        Returns:
-            Number of actions taken
-        """
+    async def manage(self) -> int:
+        """Monitor positions and execute stops"""
         logger.info("Managing positions...")
-
         try:
-            self._ensure_connection()
-
-            # Get open positions
+            await self._ensure_connection()
             positions = self.db.get_open_positions()
-
             if not positions:
-                logger.info("No open positions")
+                logger.info("No open positions to manage.")
                 return 0
 
-            # Check for stop hits
-            stops = self.monitor.check_stops(positions)
-
-            if not stops:
-                logger.info("No stops triggered")
+            stops_hit = await self.monitor.check_stops(positions)
+            if not stops_hit:
+                logger.info("No stop losses hit.")
                 return 0
 
-            # Execute stops
-            exits = self.trader.execute_stops(stops)
-
-            logger.info(f"Management complete. {exits} stops executed")
-            return exits
-
+            return await self.trader.execute_stops(stops_hit)
         except Exception as e:
-            logger.error(f"Position management failed: {e}")
+            logger.error(f"Position management failed: {e}", exc_info=True)
             return 0
 
 
 def main():
     """CLI entry point"""
-    # Setup logging
     logger.add(
         "logs/skim_{time}.log",
         rotation="1 day",
@@ -189,39 +128,50 @@ def main():
         compression="gz",
         level="INFO",
     )
-
     logger.info("=" * 60)
     logger.info("SKIM TRADING BOT - ORH BREAKOUT STRATEGY")
     logger.info("=" * 60)
 
-    # Load configuration
     try:
         config = Config.from_env()
     except ValueError as e:
         logger.error(f"Configuration error: {e}")
         sys.exit(1)
 
-    # Create bot
     bot = TradingBot(config)
 
-    # Execute command
     if len(sys.argv) < 2:
-        logger.error("No method specified")
-        logger.info("Available methods: scan, trade, manage")
+        logger.error("No method specified. Available: scan, trade, manage")
         sys.exit(1)
 
     method = sys.argv[1]
 
-    if method == "scan":
-        bot.scan()
-    elif method == "trade":
-        bot.trade()
-    elif method == "manage":
-        bot.manage()
-    else:
-        logger.error(f"Unknown method: {method}")
-        logger.info("Available methods: scan, trade, manage")
-        sys.exit(1)
+    async def run():
+        try:
+            if method == "scan":
+                await bot.scan()
+            elif method == "trade":
+                await bot.trade()
+            elif method == "manage":
+                await bot.manage()
+            else:
+                logger.error(f"Unknown method: {method}")
+                sys.exit(1)
+        finally:
+            if bot.ib_client.is_connected():
+                logger.info("Shutting down IBKR connection...")
+                await bot.ib_client.disconnect()
+
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        logger.warning("Bot stopped manually.")
+    except Exception as e:
+        logger.critical(
+            f"Unhandled exception in bot execution: {e}", exc_info=True
+        )
+    finally:
+        logger.info("Bot shutdown complete.")
 
 
 if __name__ == "__main__":

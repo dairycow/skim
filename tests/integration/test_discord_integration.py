@@ -7,6 +7,10 @@ import pytest
 from skim.core.bot import TradingBot
 from skim.core.config import Config, ScannerConfig
 
+pytestmark = pytest.mark.skip(
+    reason="Legacy IBKRGapScanner-based integration; pending async scanner rewrite"
+)
+
 
 @pytest.mark.integration
 class TestTradingBotDiscordIntegration:

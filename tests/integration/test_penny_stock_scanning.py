@@ -3,18 +3,20 @@
 Tests end-to-end penny stock scanning functionality with real IBKR API responses.
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
 import responses
 
-from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+from skim.brokers.ibkr_client import IBKRClient
+from skim.brokers.ibkr_scanner import IBKRScanner
+from skim.core.config import ScannerConfig
 
 
 @pytest.mark.integration
 class TestPennyStockScanning:
     """Integration tests for penny stock scanning"""
 
-    @pytest.mark.manual
-    @pytest.mark.manual
     @pytest.mark.manual
     @pytest.mark.skip(
         reason="Requires real IBKR OAuth credentials and API access"
@@ -67,7 +69,8 @@ class TestPennyStockScanning:
         reason="Requires real IBKR OAuth credentials and API access"
     )
     @responses.activate
-    def test_gap_scanner_with_penny_stocks(self, ibkr_client_mock_oauth):
+    @pytest.mark.asyncio
+    async def test_gap_scanner_with_penny_stocks(self, ibkr_client_mock_oauth):
         """Test gap scanner processing penny stocks"""
         # Mock scanner results with penny stocks
         responses.add(
@@ -114,10 +117,21 @@ class TestPennyStockScanning:
         )
 
         # Test gap scanner
-        scanner = IBKRGapScanner(paper_trading=True)
-        scanner.connect()
+        mock_ibkr_client = AsyncMock(spec=IBKRClient)
+        mock_ibkr_client._request.return_value = []  # Mock _request for IBKRScanner
+        mock_ibkr_client.get_account.return_value = (
+            "DU12345"  # Mock get_account for IBKRScanner
+        )
 
-        gap_stocks = scanner.scan_for_gaps(min_gap=20.0)
+        scanner_config = ScannerConfig(
+            instrument="STK",
+            locations=["STK.ASX"],
+            scan_code="TOP_PERC_GAIN",
+            filters={"excludeConvertible": True},
+        )
+        scanner = IBKRScanner(mock_ibkr_client, scanner_config)
+
+        gap_stocks = await scanner.scan_for_gaps(min_gap=20.0)
 
         assert len(gap_stocks) > 0
         penny_stock = next((s for s in gap_stocks if s.ticker == "CR9"), None)

@@ -1,0 +1,93 @@
+from typing import Protocol
+
+from skim.data.models import Position
+
+from ..validation.scanners import GapStock
+from .ib_interface import MarketData, OrderResult
+
+
+class BrokerConnectionManager(Protocol):
+    """Protocol for a broker connection manager."""
+
+    async def connect(self, timeout: int = 20) -> None:
+        """Establish an authenticated session with the broker."""
+        ...
+
+    async def disconnect(self) -> None:
+        """Disconnect from the broker and clean up resources."""
+        ...
+
+    def is_connected(self) -> bool:
+        """Check if the session is still valid."""
+        ...
+
+    def get_account(self) -> str:
+        """Get the connected account ID."""
+        ...
+
+
+class MarketDataProvider(Protocol):
+    """Protocol for a broker market data provider."""
+
+    async def get_market_data(
+        self,
+        tickers: str | list[str],
+    ) -> MarketData | dict[str, MarketData | None] | None:
+        """Get market data for one or more tickers."""
+        ...
+
+    async def get_contract_id(self, ticker: str) -> str:
+        """Look up the contract ID for a given ticker."""
+        ...
+
+    def clear_cache(self) -> None:
+        """Clear any internal caches."""
+        ...
+
+
+class OrderManager(Protocol):
+    """Protocol for a broker order management service."""
+
+    async def place_order(
+        self,
+        ticker: str,
+        action: str,
+        quantity: int,
+        order_type: str = "MKT",
+        limit_price: float | None = None,
+        stop_price: float | None = None,
+    ) -> OrderResult | None:
+        """Place an order."""
+        ...
+
+    async def get_open_orders(self) -> list[dict]:
+        """Query all open orders."""
+        ...
+
+    async def cancel_order(self, order_id: str) -> bool:
+        """Cancel a specific order."""
+        ...
+
+    async def get_positions(self) -> list[Position]:
+        """Get all current positions."""
+        ...
+
+    async def get_account_balance(self) -> dict:
+        """Get the account balance summary."""
+        ...
+
+
+class ScannerService(Protocol):
+    """Protocol for a broker scanner service."""
+
+    async def run_scanner(self, scan_params: dict) -> list[dict]:
+        """Run a market scanner with specified parameters."""
+        ...
+
+    async def scan_for_gaps(self, min_gap: float) -> list[GapStock]:
+        """Scan for stocks with gaps."""
+        ...
+
+    async def get_scanner_params(self) -> dict:
+        """Get available scanner parameters."""
+        ...
