@@ -34,10 +34,10 @@ class ScannerConfig:
 
 
 def get_db_path() -> Path:
-    """Get database path that works both locally and in Docker.
+    """Get database path that works both locally and in production.
 
     Priority order:
-    1. Docker mount path: /app/data/skim.db (production)
+    1. Production path: /opt/skim/data/skim.db (production deployment)
     2. Local development path: project_root/data/skim.db (development)
 
     Returns:
@@ -46,11 +46,11 @@ def get_db_path() -> Path:
     Raises:
         FileNotFoundError: If data directory cannot be created/accessed
     """
-    # First try Docker mount path (production environment)
-    docker_path = Path("/app/data/skim.db")
-    if docker_path.parent.exists():
-        logger.debug(f"Using Docker database path: {docker_path}")
-        return docker_path
+    # First try production path (production deployment)
+    production_path = Path("/opt/skim/data/skim.db")
+    if production_path.parent.exists():
+        logger.debug(f"Using production database path: {production_path}")
+        return production_path
 
     # Fallback to local development path (project root + data)
     # Use __file__ to reliably find project root from config.py location
@@ -65,10 +65,10 @@ def get_db_path() -> Path:
 
 
 def get_oauth_key_paths() -> dict[str, Path]:
-    """Get OAuth key paths that work both locally and in Docker.
+    """Get OAuth key paths that work both locally and in production.
 
     Priority order:
-    1. Docker mount path: /opt/skim/oauth_keys (production)
+    1. Production path: /opt/skim/oauth_keys (production deployment)
     2. Local development path: project_root/oauth_keys (development)
 
     Returns:
@@ -77,16 +77,16 @@ def get_oauth_key_paths() -> dict[str, Path]:
     Raises:
         FileNotFoundError: If OAuth keys directory is not found
     """
-    # First try Docker mount path (production environment)
-    docker_path = Path("/opt/skim/oauth_keys")
+    # First try production path (production deployment)
+    production_path = Path("/opt/skim/oauth_keys")
     if (
-        docker_path.exists()
-        and (docker_path / "private_signature.pem").exists()
+        production_path.exists()
+        and (production_path / "private_signature.pem").exists()
     ):
-        logger.debug(f"Using Docker OAuth key path: {docker_path}")
+        logger.debug(f"Using production OAuth key path: {production_path}")
         return {
-            "signature": docker_path / "private_signature.pem",
-            "encryption": docker_path / "private_encryption.pem",
+            "signature": production_path / "private_signature.pem",
+            "encryption": production_path / "private_encryption.pem",
         }
 
     # Fallback to local development path (project root + oauth_keys)
@@ -103,7 +103,7 @@ def get_oauth_key_paths() -> dict[str, Path]:
     # If neither path works, raise an informative error
     raise FileNotFoundError(
         f"OAuth keys directory not found. Tried:\n"
-        f"  - Docker: {docker_path}\n"
+        f"  - Production: {production_path}\n"
         f"  - Local: {local_path}\n"
         f"Please ensure oauth_keys/ directory exists with private_signature.pem and private_encryption.pem"
     )
@@ -122,7 +122,7 @@ class Config:
     paper_trading: bool = True
     max_position_size: int = 10000
     max_positions: int = 50
-    db_path: str = "/app/data/skim.db"
+    db_path: str = "/opt/skim/data/skim.db"
 
     # OAuth key paths - dynamically determined at runtime
     oauth_signature_key_path: str = ""

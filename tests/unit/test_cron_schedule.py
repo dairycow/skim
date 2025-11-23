@@ -18,5 +18,5 @@ def test_crontab_runs_bot_methods(crontab_content):
 
 
 def test_crontab_uses_venv_python(crontab_content):
-    assert "/app/.venv/bin/python" in crontab_content
-    assert ">> /var/log/cron.log" in crontab_content
+    assert "/opt/skim/.venv/bin/python" in crontab_content
+    assert ">> /opt/skim/logs/cron.log" in crontab_content
