@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
 from loguru import logger
 
 
@@ -132,6 +133,9 @@ class Config:
     def from_env(cls) -> "Config":
         """Load configuration from environment variables
 
+        Automatically loads .env file from project root if it exists.
+        This ensures OAuth credentials and other config are available.
+
         Returns:
             Config instance with values from environment
 
@@ -139,6 +143,14 @@ class Config:
             ValueError: If required environment variables are missing or invalid
             FileNotFoundError: If OAuth key files are not found
         """
+        # Load .env file from project root if it exists
+        # Use __file__ to find project root from config.py location
+        project_root = Path(__file__).parent.parent.parent.parent
+        env_path = project_root / ".env"
+        if env_path.exists():
+            logger.debug(f"Loading environment from: {env_path}")
+            load_dotenv(env_path)
+
         # Allow override of paper trading via environment variable
         paper_trading_env = os.getenv("PAPER_TRADING", "true").lower() == "true"
         paper_trading = cls.paper_trading and paper_trading_env
