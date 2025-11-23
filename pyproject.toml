@@ -11,6 +11,7 @@ requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
     "beautifulsoup4==4.12.3",
+    "httpx==0.28.1",
     "loguru==0.7.2",
     "lxml==5.1.0",
     "pycryptodome==3.23.0",

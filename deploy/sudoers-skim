@@ -1,0 +1,9 @@
+# Sudoers configuration for skim deployment webhook
+# Copy to /etc/sudoers.d/skim-deploy with: sudo cp deploy/sudoers-skim /etc/sudoers.d/skim-deploy
+# Set permissions with: sudo chmod 440 /etc/sudoers.d/skim-deploy
+
+# Allow skim user to manage crontab and reload cron without password
+skim ALL=(ALL) NOPASSWD: /bin/cp /opt/skim/crontab /etc/cron.d/skim-trading-bot
+skim ALL=(ALL) NOPASSWD: /bin/chmod 644 /etc/cron.d/skim-trading-bot
+skim ALL=(ALL) NOPASSWD: /bin/chown root\:root /etc/cron.d/skim-trading-bot
+skim ALL=(ALL) NOPASSWD: /bin/systemctl reload cron

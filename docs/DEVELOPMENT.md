@@ -7,7 +7,6 @@ Local setup, development workflow, testing, deployment, and configuration manage
 - Python 3.12+
 - uv (unified Python toolchain)
 - Git
-- Docker & Docker Compose (for production)
 
 ## Local Setup
 
@@ -119,24 +118,48 @@ Follow TDD with Arrange-Act-Assert pattern. Use `@pytest.mark.unit` for mocked t
 
 ### Production Setup
 ```bash
-# On server: Clone repo
-git clone https://github.com/your-repo/skim.git /opt/skim
+# On server: Install dependencies
+sudo apt update && sudo apt install -y python3.12 python3.12-venv cron curl git
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create skim user
+sudo useradd -r -m -d /opt/skim -s /bin/bash skim
+
+# Clone repo as skim user
+sudo -u skim git clone https://github.com/your-repo/skim.git /opt/skim
 cd /opt/skim
 
+# Set up directories
+sudo mkdir -p /opt/skim/{logs,data,oauth_keys}
+sudo chown -R skim:skim /opt/skim
+
 # Create .env file
-cp .env.example .env
+sudo -u skim cp .env.example .env
 # Edit with production values
 
 # Upload OAuth keys
 scp -r oauth_keys root@server:/opt/skim/
-chmod 600 /opt/skim/oauth_keys/*.pem
+sudo chown skim:skim /opt/skim/oauth_keys/*.pem
+sudo chmod 600 /opt/skim/oauth_keys/*.pem
 
-# Deploy with Docker
-docker-compose up -d --build
+# Install Python dependencies
+sudo -u skim /home/skim/.local/bin/uv sync --frozen
+
+# Install crontab
+sudo cp crontab /etc/cron.d/skim-trading-bot
+sudo chmod 644 /etc/cron.d/skim-trading-bot
+sudo chown root:root /etc/cron.d/skim-trading-bot
+
+# Configure sudoers
+sudo cp deploy/sudoers-skim /etc/sudoers.d/skim-deploy
+sudo chmod 440 /etc/sudoers.d/skim-deploy
+
+# Reload cron
+sudo systemctl reload cron
 
 # Verify deployment
-docker-compose logs -f bot
-docker-compose exec bot /app/.venv/bin/python -m skim.core.bot status
+tail -f /opt/skim/logs/*.log
+sudo -u skim /opt/skim/.venv/bin/python -m skim.core.bot status
 ```
 
 ### GitOps Automation
@@ -144,14 +167,16 @@ Automated deployments trigger on push to main via webhook:
 
 1. GitHub webhook triggers `deploy/webhook.sh`
 2. Script runs: `git reset --hard origin/main`
-3. Rebuilds container: `docker-compose build --no-cache bot`
-4. Restarts services: `docker-compose up -d`
+3. Updates dependencies: `uv sync --frozen`
+4. Reloads crontab: `sudo cp crontab /etc/cron.d/skim-trading-bot`
+5. Reloads cron: `sudo systemctl reload cron`
+6. Health check: `/opt/skim/.venv/bin/python -m skim.core.bot status`
 
 **Persistent Data** (survives deployments):
-- `./data/` - SQLite database
-- `./logs/` - Log files
-- `./oauth_keys/` - RSA keys
-- `.env` - Configuration
+- `/opt/skim/data/` - SQLite database
+- `/opt/skim/logs/` - Log files
+- `/opt/skim/oauth_keys/` - RSA keys
+- `/opt/skim/.env` - Configuration
 
 ### GitOps Setup
 Install webhook receiver, configure systemd service, and set up GitHub webhook. See old WEBHOOK_SETUP.md for detailed SSL configuration.
@@ -178,7 +203,7 @@ Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 |---------|-------------|------------|---------|
 | PAPER_TRADING | true | false | true |
 | LOG_LEVEL | DEBUG | INFO | DEBUG |
-| DB_PATH | /app/data/skim.db | :memory: |
+| DB_PATH | ./data/skim.db | /opt/skim/data/skim.db | :memory: |
 
 ## Troubleshooting
 
@@ -187,14 +212,16 @@ Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 cat .env | grep OAUTH                    # Check credentials
 ls -la oauth_keys/                       # Verify keys exist
 uv run python -m skim.core.bot status    # Test connection
-docker-compose logs bot | grep oauth     # Check logs
+grep oauth /opt/skim/logs/*.log          # Check logs (production)
 ```
 
-### Database or Container Issues
+### Database or Cron Issues
 ```bash
-ls -la data/skim.db                      # Check database
-docker-compose down && docker-compose up -d --build  # Rebuild
-docker-compose logs bot --tail=100       # Inspect logs
+ls -la data/skim.db                      # Check database (local)
+ls -la /opt/skim/data/skim.db            # Check database (production)
+cat /etc/cron.d/skim-trading-bot         # Verify cron schedule
+tail -100 /opt/skim/logs/cron.log        # Inspect cron logs
+tail -100 /opt/skim/logs/skim_*.log      # Inspect application logs
 ```
 
 ## Code Quality

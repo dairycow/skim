@@ -6,22 +6,26 @@ set -e
 cd /opt/skim
 
 echo "Deploying main branch..."
-git fetch origin && git reset --hard origin/main
-docker-compose down
-docker-compose build --no-cache bot
-docker-compose up -d
+git fetch origin main
+git reset --hard origin/main
 
-echo "Deployment complete! Running status check..."
-docker-compose ps
+echo "Updating dependencies..."
+/home/skim/.local/bin/uv sync --frozen
 
-# Clean up old Docker resources (images older than 24 hours)
-echo "Cleaning up old Docker resources..."
-docker image prune -f --filter "until=24h"
+echo "Installing crontab..."
+sudo cp crontab /etc/cron.d/skim-trading-bot
+sudo chmod 644 /etc/cron.d/skim-trading-bot
+sudo chown root:root /etc/cron.d/skim-trading-bot
 
-# Wait for container to be ready, then check bot status
-sleep 10
-if docker-compose exec bot /app/.venv/bin/python -m skim.core.bot status > /dev/null 2>&1; then
-    echo "Bot started successfully"
+echo "Reloading cron daemon..."
+sudo systemctl reload cron
+
+echo "Deployment complete! Running health check..."
+if /opt/skim/.venv/bin/python -m skim.core.bot status > /dev/null 2>&1; then
+    echo "Bot is healthy and running"
 else
-    echo "Bot failed to start - check logs: docker-compose logs bot"
+    echo "Bot health check failed - check logs: tail -f /opt/skim/logs/*.log"
+    exit 1
 fi
+
+echo "Deployment completed successfully at $(date)"
