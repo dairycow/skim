@@ -4,7 +4,7 @@ Local setup, development workflow, testing, deployment, and configuration manage
 
 ## Prerequisites
 
-- Python 3.12+
+- Python 3.13+
 - uv (unified Python toolchain)
 - Git
 
@@ -119,7 +119,7 @@ Follow TDD with Arrange-Act-Assert pattern. Use `@pytest.mark.unit` for mocked t
 ### Production Setup
 ```bash
 # On server: Install dependencies
-sudo apt update && sudo apt install -y python3.12 python3.12-venv cron curl git
+sudo apt update && sudo apt install -y python3.13 python3.13-venv cron curl git
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create skim user
@@ -226,7 +226,7 @@ tail -100 /opt/skim/logs/skim_*.log      # Inspect application logs
 
 ## Code Quality
 
-- **Ruff**: Line length 80, Python 3.12
+- **Ruff**: Line length 80, Python 3.13
 - **Pre-commit**: Linting, formatting, testing
 - **VS Code**: Use Python, Ruff extensions
 

@@ -91,7 +91,7 @@ status TEXT              -- 'open' | 'closed'
 
 ## Technology
 
-- Python 3.12
+- Python 3.13
 - SQLite
 - OAuth 1.0a (IBKR)
 - Docker
