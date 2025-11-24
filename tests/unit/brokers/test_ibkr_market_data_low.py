@@ -2,7 +2,7 @@
 
 import pytest
 
-from skim.brokers.ib_interface import MarketData
+from skim.data.models import MarketData
 
 
 @pytest.mark.unit

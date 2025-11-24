@@ -82,3 +82,15 @@ class MarketData:
     def mid_price(self) -> float:
         """Calculate mid price from bid/ask"""
         return (self.bid + self.ask) / 2
+
+
+@dataclass
+class OrderResult:
+    """Result of placing an order"""
+
+    order_id: str
+    ticker: str
+    action: str
+    quantity: int
+    filled_price: float | None = None
+    status: str = "submitted"
