@@ -206,3 +206,34 @@ class TestDiscordNotifier:
         assert "• RIO" in formatted
         assert "4.2%" in formatted
         assert "N/A" in formatted  # Should show N/A for missing values
+
+    def test_send_trade_notification_success(self, mocker):
+        """Test successful trade notification."""
+        webhook_url = "https://discord.com/api/webhooks/test/webhook"
+        notifier = DiscordNotifier(webhook_url)
+
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_post = mocker.patch("requests.post", return_value=mock_response)
+
+        result = notifier.send_trade_notification(
+            action="BUY", ticker="BHP", quantity=100, price=10.5, pnl=None
+        )
+
+        assert result is True
+        mock_post.assert_called_once()
+        payload = mock_post.call_args[1]["json"]
+        embed = payload["embeds"][0]
+        assert embed["title"] == "Trade Executed"
+        assert embed["color"] == 0x00FF00
+        assert any(field["name"] == "PnL" for field in embed["fields"]) is False
+
+    def test_send_trade_notification_no_webhook(self):
+        """Test trade notification skipped without webhook URL."""
+        notifier = DiscordNotifier(None)
+
+        result = notifier.send_trade_notification(
+            action="SELL", ticker="RIO", quantity=50, price=9.5, pnl=-25.0
+        )
+
+        assert result is False

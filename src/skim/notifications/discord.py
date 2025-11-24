@@ -70,6 +70,58 @@ class DiscordNotifier:
             )
             return False
 
+    def send_trade_notification(
+        self,
+        action: str,
+        ticker: str,
+        quantity: int,
+        price: float,
+        pnl: float | None = None,
+    ) -> bool:
+        """Send trade execution notification (entries and exits)."""
+        if not self.webhook_url:
+            logger.debug(
+                "No Discord webhook URL configured, skipping notification"
+            )
+            return False
+
+        try:
+            embed = self._build_trade_embed(
+                action=action,
+                ticker=ticker,
+                quantity=quantity,
+                price=price,
+                pnl=pnl,
+            )
+            payload = {"embeds": [embed]}
+
+            response = requests.post(
+                self.webhook_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10,
+            )
+            response.raise_for_status()
+            logger.info("Discord trade notification sent successfully")
+            return True
+
+        except requests.exceptions.ConnectionError as e:
+            logger.error(
+                f"Failed to send trade notification (connection error): {e}"
+            )
+            return False
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Failed to send trade notification (timeout): {e}")
+            return False
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"Failed to send trade notification (HTTP error): {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Failed to send trade notification (unexpected error): {e}"
+            )
+            return False
+
     def _build_embed(
         self, candidates_found: int, candidates: list[dict[str, Any]]
     ) -> dict[str, Any]:
@@ -142,3 +194,32 @@ class DiscordNotifier:
             )
 
         return "\n".join(formatted_candidates)
+
+    def _build_trade_embed(
+        self,
+        action: str,
+        ticker: str,
+        quantity: int,
+        price: float,
+        pnl: float | None = None,
+    ) -> dict[str, Any]:
+        """Build Discord embed for trade events."""
+        color = 0x00FF00 if action.upper() == "BUY" else 0xFF0000
+        fields = [
+            {"name": "Ticker", "value": ticker, "inline": True},
+            {"name": "Action", "value": action.upper(), "inline": True},
+            {"name": "Quantity", "value": str(quantity), "inline": True},
+            {"name": "Price", "value": f"${price:.4f}", "inline": True},
+        ]
+        if pnl is not None:
+            fields.append(
+                {"name": "PnL", "value": f"${pnl:.2f}", "inline": True}
+            )
+
+        return {
+            "title": "Trade Executed",
+            "description": f"{action.upper()} {ticker}",
+            "color": color,
+            "fields": fields,
+            "timestamp": datetime.now().isoformat(),
+        }

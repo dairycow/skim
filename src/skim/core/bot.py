@@ -40,6 +40,7 @@ class TradingBot:
         self.scanner_service = IBKRScanner(
             self.ib_client, config.scanner_config
         )
+        self.discord = DiscordNotifier(config.discord_webhook_url)
 
         # --- Business Logic Modules ---
         self.scanner = Scanner(
@@ -51,11 +52,13 @@ class TradingBot:
             db=self.db,
         )
         self.trader = Trader(
-            self.market_data_service, self.order_service, self.db
+            self.market_data_service,
+            self.order_service,
+            self.db,
+            notifier=self.discord,
         )
         self.monitor = Monitor(self.market_data_service)
 
-        self.discord = DiscordNotifier(config.discord_webhook_url)
         logger.info("Bot initialised successfully")
 
     async def _ensure_connection(self):

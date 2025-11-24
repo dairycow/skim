@@ -127,6 +127,7 @@ class TestTradingBot:
                 mock_market_data_class.return_value,
                 mock_orders_class.return_value,
                 mock_db_class.return_value,
+                notifier=mock_discord_notifier_class.return_value,
             )
             mock_monitor_logic_class.assert_called_once_with(
                 mock_market_data_class.return_value
