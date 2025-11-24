@@ -3,9 +3,8 @@
 import logging
 from typing import Any
 
-from skim.data.models import Position
+from skim.data.models import OrderResult, Position
 
-from .ib_interface import OrderResult
 from .ibkr_client import IBKRClient
 from .protocols import MarketDataProvider, OrderManager
 

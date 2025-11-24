@@ -8,9 +8,8 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-from skim.brokers.ib_interface import OrderResult
 from skim.data.database import Database
-from skim.data.models import Candidate, MarketData, Position
+from skim.data.models import Candidate, MarketData, OrderResult, Position
 
 # =============================================================================
 # Global Test Setup
@@ -123,9 +122,7 @@ def mock_ibkr_client(mocker):
     mock_client.get_account.return_value = "DUN090463"
 
     # Mock successful market data response
-    from skim.brokers.ib_interface import MarketData as IBMarketData
-
-    mock_market_data = IBMarketData(
+    mock_market_data = MarketData(
         ticker="BHP",
         conid="8644",
         last_price=46.50,

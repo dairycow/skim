@@ -1,9 +1,8 @@
 from typing import Protocol
 
-from skim.data.models import Position
+from skim.data.models import MarketData, OrderResult, Position
 
 from ..validation.scanners import GapStock
-from .ib_interface import MarketData, OrderResult
 
 
 class BrokerConnectionManager(Protocol):

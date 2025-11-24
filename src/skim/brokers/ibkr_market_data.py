@@ -10,12 +10,13 @@ Handles:
 import asyncio
 import logging
 
+from skim.data.models import MarketData
+
 from ..validation.price_parsing import (
     clean_ibkr_price,
     safe_parse_price,
     validate_minimum_price,
 )
-from .ib_interface import MarketData
 from .ibkr_client import IBKRClient
 from .protocols import MarketDataProvider
 
