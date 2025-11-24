@@ -2,10 +2,10 @@
 # Times are in UTC (convert from AEDT)
 # ASX market hours: 10:00 AM - 4:00 PM AEDT (23:00 - 05:00 UTC)
 
-# Morning scan (10:00 AM AEDT = 23:00 UTC previous day)
+# Morning scan (10:01 AM AEDT = 23:00 UTC previous day)
 # Find candidates with gap + announcement + opening range
-0 23 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
-0 23 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
+1 23 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
+1 23 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
 
 # Track opening ranges (10:10 AM AEDT = 23:10 UTC previous day)
 # Sample ORH/ORL before trading starts
