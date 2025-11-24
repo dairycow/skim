@@ -61,6 +61,7 @@ def mock_trading_bot(mock_bot_config):
         mock_ibkr_client.get_account = Mock(return_value="DU123")
 
         mock_scanner_logic.find_candidates = AsyncMock(return_value=[])
+        mock_market_data_service.get_market_data = AsyncMock()
         mock_trader_logic.execute_breakouts = AsyncMock(return_value=0)
         mock_trader_logic.execute_stops = AsyncMock(return_value=0)
         mock_monitor_logic.check_stops = AsyncMock(return_value=[])
@@ -310,3 +311,45 @@ class TestTradingBot:
         result = await mock_trading_bot.status()
 
         assert result is False
+
+    async def test_fetch_market_data_connects_and_returns_data(
+        self, mock_trading_bot
+    ):
+        """fetch_market_data should ensure connection then return snapshot."""
+        mock_trading_bot.ib_client.is_connected.return_value = False
+        sample_data = Mock(last_price=1.23, high=1.5, low=1.1)
+        mock_trading_bot.market_data_service.get_market_data.return_value = (
+            sample_data
+        )
+
+        result = await mock_trading_bot.fetch_market_data("ABC")
+
+        mock_trading_bot.ib_client.connect.assert_awaited_once()
+        mock_trading_bot.market_data_service.get_market_data.assert_awaited_once_with(
+            "ABC"
+        )
+        assert result is sample_data
+
+    async def test_fetch_market_data_handles_empty_ticker(
+        self, mock_trading_bot
+    ):
+        """fetch_market_data should return None when ticker is missing."""
+        result = await mock_trading_bot.fetch_market_data("")
+
+        mock_trading_bot.ib_client.connect.assert_not_awaited()
+        mock_trading_bot.market_data_service.get_market_data.assert_not_awaited()
+        assert result is None
+
+    async def test_fetch_market_data_handles_errors(self, mock_trading_bot):
+        """fetch_market_data should swallow errors and return None."""
+        mock_trading_bot.ib_client.is_connected.return_value = True
+        mock_trading_bot.market_data_service.get_market_data.side_effect = (
+            Exception("boom")
+        )
+
+        result = await mock_trading_bot.fetch_market_data("ABC")
+
+        mock_trading_bot.market_data_service.get_market_data.assert_awaited_once_with(
+            "ABC"
+        )
+        assert result is None

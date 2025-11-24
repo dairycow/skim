@@ -114,6 +114,32 @@ class TradingBot:
             logger.error(f"Opening range tracking failed: {e}", exc_info=True)
             return 0
 
+    async def fetch_market_data(self, ticker: str):
+        """Fetch a single ticker's market data via IBKR."""
+        if not ticker:
+            logger.error("Ticker is required to fetch market data")
+            return None
+
+        logger.info(f"Fetching market data for {ticker}...")
+        try:
+            await self._ensure_connection()
+            data = await self.market_data_service.get_market_data(ticker)
+
+            if not data:
+                logger.warning(f"No market data returned for {ticker}")
+                return None
+
+            logger.info(
+                f"{ticker} market data - last={data.last_price}, high={data.high}, low={data.low}, "
+                f"bid={data.bid}, ask={data.ask}, volume={data.volume}"
+            )
+            return data
+        except Exception as e:
+            logger.error(
+                f"Market data fetch failed for {ticker}: {e}", exc_info=True
+            )
+            return None
+
     async def trade(self) -> int:
         """Execute breakout entries for watching candidates"""
         logger.info("Executing breakouts...")
@@ -196,6 +222,14 @@ def main():
                 await bot.scan()
             elif method == "track_ranges":
                 await bot.track_ranges()
+            elif method in ("fetch_market_data", "market_data"):
+                if len(sys.argv) < 3:
+                    logger.error(
+                        "Ticker required. Usage: python -m skim.core.bot fetch_market_data <TICKER>"
+                    )
+                    sys.exit(1)
+                ticker = sys.argv[2]
+                await bot.fetch_market_data(ticker)
             elif method == "trade":
                 await bot.trade()
             elif method == "manage":
