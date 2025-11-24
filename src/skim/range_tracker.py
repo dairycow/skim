@@ -7,7 +7,8 @@ Responsibility:
 """
 
 import asyncio
-from datetime import datetime, time
+from collections.abc import Callable
+from datetime import UTC, datetime, time, timedelta
 
 from loguru import logger
 
@@ -22,21 +23,26 @@ class RangeTracker:
         self,
         market_data_service: MarketDataProvider,
         db: Database,
-        market_open_time: time = time(10, 0),  # 10:00 AM
+        market_open_time: time = time(
+            23, 0, tzinfo=UTC
+        ),  # 10:00 AM AEDT = 23:00 UTC
         range_duration_minutes: int = 10,
+        now_provider: Callable[[], datetime] | None = None,
     ):
         """Initialize range tracker
 
         Args:
             market_data_service: Service for fetching market data
             db: Database for updating candidates
-            market_open_time: Market opening time (default 10:00 AM)
+            market_open_time: Market opening time in UTC (default 23:00 UTC)
             range_duration_minutes: Duration of opening range in minutes (default 10)
+            now_provider: Callable returning current datetime (UTC). Defaults to datetime.now(timezone.utc).
         """
         self.market_data = market_data_service
         self.db = db
         self.market_open_time = market_open_time
         self.range_duration_minutes = range_duration_minutes
+        self._now_provider = now_provider or (lambda: datetime.now(UTC))
 
     def _calculate_target_time(self) -> datetime:
         """Calculate the target time for sampling (market open + range duration)
@@ -44,20 +50,16 @@ class RangeTracker:
         Returns:
             Datetime representing when to sample opening range
         """
-        now = datetime.now()
-        target_time = datetime.combine(
-            now.date(),
-            time(
-                self.market_open_time.hour,
-                self.market_open_time.minute + self.range_duration_minutes,
-            ),
-        )
-        return target_time
+        now = self._now_provider()
+        target_time = datetime.combine(now.date(), self.market_open_time)
+        if target_time.tzinfo is None:
+            target_time = target_time.replace(tzinfo=UTC)
+        return target_time + timedelta(minutes=self.range_duration_minutes)
 
     async def _wait_until_target_time(self) -> None:
         """Wait until the opening range window has elapsed"""
         target_time = self._calculate_target_time()
-        now = datetime.now()
+        now = self._now_provider()
 
         if now < target_time:
             wait_seconds = (target_time - now).total_seconds()
