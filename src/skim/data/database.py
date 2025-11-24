@@ -30,8 +30,8 @@ class Database:
         cursor.execute("""
 			CREATE TABLE IF NOT EXISTS candidates (
 				ticker TEXT PRIMARY KEY,
-				or_high REAL NOT NULL,
-				or_low REAL NOT NULL,
+				or_high REAL,
+				or_low REAL,
 				scan_date TEXT NOT NULL,
 				status TEXT NOT NULL DEFAULT 'watching',
 				created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -122,6 +122,36 @@ class Database:
             (status, ticker),
         )
         self.db.commit()
+
+    def update_candidate_ranges(
+        self, ticker: str, or_high: float, or_low: float
+    ) -> None:
+        """Update candidate opening range values
+
+        Args:
+                ticker: Stock ticker symbol
+                or_high: Opening range high
+                or_low: Opening range low
+        """
+        cursor = self.db.cursor()
+        cursor.execute(
+            "UPDATE candidates SET or_high = ?, or_low = ? WHERE ticker = ?",
+            (or_high, or_low, ticker),
+        )
+        self.db.commit()
+
+    def get_candidates_without_ranges(self) -> list[Candidate]:
+        """Get candidates where or_high or or_low is NULL
+
+        Returns:
+                List of Candidate objects missing range data
+        """
+        cursor = self.db.cursor()
+        cursor.execute(
+            "SELECT * FROM candidates WHERE or_high IS NULL OR or_low IS NULL"
+        )
+        rows = cursor.fetchall()
+        return [Candidate.from_db_row(dict(row)) for row in rows]
 
     # Position methods
 
