@@ -23,10 +23,11 @@ Supporting modules:
 scan() → Find gaps + announcements → Save candidates (ORH/ORL = NULL)
 ```
 
-### 2. Range Tracking (10:10 AM)
+### 2. Range Tracking (10:10 AM, UTC clock)
 ```
 track_ranges() → Wait until 10:10 → Sample market data → Set ORH/ORL
 ```
+> Range tracking uses a UTC clock with a default market open of **23:00 UTC** (10:00 AM AEDT) so cron and in-code timing stay aligned.
 
 ### 3. Execution (10:15 AM, then every 5 min)
 ```
@@ -75,20 +76,22 @@ status TEXT              -- 'open' | 'closed'
 - `open` → entry executed
 - `closed` → stop hit or manual exit
 
-## Cron Schedule
+## Cron Schedule (UTC; 10:00 AM AEDT = 23:00 UTC prior day)
+
+Canonical schedule lives in `crontab` and is copied to `/etc/cron.d/skim-trading-bot` during deploys:
 
 ```cron
-# 10:00 AM - Market open, scan for candidates
-00 10 * * 1-5  bot scan
+# 23:00 UTC (10:00 AEDT) - Market open, scan for candidates
+0 23 * * 0-4 bot scan
 
-# 10:10 AM - Track opening ranges
-10 10 * * 1-5  bot track_ranges
+# 23:10 UTC (10:10 AEDT) - Track opening ranges
+10 23 * * 0-4 bot track_ranges
 
-# 10:15 AM - 4:00 PM, every 5 min - Execute breakouts
-*/5 10-16 * * 1-5  bot trade
+# 23:15-06:00 UTC, every 5 min (10:15 AM - 5:00 PM AEDT) - Execute breakouts
+*/5 23-6 * * 0-4 bot trade
 
-# 10:15 AM - 4:00 PM, every 5 min - Monitor and exit stops
-*/5 10-16 * * 1-5  bot manage
+# 23:15-06:00 UTC, every 5 min (10:15 AM - 5:00 PM AEDT) - Monitor and exit stops
+*/5 23-6 * * 0-4 bot manage
 ```
 
 ## Technology

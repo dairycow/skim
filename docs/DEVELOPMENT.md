@@ -188,11 +188,16 @@ Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 - OR poll interval: 30 seconds
 - Gap fill tolerance: $1.0
 
-### Cron Schedule (AEDT times)
-- **10:00** - scan (find gaps + announcements)
-- **10:10** - track_ranges (sample ORH/ORL)
-- **10:15-16:00 (*/5)** - trade (execute breakouts)
-- **10:15-16:00 (*/5)** - manage (monitor stops)
+### Range Tracker Timing
+- Defaults to a UTC clock with `market_open_time=23:00` (10:00 AM AEDT) so cron timing and in-code delays stay in lockstep. If market hours shift, update both `crontab` and the range tracker configuration together.
+
+### Cron Schedule (UTC, AEDT = UTC+11)
+- **23:00 UTC (10:00 AEDT)** - scan (find gaps + announcements)
+- **23:10 UTC (10:10 AEDT)** - track_ranges (sample ORH/ORL before trading)
+- **23:15-06:00 UTC (*/5)** - trade (execute breakouts)
+- **23:15-06:00 UTC (*/5)** - manage (monitor stops)
+
+Production uses the repository `crontab` (copied to `/etc/cron.d/skim-trading-bot`) which includes the `skim` user field and redirects to `/opt/skim/logs/cron.log`.
 
 ### Environment-Specific Config
 
