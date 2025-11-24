@@ -4,22 +4,20 @@
 
 # Morning scan (10:00 AM AEDT = 23:00 UTC previous day)
 # Find candidates with gap + announcement + opening range
-30 22 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
-30 22 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
+30 23 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
+30 23 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
 
 # Execute breakouts (10:15 AM AEDT onwards, every 5 minutes)
 # Check candidates and buy when price > ORH
-15,20,25,30,35,40,45,50,55 22 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
-0,5,10,15,20,25,30,35,40,45,50,55 23 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
-0,5,10,15,20,25,30,35,40,45,50,55 0,1,2,3,4,5 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
+15,20,25,30,35,40,45,50,55 23 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
+0,5,10,15,20,25,30,35,40,45,50,55 0,1,2,3,4,5,6 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
 
-15,20,25,30,35,40,45,50,55 22 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
-0,5,10,15,20,25,30,35,40,45,50,55 23 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
-0,5,10,15,20,25,30,35,40,45,50,55 0,1,2,3,4,5 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
+15,20,25,30,35,40,45,50,55 23 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
+0,5,10,15,20,25,30,35,40,45,50,55 0,1,2,3,4,5,6 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot trade >> /opt/skim/logs/cron.log 2>&1
 
 # Monitor positions (every 5 minutes during market hours)
 # Check for stop loss triggers
-*/5 22,23,0,1,2,3,4,5 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot manage >> /opt/skim/logs/cron.log 2>&1
-*/5 22,23,0,1,2,3,4,5 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot manage >> /opt/skim/logs/cron.log 2>&1
+*/5 23,0,1,2,3,4,5,6 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot manage >> /opt/skim/logs/cron.log 2>&1
+*/5 23,0,1,2,3,4,5,6 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot manage >> /opt/skim/logs/cron.log 2>&1
 
 # Blank line required at end of cron file
