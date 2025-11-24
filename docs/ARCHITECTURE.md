@@ -2,13 +2,6 @@
 
 Skim is a minimal, cron-driven ASX trading bot using an Opening Range High (ORH) breakout strategy.
 
-## Philosophy
-
-**Clean minimalism.** We do one thing well:
-1. Scan for gaps with price-sensitive announcements
-2. Buy when opening range highs are broken
-3. Sell when stops are hit
-
 ## Core Modules
 
 - `src/skim/scanner.py` – Find candidates with gaps + announcements
@@ -108,9 +101,7 @@ status TEXT              -- 'open' | 'closed'
 
 ## Why This Design
 
-- **Zero complexity**: Single status flow per table
+- **Reduce complexity**: Single status flow per table
 - **Clear responsibilities**: Scanner finds, RangeTracker sets levels, Trader executes, Monitor exits
 - **Phase separation**: Each workflow step is independent and testable
-- **No half-exit logic**: Sell entire position on stop
-- **~450 lines of code**: Clean, testable, maintainable
 - **Easy to extend**: Add rules without rewriting architecture
