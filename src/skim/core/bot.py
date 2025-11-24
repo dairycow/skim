@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """Skim - ASX Trading Bot
 
-Thin orchestrator that dispatches work to specialized modules:
-- scanner: Find candidates with gap + announcement + opening range
-- trader: Execute entries on ORH breakouts, exits on stops
-- monitor: Check positions for stop loss triggers
+Thin orchestrator that dispatches work to specialized modules
 """
 
 import asyncio
