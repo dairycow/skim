@@ -35,6 +35,7 @@ cd "$WORKTREE_PATH"
 # Copy necessary files and directories
 cp "$PROJECT_ROOT/.env" . 2>/dev/null || true
 cp -r "$PROJECT_ROOT/data" . 2>/dev/null || true
+cp -r "$PROJECT_root/.vscode" . 2>/dev/null || true
 if [ -d "$PROJECT_ROOT/oauth_keys" ]; then
     cp -r "$PROJECT_ROOT/oauth_keys" .
     # Ensure correct permissions on sensitive files
