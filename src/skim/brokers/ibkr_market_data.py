@@ -47,6 +47,7 @@ class IBKRMarketData(MarketDataProvider):
         self._market_data_streams: set[str] = (
             set()
         )  # conids with established streams
+        self._warmup_delay_seconds: float = 1.0
 
     async def get_market_data(
         self,
@@ -97,6 +98,15 @@ class IBKRMarketData(MarketDataProvider):
                 self._market_data_streams.add(conid)
 
             market_data = await self._fetch_market_snapshot(conid, ticker)
+
+            if self._should_warmup_snapshot(market_data):
+                logger.info(
+                    f"{ticker}: retrying snapshot after IBKR pre-flight warm-up"
+                )
+                await asyncio.sleep(self._warmup_delay_seconds)
+                await self._establish_market_data_stream(conid)
+                market_data = await self._fetch_market_snapshot(conid, ticker)
+
             return market_data
 
         except Exception as e:
@@ -334,3 +344,15 @@ class IBKRMarketData(MarketDataProvider):
         self._contract_cache.clear()
         self._market_data_streams.clear()
         logger.info("Cleared market data caches")
+
+    def _should_warmup_snapshot(self, market_data: MarketData | None) -> bool:
+        """Determine if a warm-up retry is needed (first snapshot often empty)."""
+        if market_data is None:
+            return True
+        if market_data.last_price <= 0:
+            return True
+        return (
+            market_data.high <= 0
+            and market_data.low <= 0
+            and market_data.volume <= 0
+        )

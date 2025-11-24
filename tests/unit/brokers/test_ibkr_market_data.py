@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -100,6 +100,61 @@ def test_parse_contract_response_returns_none_for_invalid_format(
     assert market_data_service._parse_contract_response({}, "TEST") is None
     assert market_data_service._parse_contract_response([], "TEST") is None
     assert market_data_service._parse_contract_response(None, "TEST") is None
+
+
+@pytest.mark.asyncio
+async def test_get_market_data_retries_after_preflight_warmup(mocker):
+    """First snapshot can be empty; service should warm up and retry."""
+    mock_client = AsyncMock()
+    market_data_service = IBKRMarketData(client=mock_client)
+
+    contract_response = [
+        {
+            "conid": "123",
+            "description": "ASX STOCK",
+            "sections": [{"secType": "STK"}],
+        }
+    ]
+    preflight_response = [{"conid": "123"}]
+    empty_snapshot = [{"31": "0"}]  # invalid last price triggers retry
+    valid_snapshot = [
+        {
+            "conid": "123",
+            "31": "1.0",
+            "70": "1.2",
+            "71": "0.9",
+            "84": "0.95",
+            "86": "1.05",
+            "87": "1000",
+            "88": "200",
+            "85": "150",
+            "7295": "1.0",
+            "7741": "0.8",
+            "83": "0.1",
+        }
+    ]
+
+    mock_client._request = AsyncMock(
+        side_effect=[
+            contract_response,  # contract lookup
+            preflight_response,  # initial preflight
+            empty_snapshot,  # first snapshot -> invalid
+            preflight_response,  # warmup preflight
+            valid_snapshot,  # retry snapshot -> valid
+        ]
+    )
+
+    mocker.patch("asyncio.sleep", AsyncMock())  # skip real wait
+
+    result = await market_data_service.get_market_data("ABC")
+
+    assert result is not None
+    assert result.ticker == "ABC"
+    assert result.last_price == 1.0
+    assert result.high == 1.2
+    assert result.low == 0.9
+    assert mock_client._request.await_count == 5
+    assert "123" in market_data_service._market_data_streams
 
 
 # TODO: Add more unit tests for IBKRMarketData
