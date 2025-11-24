@@ -11,7 +11,8 @@ Skim is a minimal, cron-driven ASX trading bot using an Opening Range High (ORH)
 
 ## Core Modules
 
-- `src/skim/scanner.py` – Find candidates with ORH/ORL
+- `src/skim/scanner.py` – Find candidates with gaps + announcements
+- `src/skim/range_tracker.py` – Sample and store ORH/ORL values
 - `src/skim/trader.py` – Execute breakout entries and stops
 - `src/skim/monitor.py` – Check positions, trigger stops
 - `src/skim/core/bot.py` – Thin orchestrator, dispatches to modules
@@ -26,15 +27,20 @@ Supporting modules:
 
 ### 1. Morning Scan (10:00 AM)
 ```
-scan() → Find gaps + announcements → Calculate ORH/ORL → Save candidates
+scan() → Find gaps + announcements → Save candidates (ORH/ORL = NULL)
 ```
 
-### 2. Execution (10:15 AM, then every 5 min)
+### 2. Range Tracking (10:10 AM)
+```
+track_ranges() → Wait until 10:10 → Sample market data → Set ORH/ORL
+```
+
+### 3. Execution (10:15 AM, then every 5 min)
 ```
 trade() → Get watching candidates → Check if price > ORH → Buy with stop = ORL
 ```
 
-### 3. Monitoring (every 5 min during market)
+### 4. Monitoring (every 5 min during market)
 ```
 manage() → Get open positions → Check if price < stop_loss → Sell
 ```
@@ -46,8 +52,8 @@ Two tables only:
 **candidates**
 ```sql
 ticker TEXT PRIMARY KEY
-or_high REAL             -- Opening range high
-or_low REAL              -- Opening range low
+or_high REAL             -- Opening range high (NULL until tracked)
+or_low REAL              -- Opening range low (NULL until tracked)
 scan_date TEXT           -- When added
 status TEXT              -- 'watching' | 'entered' | 'closed'
 ```
@@ -82,6 +88,9 @@ status TEXT              -- 'open' | 'closed'
 # 10:00 AM - Market open, scan for candidates
 00 10 * * 1-5  bot scan
 
+# 10:10 AM - Track opening ranges
+10 10 * * 1-5  bot track_ranges
+
 # 10:15 AM - 4:00 PM, every 5 min - Execute breakouts
 */5 10-16 * * 1-5  bot trade
 
@@ -100,7 +109,8 @@ status TEXT              -- 'open' | 'closed'
 ## Why This Design
 
 - **Zero complexity**: Single status flow per table
-- **Clear responsibilities**: Scanner finds, Trader buys, Monitor exits
+- **Clear responsibilities**: Scanner finds, RangeTracker sets levels, Trader executes, Monitor exits
+- **Phase separation**: Each workflow step is independent and testable
 - **No half-exit logic**: Sell entire position on stop
-- **~350 lines of code**: Clean, testable, maintainable
+- **~450 lines of code**: Clean, testable, maintainable
 - **Easy to extend**: Add rules without rewriting architecture
