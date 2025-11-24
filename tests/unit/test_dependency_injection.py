@@ -96,7 +96,9 @@ class TestTradingBotDependencyInjection:
             patch("skim.core.bot.RangeTracker"),
             patch("skim.core.bot.Trader") as mock_trader_logic_class,
             patch("skim.core.bot.Monitor") as mock_monitor_logic_class,
-            patch("skim.core.bot.DiscordNotifier"),
+            patch(
+                "skim.core.bot.DiscordNotifier"
+            ) as mock_discord_notifier_class,
         ):
             # Mock return values for the classes
             mock_db_instance = Mock()
@@ -115,6 +117,10 @@ class TestTradingBotDependencyInjection:
             mock_scanner_service_class.return_value = (
                 mock_scanner_service_instance
             )
+            mock_discord_notifier_instance = Mock()
+            mock_discord_notifier_class.return_value = (
+                mock_discord_notifier_instance
+            )
 
             bot = TradingBot(mock_config)
 
@@ -129,6 +135,7 @@ class TestTradingBotDependencyInjection:
                 mock_market_data_instance,
                 mock_orders_instance,
                 mock_db_instance,
+                notifier=mock_discord_notifier_instance,
             )
 
             # Verify Monitor logic receives correct services
