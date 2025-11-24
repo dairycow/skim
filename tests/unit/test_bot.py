@@ -38,6 +38,7 @@ def mock_trading_bot(mock_bot_config):
         patch("skim.core.bot.IBKROrders") as mock_orders_class,
         patch("skim.core.bot.IBKRScanner") as mock_scanner_class,
         patch("skim.core.bot.Scanner") as mock_scanner_logic_class,
+        patch("skim.core.bot.RangeTracker"),
         patch("skim.core.bot.Trader") as mock_trader_logic_class,
         patch("skim.core.bot.Monitor") as mock_monitor_logic_class,
         patch("skim.core.bot.DiscordNotifier") as mock_discord_notifier_class,
@@ -92,6 +93,7 @@ class TestTradingBot:
             patch("skim.core.bot.IBKROrders") as mock_orders_class,
             patch("skim.core.bot.IBKRScanner") as mock_scanner_service_class,
             patch("skim.core.bot.Scanner") as mock_scanner_logic_class,
+            patch("skim.core.bot.RangeTracker"),
             patch("skim.core.bot.Trader") as mock_trader_logic_class,
             patch("skim.core.bot.Monitor") as mock_monitor_logic_class,
             patch(
@@ -117,7 +119,6 @@ class TestTradingBot:
             )
             mock_scanner_logic_class.assert_called_once_with(
                 scanner_service=mock_scanner_service_class.return_value,
-                market_data_service=mock_market_data_class.return_value,
                 gap_threshold=mock_bot_config.scanner_config.gap_threshold,
             )
             mock_trader_logic_class.assert_called_once_with(

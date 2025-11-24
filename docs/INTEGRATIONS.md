@@ -15,7 +15,7 @@ Discord notifications provide real-time alerts for:
 
 1. **Create webhook**: Discord Server → Integrations → Create Webhook
 2. **Configure**: Add `DISCORD_WEBHOOK_URL` to .env
-3. **Deploy**: Restart bot with `docker-compose restart bot`
+3. **Verify**: Check logs after next scheduled run
 
 Webhook URL: `https://discord.com/api/webhooks/{ID}/{TOKEN}`
 
@@ -36,8 +36,8 @@ Webhook URL: `https://discord.com/api/webhooks/{ID}/{TOKEN}`
 
 ### Troubleshooting
 ```bash
-docker-compose exec bot printenv DISCORD_WEBHOOK_URL  # Verify URL
-docker-compose logs bot | grep discord                # Check logs
+grep DISCORD_WEBHOOK_URL .env                         # Verify URL
+tail -100 logs/skim_*.log | grep discord              # Check logs
 curl -X POST -d '{"content":"Test"}' "YOUR_URL"       # Test webhook
 ```
 
@@ -107,8 +107,7 @@ ssh root@server "chmod 600 /opt/skim/oauth_keys/*.pem"
 ```bash
 cat .env | grep OAUTH                         # Check credentials
 ls -la oauth_keys/                            # Verify keys (600 perms)
-uv run python -m skim.core.bot status         # Test auth
-docker-compose logs bot | grep oauth          # Check logs
+tail -100 logs/skim_*.log | grep oauth        # Check logs
 ```
 
 **Common Issues**:
