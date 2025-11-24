@@ -2,7 +2,7 @@
 
 - This is a modern Python project defined by `pyproject.toml`.
 - uv is used as the unified toolchain.
-- ALWAYS USE uv WHEN RUNNING ANY PYTHON COMMANDS.
+- ALWAYS USE uv WHEN RUNNING ANY PYTHON COMMANDS OR PYTEST.
 - Pre-commit hooks are configured for automated quality assurance. IF YOU IDENTIFY ANY ISSUES, ADDRESS OR DOCUMENT THEM IMMEDIATELY.
 - Use Australian english.
 - Don't use emojis.
