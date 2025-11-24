@@ -71,16 +71,31 @@ class TradingBot:
             await self._ensure_connection()
             candidates = await self.scanner.find_candidates()
 
+            count = len(candidates)
             if not candidates:
                 logger.warning("No candidates found")
-                return 0
+            else:
+                for candidate in candidates:
+                    self.db.save_candidate(candidate)
 
-            for candidate in candidates:
-                self.db.save_candidate(candidate)
+            # Notify via Discord (safe to call even when zero candidates)
+            try:
+                payload = [
+                    {
+                        "ticker": c.ticker,
+                        "gap_percent": getattr(c, "gap_percent", None),
+                        "price": getattr(c, "price", None),
+                    }
+                    for c in candidates
+                ]
+                self.discord.send_scan_results(count, payload)
+            except Exception as notify_err:
+                logger.error(
+                    f"Failed to send Discord scan notification: {notify_err}"
+                )
 
-            # self.discord.send_scan_results(...) # Notify
-            logger.info(f"Scan complete. Found {len(candidates)} candidates")
-            return len(candidates)
+            logger.info(f"Scan complete. Found {count} candidates")
+            return count
         except Exception as e:
             logger.error(f"Scan failed: {e}", exc_info=True)
             return 0
@@ -133,6 +148,18 @@ class TradingBot:
             logger.error(f"Position management failed: {e}", exc_info=True)
             return 0
 
+    async def status(self) -> bool:
+        """Lightweight health check - ensures IBKR connection is live."""
+        logger.info("Performing health check...")
+        try:
+            await self._ensure_connection()
+            account = self.ib_client.get_account()
+            logger.info(f"Health check OK. Connected account: {account}")
+            return True
+        except Exception as e:
+            logger.error(f"Health check failed: {e}", exc_info=True)
+            return False
+
 
 def main():
     """CLI entry point"""
@@ -157,7 +184,7 @@ def main():
 
     if len(sys.argv) < 2:
         logger.error(
-            "No method specified. Available: scan, track_ranges, trade, manage"
+            "No method specified. Available: scan, track_ranges, trade, manage, status"
         )
         sys.exit(1)
 
@@ -173,6 +200,8 @@ def main():
                 await bot.trade()
             elif method == "manage":
                 await bot.manage()
+            elif method == "status":
+                await bot.status()
             else:
                 logger.error(f"Unknown method: {method}")
                 sys.exit(1)

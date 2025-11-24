@@ -58,6 +58,7 @@ def mock_trading_bot(mock_bot_config):
         mock_ibkr_client.is_connected.return_value = False
         mock_ibkr_client.connect = AsyncMock()
         mock_ibkr_client.disconnect = AsyncMock()
+        mock_ibkr_client.get_account = Mock(return_value="DU123")
 
         mock_scanner_logic.find_candidates = AsyncMock(return_value=[])
         mock_trader_logic.execute_breakouts = AsyncMock(return_value=0)
@@ -151,9 +152,17 @@ class TestTradingBot:
         mock_trading_bot.ib_client.connect.assert_not_awaited()
 
     async def test_scan_workflow(self, mock_trading_bot):
-        """scan should ensure connection, persist candidates, and return count."""
+        """scan should ensure connection, persist candidates, and notify."""
         mock_trading_bot.ib_client.is_connected.return_value = True
-        mock_candidates = [Mock(spec=Candidate)]
+        mock_candidates = [
+            Candidate(
+                ticker="ABC",
+                scan_date="2024-01-01",
+                status="watching",
+                or_high=None,
+                or_low=None,
+            )
+        ]
         mock_trading_bot.scanner.find_candidates.return_value = mock_candidates
 
         result = await mock_trading_bot.scan()
@@ -162,6 +171,16 @@ class TestTradingBot:
         mock_trading_bot.scanner.find_candidates.assert_awaited_once()
         assert mock_trading_bot.db.save_candidate.call_count == len(
             mock_candidates
+        )
+        mock_trading_bot.discord.send_scan_results.assert_called_once_with(
+            len(mock_candidates),
+            [
+                {
+                    "ticker": "ABC",
+                    "gap_percent": None,
+                    "price": None,
+                }
+            ],
         )
         assert result == len(mock_candidates)
 
@@ -174,6 +193,9 @@ class TestTradingBot:
 
         mock_trading_bot.scanner.find_candidates.assert_awaited_once()
         mock_trading_bot.db.save_candidate.assert_not_called()
+        mock_trading_bot.discord.send_scan_results.assert_called_once_with(
+            0, []
+        )
         assert result == 0
 
     async def test_scan_handles_connection_error(self, mock_trading_bot):
@@ -268,3 +290,23 @@ class TestTradingBot:
         )
         mock_trading_bot.trader.execute_stops.assert_not_awaited()
         assert result == 0
+
+    async def test_status_connects_and_checks_account(self, mock_trading_bot):
+        """status should establish connection and return True when healthy."""
+        mock_trading_bot.ib_client.is_connected.return_value = False
+        mock_trading_bot.ib_client.get_account.return_value = "DU123"
+
+        result = await mock_trading_bot.status()
+
+        mock_trading_bot.ib_client.connect.assert_awaited_once()
+        mock_trading_bot.ib_client.get_account.assert_called_once()
+        assert result is True
+
+    async def test_status_returns_false_on_failure(self, mock_trading_bot):
+        """status should handle connection failures gracefully."""
+        mock_trading_bot.ib_client.is_connected.return_value = False
+        mock_trading_bot.ib_client.connect.side_effect = Exception("down")
+
+        result = await mock_trading_bot.status()
+
+        assert result is False
