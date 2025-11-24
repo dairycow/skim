@@ -20,6 +20,7 @@ from skim.core.config import Config
 from skim.data.database import Database
 from skim.monitor import Monitor
 from skim.notifications.discord import DiscordNotifier
+from skim.range_tracker import RangeTracker
 from skim.scanner import Scanner
 from skim.trader import Trader
 
@@ -46,8 +47,11 @@ class TradingBot:
         # --- Business Logic Modules ---
         self.scanner = Scanner(
             scanner_service=self.scanner_service,
-            market_data_service=self.market_data_service,
             gap_threshold=config.scanner_config.gap_threshold,
+        )
+        self.range_tracker = RangeTracker(
+            market_data_service=self.market_data_service,
+            db=self.db,
         )
         self.trader = Trader(
             self.market_data_service, self.order_service, self.db
@@ -82,6 +86,20 @@ class TradingBot:
             return len(candidates)
         except Exception as e:
             logger.error(f"Scan failed: {e}", exc_info=True)
+            return 0
+
+    async def track_ranges(self) -> int:
+        """Track opening ranges for candidates without ORH/ORL values"""
+        logger.info("Tracking opening ranges...")
+        try:
+            await self._ensure_connection()
+            updated = await self.range_tracker.track_opening_ranges()
+            logger.info(
+                f"Opening range tracking complete. Updated {updated} candidates"
+            )
+            return updated
+        except Exception as e:
+            logger.error(f"Opening range tracking failed: {e}", exc_info=True)
             return 0
 
     async def trade(self) -> int:
@@ -141,7 +159,9 @@ def main():
     bot = TradingBot(config)
 
     if len(sys.argv) < 2:
-        logger.error("No method specified. Available: scan, trade, manage")
+        logger.error(
+            "No method specified. Available: scan, track_ranges, trade, manage"
+        )
         sys.exit(1)
 
     method = sys.argv[1]
@@ -150,6 +170,8 @@ def main():
         try:
             if method == "scan":
                 await bot.scan()
+            elif method == "track_ranges":
+                await bot.track_ranges()
             elif method == "trade":
                 await bot.trade()
             elif method == "manage":

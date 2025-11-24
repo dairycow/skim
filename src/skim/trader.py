@@ -47,6 +47,13 @@ class Trader:
 
         for candidate in candidates:
             try:
+                # Safety check: Skip candidates without ORH/ORL values
+                if candidate.or_high is None or candidate.or_low is None:
+                    logger.warning(
+                        f"{candidate.ticker}: Skipping - opening range not set (run track_ranges first)"
+                    )
+                    continue
+
                 # Get current market data
                 market_data = await self.market_data_provider.get_market_data(
                     candidate.ticker

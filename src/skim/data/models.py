@@ -8,18 +8,18 @@ class Candidate:
     """Stock candidate with opening range data"""
 
     ticker: str
-    or_high: float
-    or_low: float
     scan_date: str
     status: str  # 'watching' | 'entered' | 'closed'
+    or_high: float | None = None
+    or_low: float | None = None
 
     @classmethod
     def from_db_row(cls, row: dict) -> "Candidate":
         """Create from database row"""
         return cls(
             ticker=row["ticker"],
-            or_high=row["or_high"],
-            or_low=row["or_low"],
+            or_high=row.get("or_high"),
+            or_low=row.get("or_low"),
             scan_date=row["scan_date"],
             status=row["status"],
         )

@@ -75,11 +75,10 @@ uv run pytest                       # Testing
 ### Running Bot Locally
 ```bash
 # Run bot commands
-uv run python -m skim.core.bot scan_ibkr_gaps
-uv run python -m skim.core.bot track_or_breakouts
-uv run python -m skim.core.bot execute_orh_breakouts
-uv run python -m skim.core.bot manage_positions
-uv run python -m skim.core.bot status
+uv run python -m skim.core.bot scan
+uv run python -m skim.core.bot track_ranges
+uv run python -m skim.core.bot trade
+uv run python -m skim.core.bot manage
 ```
 
 ## Testing
@@ -159,7 +158,6 @@ sudo systemctl reload cron
 
 # Verify deployment
 tail -f /opt/skim/logs/*.log
-sudo -u skim /opt/skim/.venv/bin/python -m skim.core.bot status
 ```
 
 ### GitOps Automation
@@ -170,7 +168,6 @@ Automated deployments trigger on push to main via webhook:
 3. Updates dependencies: `uv sync --frozen`
 4. Reloads crontab: `sudo cp crontab /etc/cron.d/skim-trading-bot`
 5. Reloads cron: `sudo systemctl reload cron`
-6. Health check: `/opt/skim/.venv/bin/python -m skim.core.bot status`
 
 **Persistent Data** (survives deployments):
 - `/opt/skim/data/` - SQLite database
@@ -191,11 +188,11 @@ Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 - OR poll interval: 30 seconds
 - Gap fill tolerance: $1.0
 
-### Cron Schedule (UTC times)
-- **00:00:30** - SCAN_IBKR_GAPS (10:00:30 AEDT)
-- **00:10:30** - TRACK_OR_BREAKOUTS (10:10:30 AEDT)
-- **00:12:00** - EXECUTE_ORH_BREAKOUTS (10:12:00 AEDT)
-- ***/5 (market hours)** - MANAGE_POSITIONS
+### Cron Schedule (AEDT times)
+- **10:00** - scan (find gaps + announcements)
+- **10:10** - track_ranges (sample ORH/ORL)
+- **10:15-16:00 (*/5)** - trade (execute breakouts)
+- **10:15-16:00 (*/5)** - manage (monitor stops)
 
 ### Environment-Specific Config
 
@@ -211,7 +208,7 @@ Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 ```bash
 cat .env | grep OAUTH                    # Check credentials
 ls -la oauth_keys/                       # Verify keys exist
-uv run python -m skim.core.bot status    # Test connection
+grep oauth logs/*.log                    # Check logs (local)
 grep oauth /opt/skim/logs/*.log          # Check logs (production)
 ```
 
