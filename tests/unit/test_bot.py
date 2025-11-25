@@ -127,7 +127,6 @@ class TestTradingBot:
                 mock_market_data_class.return_value,
                 mock_orders_class.return_value,
                 mock_db_class.return_value,
-                notifier=mock_discord_notifier_class.return_value,
             )
             mock_monitor_logic_class.assert_called_once_with(
                 mock_market_data_class.return_value
@@ -220,9 +219,7 @@ class TestTradingBot:
         mock_trading_bot.db.get_watching_candidates.return_value = (
             mock_candidates
         )
-        mock_trading_bot.trader.execute_breakouts.return_value = len(
-            mock_candidates
-        )
+        mock_trading_bot.trader.execute_breakouts.return_value = []
 
         result = await mock_trading_bot.trade()
 
@@ -231,7 +228,7 @@ class TestTradingBot:
         mock_trading_bot.trader.execute_breakouts.assert_awaited_once_with(
             mock_candidates
         )
-        assert result == len(mock_candidates)
+        assert result == 0
 
     async def test_trade_handles_no_candidates(self, mock_trading_bot):
         """trade should early-exit when no watching candidates exist."""
@@ -251,7 +248,7 @@ class TestTradingBot:
         mock_stops_hit = [Mock(spec=Position)]
         mock_trading_bot.db.get_open_positions.return_value = mock_positions
         mock_trading_bot.monitor.check_stops.return_value = mock_stops_hit
-        mock_trading_bot.trader.execute_stops.return_value = len(mock_stops_hit)
+        mock_trading_bot.trader.execute_stops.return_value = []
 
         result = await mock_trading_bot.manage()
 
@@ -263,7 +260,7 @@ class TestTradingBot:
         mock_trading_bot.trader.execute_stops.assert_awaited_once_with(
             mock_stops_hit
         )
-        assert result == len(mock_stops_hit)
+        assert result == 0
 
     async def test_manage_handles_no_positions(self, mock_trading_bot):
         """manage should early-exit when no open positions exist."""
