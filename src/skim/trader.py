@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,17 @@ if TYPE_CHECKING:
     from skim.brokers.protocols import MarketDataProvider, OrderManager
 
 
+@dataclass
+class TradeEvent:
+    """Trade execution summary."""
+
+    action: str
+    ticker: str
+    quantity: int
+    price: float
+    pnl: float | None = None
+
+
 class Trader:
     """Executes trading orders for entries and exits"""
 
@@ -22,7 +34,6 @@ class Trader:
         market_data_provider: MarketDataProvider,
         order_manager: OrderManager,
         db: Database,
-        notifier=None,
     ):
         """Initialise trader
 
@@ -30,23 +41,23 @@ class Trader:
             market_data_provider: Provider for market data
             order_manager: Manager for placing orders
             db: Database for recording positions
-            notifier: Optional Discord notifier for trade events
         """
         self.market_data_provider = market_data_provider
         self.order_manager = order_manager
         self.db = db
-        self.notifier = notifier
 
-    async def execute_breakouts(self, candidates: list[Candidate]) -> int:
+    async def execute_breakouts(
+        self, candidates: list[Candidate]
+    ) -> list[TradeEvent]:
         """Execute breakout entries when price > or_high
 
         Args:
             candidates: List of candidates to check
 
         Returns:
-            Number of entries executed
+            List of trade events executed
         """
-        entries = 0
+        events: list[TradeEvent] = []
 
         for candidate in candidates:
             try:
@@ -127,14 +138,15 @@ class Trader:
                 # Update candidate status
                 self.db.update_candidate_status(candidate.ticker, "entered")
 
-                self._notify_trade(
-                    action="BUY",
-                    ticker=candidate.ticker,
-                    quantity=quantity,
-                    price=fill_price,
-                    pnl=None,
+                events.append(
+                    TradeEvent(
+                        action="BUY",
+                        ticker=candidate.ticker,
+                        quantity=quantity,
+                        price=fill_price,
+                        pnl=None,
+                    )
                 )
-                entries += 1
 
             except Exception as e:
                 logger.error(
@@ -142,19 +154,21 @@ class Trader:
                 )
                 continue
 
-        logger.info(f"Executed {entries} breakout entries")
-        return entries
+        logger.info(f"Executed {len(events)} breakout entries")
+        return events
 
-    async def execute_stops(self, positions: list[Position]) -> int:
+    async def execute_stops(
+        self, positions: list[Position]
+    ) -> list[TradeEvent]:
         """Execute stop loss exits when price < stop_loss
 
         Args:
             positions: List of open positions to check
 
         Returns:
-            Number of stops executed
+            List of stop exit events executed
         """
-        stops_executed = 0
+        events: list[TradeEvent] = []
 
         for position in positions:
             try:
@@ -213,45 +227,19 @@ class Trader:
                         exit_date=datetime.now().isoformat(),
                     )
 
-                self._notify_trade(
-                    action="SELL",
-                    ticker=position.ticker,
-                    quantity=position.quantity,
-                    price=fill_price,
-                    pnl=pnl,
+                events.append(
+                    TradeEvent(
+                        action="SELL",
+                        ticker=position.ticker,
+                        quantity=position.quantity,
+                        price=fill_price,
+                        pnl=pnl,
+                    )
                 )
-
-                stops_executed += 1
 
             except Exception as e:
                 logger.error(f"Error executing stop for {position.ticker}: {e}")
                 continue
 
-        logger.info(f"Executed {stops_executed} stop loss exits")
-        return stops_executed
-
-    def _notify_trade(
-        self,
-        action: str,
-        ticker: str,
-        quantity: int,
-        price: float,
-        pnl: float | None = None,
-    ) -> None:
-        """Send trade notification to Discord if configured."""
-        if not self.notifier:
-            return
-        try:
-            sent = self.notifier.send_trade_notification(
-                action=action,
-                ticker=ticker,
-                quantity=quantity,
-                price=price,
-                pnl=pnl,
-            )
-            if not sent:
-                logger.debug(
-                    f"Trade notification skipped for {ticker} ({action})"
-                )
-        except Exception as e:
-            logger.error(f"Failed to send trade notification: {e}")
+        logger.info(f"Executed {len(events)} stop loss exits")
+        return events

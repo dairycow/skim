@@ -55,7 +55,6 @@ class TradingBot:
             self.market_data_service,
             self.order_service,
             self.db,
-            notifier=self.discord,
         )
         self.monitor = Monitor(self.market_data_service)
 
@@ -152,7 +151,19 @@ class TradingBot:
             if not candidates:
                 logger.info("No candidates to trade.")
                 return 0
-            return await self.trader.execute_breakouts(candidates)
+
+            events = await self.trader.execute_breakouts(candidates)
+
+            for event in events:
+                self.discord.send_trade_notification(
+                    action=event.action,
+                    ticker=event.ticker,
+                    quantity=event.quantity,
+                    price=event.price,
+                    pnl=event.pnl,
+                )
+
+            return len(events)
         except Exception as e:
             logger.error(f"Trade execution failed: {e}", exc_info=True)
             return 0
@@ -172,7 +183,18 @@ class TradingBot:
                 logger.info("No stop losses hit.")
                 return 0
 
-            return await self.trader.execute_stops(stops_hit)
+            events = await self.trader.execute_stops(stops_hit)
+
+            for event in events:
+                self.discord.send_trade_notification(
+                    action=event.action,
+                    ticker=event.ticker,
+                    quantity=event.quantity,
+                    price=event.price,
+                    pnl=event.pnl,
+                )
+
+            return len(events)
         except Exception as e:
             logger.error(f"Position management failed: {e}", exc_info=True)
             return 0

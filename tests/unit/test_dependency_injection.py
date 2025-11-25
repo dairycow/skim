@@ -135,7 +135,6 @@ class TestTradingBotDependencyInjection:
                 mock_market_data_instance,
                 mock_orders_instance,
                 mock_db_instance,
-                notifier=mock_discord_notifier_instance,
             )
 
             # Verify Monitor logic receives correct services
