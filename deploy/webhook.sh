@@ -27,9 +27,22 @@ sudo systemctl restart cron
 echo "Deployment complete! Running health check..."
 if /opt/skim/.venv/bin/python -m skim.core.bot status > /dev/null 2>&1; then
     echo "Bot is healthy and running"
+    STATUS="success"
 else
     echo "Bot health check failed - check logs: tail -f /opt/skim/logs/*.log"
-    exit 1
+    STATUS="failed"
 fi
 
-echo "Deployment completed successfully at $(date)"
+echo "Deployment completed at $(date)"
+
+# Send Discord notification
+if [ -f .env ]; then
+    source .env
+    if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+        COMMIT=$(git log -1 --pretty=format:%h)
+        curl -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d "{\"content\":\"Deploy $STATUS: $COMMIT\"}" > /dev/null 2>&1
+    fi
+fi
+
+[ "$STATUS" = "failed" ] && exit 1
+exit 0
