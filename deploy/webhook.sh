@@ -17,8 +17,8 @@ sudo cp crontab /etc/cron.d/skim-trading-bot
 sudo chmod 644 /etc/cron.d/skim-trading-bot
 sudo chown root:root /etc/cron.d/skim-trading-bot
 
-echo "Reloading cron daemon..."
-sudo systemctl reload cron
+echo "Restarting cron daemon..."
+sudo systemctl restart cron
 
 echo "Deployment complete! Running health check..."
 if /opt/skim/.venv/bin/python -m skim.core.bot status > /dev/null 2>&1; then
