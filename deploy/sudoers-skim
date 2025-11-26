@@ -7,3 +7,7 @@ skim ALL=(ALL) NOPASSWD: /bin/cp /opt/skim/crontab /etc/cron.d/skim-trading-bot
 skim ALL=(ALL) NOPASSWD: /bin/chmod 644 /etc/cron.d/skim-trading-bot
 skim ALL=(ALL) NOPASSWD: /bin/chown root\:root /etc/cron.d/skim-trading-bot
 skim ALL=(ALL) NOPASSWD: /bin/systemctl restart cron
+
+# Allow skim user to update its own sudoers configuration
+skim ALL=(ALL) NOPASSWD: /bin/cp /opt/skim/deploy/sudoers-skim /etc/sudoers.d/skim-deploy
+skim ALL=(ALL) NOPASSWD: /bin/chmod 440 /etc/sudoers.d/skim-deploy

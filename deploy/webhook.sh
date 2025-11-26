@@ -12,6 +12,10 @@ git reset --hard origin/main
 echo "Updating dependencies..."
 /opt/skim/.local/bin/uv sync --frozen
 
+echo "Installing sudoers configuration..."
+sudo cp deploy/sudoers-skim /etc/sudoers.d/skim-deploy
+sudo chmod 440 /etc/sudoers.d/skim-deploy
+
 echo "Installing crontab..."
 sudo cp crontab /etc/cron.d/skim-trading-bot
 sudo chmod 644 /etc/cron.d/skim-trading-bot
