@@ -10,7 +10,7 @@ git fetch origin main
 git reset --hard origin/main
 
 echo "Updating dependencies..."
-/home/skim/.local/bin/uv sync --frozen
+/opt/skim/.local/bin/uv sync --frozen
 
 echo "Installing crontab..."
 sudo cp crontab /etc/cron.d/skim-trading-bot
