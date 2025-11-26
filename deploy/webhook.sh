@@ -40,8 +40,12 @@ if [ -f .env ]; then
     source .env
     if [ -n "$DISCORD_WEBHOOK_URL" ]; then
         COMMIT=$(git log -1 --pretty=format:%h)
-        curl -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d "{\"content\":\"Deploy $STATUS: $COMMIT\"}" > /dev/null 2>&1
+        curl -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d "{\"content\":\"Deploy $STATUS: $COMMIT\"}"
+    else
+        echo "DISCORD_WEBHOOK_URL not set"
     fi
+else
+    echo ".env file not found"
 fi
 
 [ "$STATUS" = "failed" ] && exit 1
