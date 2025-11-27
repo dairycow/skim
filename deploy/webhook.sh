@@ -12,6 +12,10 @@ git reset --hard origin/main
 echo "Updating dependencies..."
 /opt/skim/.local/bin/uv sync --frozen
 
+echo "Ensuring data and log directories have correct permissions..."
+mkdir -p /opt/skim/data /opt/skim/logs
+sudo chown -R skim:skim /opt/skim/data /opt/skim/logs
+
 echo "Installing sudoers configuration..."
 sudo cp deploy/sudoers-skim /etc/sudoers.d/skim-deploy
 sudo chmod 440 /etc/sudoers.d/skim-deploy
@@ -25,7 +29,7 @@ echo "Restarting cron daemon..."
 sudo systemctl restart cron
 
 echo "Deployment complete! Running health check..."
-if /opt/skim/.venv/bin/python -m skim.core.bot status > /dev/null 2>&1; then
+if sudo -u skim /opt/skim/.venv/bin/python -m skim.core.bot status > /dev/null 2>&1; then
     echo "Bot is healthy and running"
     STATUS="success"
 else
