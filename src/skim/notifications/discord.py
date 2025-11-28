@@ -182,15 +182,15 @@ class DiscordNotifier:
         for candidate in candidates:
             ticker = candidate.get("ticker", "UNKNOWN")
             gap_percent = candidate.get("gap_percent")
-            price = candidate.get("price")
+            headline = candidate.get("headline")
 
             gap_str = (
                 f"{gap_percent:.1f}%" if gap_percent is not None else "N/A"
             )
-            price_str = f"${price:.4f}" if price is not None else "N/A"
+            headline_str = headline if headline else "No announcement"
 
             formatted_candidates.append(
-                f"• {ticker} - Gap: {gap_str}, Price: {price_str}"
+                f"• **{ticker}** - Gap: {gap_str}\n  {headline_str}"
             )
 
         return "\n".join(formatted_candidates)

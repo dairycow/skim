@@ -49,27 +49,36 @@ class Scanner:
         )
         gap_scan_task = self.scanner.scan_for_gaps(self.gap_threshold)
         announcement_task = asyncio.to_thread(
-            self.asx_scanner.fetch_price_sensitive_tickers
+            self.asx_scanner.fetch_price_sensitive_announcements
         )
         results = await asyncio.gather(
             gap_scan_task, announcement_task, return_exceptions=True
         )
 
         gap_stocks = results[0]
-        price_sensitive_tickers = results[1]
+        announcements = results[1]
 
         if isinstance(gap_stocks, Exception):
             logger.error(f"Failed to scan for gaps: {gap_stocks}")
             return []
-        if isinstance(price_sensitive_tickers, Exception):
-            logger.error(
-                f"Failed to fetch ASX announcements: {price_sensitive_tickers}"
-            )
+        if isinstance(announcements, Exception):
+            logger.error(f"Failed to fetch ASX announcements: {announcements}")
             return []
 
-        if not gap_stocks or not price_sensitive_tickers:
+        if not gap_stocks or not announcements:
             logger.warning("No gaps or announcements found. Ending scan.")
             return []
+
+        # Build ticker -> headline mapping (concatenate multiple announcements)
+        announcement_map: dict[str, str] = {}
+        for ann in announcements:
+            headline_truncated = ann.headline[:80]
+            if ann.ticker in announcement_map:
+                announcement_map[ann.ticker] += f" | {headline_truncated}"
+            else:
+                announcement_map[ann.ticker] = headline_truncated
+
+        price_sensitive_tickers = set(announcement_map.keys())
 
         logger.info(
             f"Found {len(gap_stocks)} gaps and {len(price_sensitive_tickers)} announcements."
@@ -99,6 +108,8 @@ class Scanner:
                 status="watching",
                 or_high=None,  # Will be set by RangeTracker
                 or_low=None,  # Will be set by RangeTracker
+                gap_percent=stock.gap_percent,
+                headline=announcement_map.get(stock.ticker),
             )
             for stock in matched_stocks
         ]
