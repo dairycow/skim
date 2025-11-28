@@ -13,6 +13,10 @@ class Candidate:
     or_high: float | None = None
     or_low: float | None = None
 
+    # Notification-only fields (not persisted to database)
+    gap_percent: float | None = None
+    headline: str | None = None
+
     @classmethod
     def from_db_row(cls, row: dict) -> "Candidate":
         """Create from database row"""

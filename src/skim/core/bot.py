@@ -85,8 +85,8 @@ class TradingBot:
                 payload = [
                     {
                         "ticker": c.ticker,
-                        "gap_percent": getattr(c, "gap_percent", None),
-                        "price": getattr(c, "price", None),
+                        "gap_percent": c.gap_percent,
+                        "headline": c.headline,
                     }
                     for c in candidates
                 ]

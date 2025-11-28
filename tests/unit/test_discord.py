@@ -36,8 +36,16 @@ class TestDiscordNotifier:
         mock_post = mocker.patch("requests.post", return_value=mock_response)
 
         candidates = [
-            {"ticker": "BHP", "gap_percent": 5.5, "price": 45.20},
-            {"ticker": "RIO", "gap_percent": 4.2, "price": 120.50},
+            {
+                "ticker": "BHP",
+                "gap_percent": 5.5,
+                "headline": "Trading Halt",
+            },
+            {
+                "ticker": "RIO",
+                "gap_percent": 4.2,
+                "headline": "Results Released",
+            },
         ]
 
         result = notifier.send_scan_results(
@@ -114,8 +122,16 @@ class TestDiscordNotifier:
         notifier = DiscordNotifier(webhook_url)
 
         candidates = [
-            {"ticker": "BHP", "gap_percent": 5.5, "price": 45.20},
-            {"ticker": "RIO", "gap_percent": 4.2, "price": 120.50},
+            {
+                "ticker": "BHP",
+                "gap_percent": 5.5,
+                "headline": "Trading Halt",
+            },
+            {
+                "ticker": "RIO",
+                "gap_percent": 4.2,
+                "headline": "Results Released",
+            },
         ]
 
         embed = notifier._build_embed(candidates_found=2, candidates=candidates)
@@ -140,6 +156,8 @@ class TestDiscordNotifier:
         assert "RIO" in candidates_field["value"]
         assert "5.5%" in candidates_field["value"]
         assert "4.2%" in candidates_field["value"]
+        assert "Trading Halt" in candidates_field["value"]
+        assert "Results Released" in candidates_field["value"]
 
     def test_build_embed_no_candidates(self):
         """Test embed building with no candidates"""
@@ -163,23 +181,31 @@ class TestDiscordNotifier:
         assert embed["color"] == 0xFF0000  # Red colour
 
     def test_format_candidate_list(self):
-        """Test candidate list formatting"""
+        """Test candidate list formatting with headlines"""
         webhook_url = "https://discord.com/api/webhooks/test/webhook"
         notifier = DiscordNotifier(webhook_url)
 
         candidates = [
-            {"ticker": "BHP", "gap_percent": 5.5, "price": 45.20},
-            {"ticker": "RIO", "gap_percent": 4.2, "price": 120.50},
+            {
+                "ticker": "BHP",
+                "gap_percent": 5.5,
+                "headline": "Trading Halt Announcement",
+            },
+            {
+                "ticker": "RIO",
+                "gap_percent": 4.2,
+                "headline": "Quarterly Results Released",
+            },
         ]
 
         formatted = notifier._format_candidate_list(candidates)
 
-        assert "• BHP" in formatted
-        assert "• RIO" in formatted
+        assert "**BHP**" in formatted
+        assert "**RIO**" in formatted
         assert "5.5%" in formatted
         assert "4.2%" in formatted
-        assert "$45.2000" in formatted
-        assert "$120.5000" in formatted
+        assert "Trading Halt Announcement" in formatted
+        assert "Quarterly Results Released" in formatted
 
     def test_format_candidate_list_empty(self):
         """Test empty candidate list formatting"""
@@ -191,21 +217,24 @@ class TestDiscordNotifier:
         assert formatted == "None"
 
     def test_format_candidate_list_missing_data(self):
-        """Test candidate list formatting with missing data"""
+        """Test candidate list formatting with missing headline"""
         webhook_url = "https://discord.com/api/webhooks/test/webhook"
         notifier = DiscordNotifier(webhook_url)
 
         candidates = [
-            {"ticker": "BHP"},  # Missing gap_percent and price
-            {"ticker": "RIO", "gap_percent": 4.2},  # Missing price
+            {"ticker": "BHP", "gap_percent": 5.5, "headline": None},
+            {"ticker": "RIO", "gap_percent": 4.2},  # Missing headline key
         ]
 
         formatted = notifier._format_candidate_list(candidates)
 
-        assert "• BHP" in formatted
-        assert "• RIO" in formatted
+        assert "**BHP**" in formatted
+        assert "**RIO**" in formatted
+        assert "5.5%" in formatted
         assert "4.2%" in formatted
-        assert "N/A" in formatted  # Should show N/A for missing values
+        assert (
+            "No announcement" in formatted
+        )  # Should show fallback for missing headline
 
     def test_send_trade_notification_success(self, mocker):
         """Test successful trade notification."""

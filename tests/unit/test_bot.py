@@ -162,6 +162,8 @@ class TestTradingBot:
                 status="watching",
                 or_high=None,
                 or_low=None,
+                gap_percent=5.2,
+                headline="Trading Halt Announcement",
             )
         ]
         mock_trading_bot.scanner.find_candidates.return_value = mock_candidates
@@ -178,8 +180,8 @@ class TestTradingBot:
             [
                 {
                     "ticker": "ABC",
-                    "gap_percent": None,
-                    "price": None,
+                    "gap_percent": 5.2,
+                    "headline": "Trading Halt Announcement",
                 }
             ],
         )
