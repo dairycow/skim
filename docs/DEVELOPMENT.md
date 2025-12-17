@@ -79,6 +79,7 @@ uv run python -m skim.core.bot scan
 uv run python -m skim.core.bot track_ranges
 uv run python -m skim.core.bot trade
 uv run python -m skim.core.bot manage
+uv run python -m skim.core.bot purge_candidates  # Clears previous-day candidates
 ```
 
 ## Testing
@@ -192,6 +193,7 @@ Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 - Defaults to a UTC clock with `market_open_time=23:00` (10:00 AM AEDT) so cron timing and in-code delays stay in lockstep. If market hours shift, update both `crontab` and the range tracker configuration together.
 
 ### Cron Schedule (UTC, AEDT = UTC+11)
+- **22:55 UTC (09:55 AEDT)** - purge_candidates (clear prior candidates before the morning scan)
 - **23:00 UTC (10:00 AEDT)** - scan (find gaps + announcements)
 - **23:10 UTC (10:10 AEDT)** - track_ranges (sample ORH/ORL before trading)
 - **23:15-06:00 UTC (*/5)** - trade (execute breakouts)

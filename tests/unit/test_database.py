@@ -1,6 +1,6 @@
 """Unit tests for the simplified database layer."""
 
-from datetime import datetime
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -100,3 +100,63 @@ def test_count_open_positions(db):
     db.close_position(first_id, exit_price=10.2, exit_date="2024-01-02")
 
     assert db.count_open_positions() == 1
+
+
+def test_purge_candidates_deletes_all_rows(db):
+    """purge_candidates should remove all stored candidates when no filter is provided."""
+    db.save_candidate(
+        Candidate(
+            ticker="BHP",
+            or_high=None,
+            or_low=None,
+            scan_date=datetime(2024, 1, 1, 23, tzinfo=UTC).isoformat(),
+            status="watching",
+        )
+    )
+    db.save_candidate(
+        Candidate(
+            ticker="RIO",
+            or_high=100.0,
+            or_low=95.0,
+            scan_date=datetime(2024, 1, 2, 23, tzinfo=UTC).isoformat(),
+            status="entered",
+        )
+    )
+
+    deleted = db.purge_candidates()
+
+    assert deleted == 2
+    assert db.get_candidate("BHP") is None
+    assert db.get_candidate("RIO") is None
+
+
+def test_purge_candidates_filters_by_scan_date(db):
+    """purge_candidates should only delete rows before the provided UTC date."""
+    january_first = datetime(2024, 1, 1, 23, tzinfo=UTC).isoformat()
+    january_second = datetime(2024, 1, 2, 23, tzinfo=UTC).isoformat()
+    db.save_candidate(
+        Candidate(
+            ticker="BHP",
+            or_high=None,
+            or_low=None,
+            scan_date=january_first,
+            status="watching",
+        )
+    )
+    db.save_candidate(
+        Candidate(
+            ticker="CBA",
+            or_high=None,
+            or_low=None,
+            scan_date=january_second,
+            status="watching",
+        )
+    )
+
+    deleted = db.purge_candidates(only_before_utc_date=date(2024, 1, 2))
+
+    assert deleted == 1
+    assert db.get_candidate("BHP") is None
+    remaining = db.get_candidate("CBA")
+    assert remaining is not None
+    assert remaining.ticker == "CBA"
