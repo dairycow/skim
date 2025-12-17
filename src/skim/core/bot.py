@@ -6,6 +6,7 @@ Thin orchestrator that dispatches work to specialized modules
 
 import asyncio
 import sys
+from datetime import date
 
 from loguru import logger
 
@@ -211,6 +212,24 @@ class TradingBot:
             logger.error(f"Health check failed: {e}", exc_info=True)
             return False
 
+    async def purge_candidates(
+        self, only_before_utc_date: date | None = None
+    ) -> int:
+        """Clear candidate rows before a scan.
+
+        Args:
+            only_before_utc_date: Optional UTC date to limit deletions. When
+                omitted, all candidates are deleted.
+        """
+        logger.info("Purging candidates...")
+        try:
+            deleted = self.db.purge_candidates(only_before_utc_date)
+            logger.info(f"Deleted {deleted} candidate rows")
+            return deleted
+        except Exception as e:
+            logger.error(f"Candidate purge failed: {e}", exc_info=True)
+            return 0
+
 
 def main():
     """CLI entry point"""
@@ -261,6 +280,17 @@ def main():
                 await bot.manage()
             elif method == "status":
                 await bot.status()
+            elif method == "purge_candidates":
+                cutoff = None
+                if len(sys.argv) >= 3:
+                    try:
+                        cutoff = date.fromisoformat(sys.argv[2])
+                    except ValueError:
+                        logger.error(
+                            "Invalid date format. Use YYYY-MM-DD for cutoff."
+                        )
+                        sys.exit(1)
+                await bot.purge_candidates(cutoff)
             else:
                 logger.error(f"Unknown method: {method}")
                 sys.exit(1)

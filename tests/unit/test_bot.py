@@ -353,3 +353,12 @@ class TestTradingBot:
             "ABC"
         )
         assert result is None
+
+    async def test_purge_candidates_deletes_rows(self, mock_trading_bot):
+        """purge_candidates should delegate deletion to the database."""
+        mock_trading_bot.db.purge_candidates.return_value = 3
+
+        deleted = await mock_trading_bot.purge_candidates()
+
+        mock_trading_bot.db.purge_candidates.assert_called_once_with(None)
+        assert deleted == 3

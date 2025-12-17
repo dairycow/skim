@@ -1,6 +1,7 @@
 """Simplified database layer for Skim trading bot"""
 
 import sqlite3
+from datetime import date
 
 from loguru import logger
 
@@ -152,6 +153,33 @@ class Database:
         )
         rows = cursor.fetchall()
         return [Candidate.from_db_row(dict(row)) for row in rows]
+
+    def purge_candidates(self, only_before_utc_date: date | None = None) -> int:
+        """Delete candidates, optionally filtering to rows before a given UTC date.
+
+        Args:
+            only_before_utc_date: If provided, delete rows where DATE(scan_date)
+                is before this date; otherwise delete all candidates.
+
+        Returns:
+            Number of rows deleted.
+        """
+        cursor = self.db.cursor()
+
+        if only_before_utc_date:
+            cursor.execute(
+                "DELETE FROM candidates WHERE DATE(scan_date) < DATE(?)",
+                (only_before_utc_date.isoformat(),),
+            )
+            logger.info(
+                f"Purged candidates before {only_before_utc_date.isoformat()}"
+            )
+        else:
+            cursor.execute("DELETE FROM candidates")
+            logger.info("Purged all candidates")
+
+        self.db.commit()
+        return cursor.rowcount or 0
 
     # Position methods
 

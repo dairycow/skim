@@ -2,6 +2,10 @@
 # Times are in UTC (convert from AEDT)
 # ASX market hours: 10:00 AM - 4:00 PM AEDT (23:00 - 05:00 UTC)
 
+# Daily candidate purge (10 mins before morning scan)
+55 22 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot purge_candidates >> /opt/skim/logs/cron.log 2>&1
+55 22 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot purge_candidates >> /opt/skim/logs/cron.log 2>&1
+
 # Morning scan (10:01 AM AEDT = 23:00 UTC previous day)
 # Find candidates with gap + announcement + opening range
 1 23 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
