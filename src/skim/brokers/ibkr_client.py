@@ -18,6 +18,7 @@ from typing import Any, cast
 from urllib.parse import quote, quote_plus
 
 import httpx
+from loguru import logger as loguru_logger
 
 from ..core.config import Config
 from .ibkr_oauth import generate_lst
@@ -59,6 +60,7 @@ class IBKRClient:
 
     BASE_URL = "https://api.ibkr.com/v1/api"
     REALM = "limited_poa"
+    _logging_bridge_installed = False
 
     def __init__(self, paper_trading: bool = True) -> None:
         """Initialize IBKR connection manager
@@ -107,7 +109,71 @@ class IBKRClient:
         # Async HTTP client (lazy init)
         self._http_client: httpx.AsyncClient | None = None
 
+        # Ensure stdlib logging is bridged into loguru for IBKR/httpx modules
+        self.install_logging_bridge()
+
+    # ========== Logging ==========
+
+    @classmethod
+    def install_logging_bridge(cls) -> None:
+        """Bridge stdlib logging used by httpx/ibkr modules into loguru once."""
+        if cls._logging_bridge_installed:
+            return
+
+        class _LoguruHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                try:
+                    level = loguru_logger.level(record.levelname).name
+                except ValueError:
+                    level = record.levelno
+                loguru_logger.opt(depth=6, exception=record.exc_info).log(
+                    level, record.getMessage()
+                )
+
+        handler = _LoguruHandler()
+        for name in ("skim.brokers", "httpx"):
+            std_logger = logging.getLogger(name)
+            std_logger.setLevel(logging.DEBUG)
+            std_logger.addHandler(handler)
+            std_logger.propagate = False
+
+        cls._logging_bridge_installed = True
+
     # ========== Connection Management ==========
+
+    def _build_http_client(
+        self,
+        timeout: int,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> httpx.AsyncClient:
+        """Create an AsyncClient with httpx request/response logging hooks."""
+        self.install_logging_bridge()
+        return httpx.AsyncClient(
+            timeout=timeout,
+            transport=transport,
+            event_hooks={
+                "request": [self._log_httpx_request],
+                "response": [self._log_httpx_response],
+            },
+        )
+
+    async def _log_httpx_request(self, request: httpx.Request) -> None:
+        """Log outbound httpx requests with headers (auth masked)."""
+        headers = {
+            k: ("***" if k.lower() == "authorization" else v)
+            for k, v in request.headers.items()
+        }
+        logger.debug(f"HTTPX request: {request.method} {request.url} {headers}")
+
+    async def _log_httpx_response(self, response: httpx.Response) -> None:
+        """Log httpx responses including status and body."""
+        try:
+            body = response.text
+        except Exception:
+            body = "<unreadable body>"
+        logger.debug(
+            f"HTTPX response: status={response.status_code} url={response.url} body={body}"
+        )
 
     async def connect(self, timeout: int = 20) -> None:
         """Establish authenticated session with IBKR
@@ -133,7 +199,7 @@ class IBKRClient:
         try:
             # Initialize async HTTP client
             if self._http_client is None:
-                self._http_client = httpx.AsyncClient(timeout=timeout)
+                self._http_client = self._build_http_client(timeout=timeout)
 
             # Step 1: Generate LST via OAuth
             self._generate_lst()
