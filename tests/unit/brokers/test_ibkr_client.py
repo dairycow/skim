@@ -1,6 +1,9 @@
+from unittest.mock import AsyncMock, Mock
+
+import httpx
 import pytest
 
-from skim.brokers.ibkr_client import IBKRClient
+from skim.brokers.ibkr_client import IBKRAuthenticationError, IBKRClient
 
 
 # Fixture to create a client instance without calling __init__
@@ -55,6 +58,132 @@ def test_parse_account_id_no_relevant_keys(client_no_init: IBKRClient):
     """Test it returns None when no relevant keys are in the dict."""
     response = {"some_other_key": "some_value"}
     assert client_no_init._parse_account_id(response) is None
+
+
+@pytest.fixture
+def minimal_client(monkeypatch) -> IBKRClient:
+    """Create a minimally initialised IBKRClient for request-level tests."""
+    client = IBKRClient.__new__(IBKRClient)
+
+    # OAuth/session state
+    client._consumer_key = "ck"
+    client._access_token = "at"
+    client._access_token_secret = "ats"
+    client._dh_prime_hex = "01"
+    client._signature_key_path = "sig"
+    client._encryption_key_path = "enc"
+    client._lst = "aW5pdGlhbA=="  # "initial" base64
+    client._lst_expiration = None
+    client._account_id = "DU123"
+    client._connected = True
+    client._paper_trading = True
+
+    # Tickle thread state
+    client._tickle_thread = None
+    client._tickle_stop_event = None
+
+    # HTTP client will be injected per test
+    client._http_client = None
+    return client
+
+
+@pytest.mark.asyncio
+async def test_request_recovers_from_410_with_lst_regeneration(
+    minimal_client: IBKRClient, monkeypatch
+):
+    """Ensure 410 triggers LST regeneration and the request is retried successfully."""
+    url = f"{minimal_client.BASE_URL}/iserver/test"
+
+    resp_410 = httpx.Response(
+        status_code=410,
+        request=httpx.Request("GET", url),
+        json={"error": "expired"},
+    )
+    resp_ok = httpx.Response(
+        status_code=200,
+        request=httpx.Request("GET", url),
+        json={"result": "ok"},
+    )
+
+    http_client = AsyncMock()
+    http_client.get = AsyncMock(side_effect=[resp_410, resp_ok])
+    minimal_client._http_client = http_client
+
+    regenerate = Mock(
+        side_effect=lambda: setattr(minimal_client, "_lst", "bmV3bHN0")
+    )  # "newlst" base64
+    monkeypatch.setattr(minimal_client, "_generate_lst", regenerate)
+
+    result = await minimal_client._request("GET", "/iserver/test")
+
+    assert result == {"result": "ok"}
+    regenerate.assert_called_once()
+    assert minimal_client._lst == "bmV3bHN0"
+    assert http_client.get.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_request_refreshes_expiring_lst_before_signing(
+    minimal_client: IBKRClient, monkeypatch
+):
+    """LST should be proactively refreshed when expiration is near/past before sending the request."""
+    minimal_client._lst_expiration = 0  # already expired
+    url = f"{minimal_client.BASE_URL}/iserver/test"
+    resp_ok = httpx.Response(
+        status_code=200,
+        request=httpx.Request("GET", url),
+        headers={"Content-Length": "0"},
+    )
+
+    http_client = AsyncMock()
+    http_client.get = AsyncMock(return_value=resp_ok)
+    minimal_client._http_client = http_client
+
+    regenerate = Mock(
+        side_effect=lambda: setattr(minimal_client, "_lst", "cmVmcmVzaGVk")
+    )  # "refreshed" base64
+    monkeypatch.setattr(minimal_client, "_generate_lst", regenerate)
+
+    result = await minimal_client._request("GET", "/iserver/test")
+
+    assert result == {}
+    regenerate.assert_called_once()
+    assert minimal_client._lst == "cmVmcmVzaGVk"
+    http_client.get.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_request_raises_auth_error_after_failed_retry(
+    minimal_client: IBKRClient, monkeypatch
+):
+    """If regeneration does not clear a 410/401, raise an authentication error with context."""
+    url = f"{minimal_client.BASE_URL}/iserver/test"
+    resp_410_a = httpx.Response(
+        status_code=410,
+        request=httpx.Request("GET", url),
+        json={"error": "expired"},
+    )
+    resp_410_b = httpx.Response(
+        status_code=410,
+        request=httpx.Request("GET", url),
+        json={"error": "still expired"},
+    )
+
+    http_client = AsyncMock()
+    http_client.get = AsyncMock(side_effect=[resp_410_a, resp_410_b])
+    minimal_client._http_client = http_client
+
+    regenerate = Mock(
+        side_effect=lambda: setattr(minimal_client, "_lst", "bmV3bHN0")
+    )  # "newlst" base64
+    monkeypatch.setattr(minimal_client, "_generate_lst", regenerate)
+
+    with pytest.raises(IBKRAuthenticationError) as excinfo:
+        await minimal_client._request("GET", "/iserver/test")
+
+    assert "410" in str(excinfo.value)
+    regenerate.assert_called_once()
+    assert http_client.get.call_count == 2
 
 
 # TODO: Add more unit tests for IBKRClient

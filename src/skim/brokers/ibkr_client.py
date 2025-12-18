@@ -390,6 +390,10 @@ class IBKRClient:
         if self._http_client is None:
             raise IBKRClientError("HTTP client not initialized")
 
+        if self._is_lst_expiring():
+            logger.info("LST expiring soon - regenerating before request")
+            self._generate_lst()
+
         url = f"{self.BASE_URL}{endpoint}"
         retry_count = 0
         delay = 1.0
@@ -465,12 +469,17 @@ class IBKRClient:
                         return {}
                     return response.json()
 
-                elif response.status_code == 401 and not lst_regenerated:
+                elif response.status_code in (401, 410) and not lst_regenerated:
                     # Auth expired - regenerate LST and retry once
-                    logger.warning("401 Unauthorized - regenerating LST")
+                    self._log_auth_failure(
+                        response, "Unauthorized - regenerating LST"
+                    )
                     self._generate_lst()
                     lst_regenerated = True
                     continue
+
+                elif response.status_code in (401, 410) and lst_regenerated:
+                    raise IBKRAuthenticationError(self._format_error(response))
 
                 elif response.status_code in (400, 404):
                     # Client errors - don't retry
@@ -504,9 +513,7 @@ class IBKRClient:
                     logger.error(
                         f"Unexpected error {response.status_code}: {response.text}"
                     )
-                    raise IBKRClientError(
-                        f"Request failed: {response.status_code} - {response.text}"
-                    )
+                    raise IBKRClientError(self._format_error(response))
 
             except httpx.RequestError as e:
                 # Network errors - retry with backoff
@@ -522,4 +529,33 @@ class IBKRClient:
                 else:
                     raise IBKRClientError(f"Max retries exceeded: {e}") from e
 
+        if lst_regenerated:
+            raise IBKRAuthenticationError(
+                f"Authentication failed after LST regeneration: {endpoint}"
+            )
         raise IBKRClientError("Request failed after all retries")
+
+    def _format_error(self, response: httpx.Response) -> str:
+        """Return a safe string describing an HTTP error without assuming keys."""
+        body: str
+        try:
+            parsed = response.json()
+            body = str(parsed)
+        except Exception:
+            body = response.text
+        return f"Request failed: {response.status_code} - {body}"
+
+    def _log_auth_failure(self, response: httpx.Response, prefix: str) -> None:
+        """Log auth failures with safe body parsing to avoid KeyError."""
+        try:
+            body = response.json()
+        except Exception:
+            body = response.text
+        logger.warning(f"{prefix} ({response.status_code}): {body}")
+
+    def _is_lst_expiring(self, skew_seconds: int = 300) -> bool:
+        """Check if the current LST is close to expiring."""
+        if self._lst_expiration is None:
+            return False
+        now_ms = int(datetime.now().timestamp() * 1000)
+        return self._lst_expiration <= now_ms + (skew_seconds * 1000)
