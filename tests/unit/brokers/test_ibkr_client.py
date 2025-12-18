@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import AsyncMock, Mock
 
 import httpx
@@ -184,6 +185,58 @@ async def test_request_raises_auth_error_after_failed_retry(
     assert "410" in str(excinfo.value)
     regenerate.assert_called_once()
     assert http_client.get.call_count == 2
+
+
+def test_logging_bridge_routes_stdlib_to_loguru(monkeypatch):
+    """Ensure the stdlib logging bridge forwards messages into loguru."""
+    from loguru import logger
+
+    messages: list[str] = []
+    token = logger.add(messages.append, format="{message}")
+
+    try:
+        IBKRClient.install_logging_bridge()
+        std_logger = logging.getLogger("skim.brokers.ibkr_client")
+        std_logger.setLevel(logging.DEBUG)
+        std_logger.info("bridge %s", "ok")
+    finally:
+        logger.remove(token)
+
+    assert any("bridge ok" in message for message in messages)
+
+
+@pytest.mark.asyncio
+async def test_httpx_event_hooks_log_request_and_response(
+    minimal_client: IBKRClient,
+):
+    """HTTPX request/response logs should flow into loguru."""
+    from loguru import logger
+
+    messages: list[str] = []
+    token = logger.add(messages.append, format="{message}")
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            status_code=200,
+            json={"ok": True},
+            request=request,
+            headers={"x-test": "yes"},
+        )
+    )
+
+    http_client = minimal_client._build_http_client(
+        timeout=5, transport=transport
+    )
+    minimal_client._http_client = http_client
+
+    try:
+        await minimal_client._request("GET", "/iserver/test")
+    finally:
+        logger.remove(token)
+        await http_client.aclose()
+
+    assert any("GET" in msg and "/iserver/test" in msg for msg in messages)
+    assert any("status=200" in msg for msg in messages)
 
 
 # TODO: Add more unit tests for IBKRClient
