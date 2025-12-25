@@ -11,9 +11,9 @@ from datetime import date
 from loguru import logger
 
 from skim.brokers.ibkr_client import IBKRClient
+from skim.brokers.ibkr_gap_scanner import IBKRGapScanner
 from skim.brokers.ibkr_market_data import IBKRMarketData
 from skim.brokers.ibkr_orders import IBKROrders
-from skim.brokers.ibkr_scanner import IBKRScanner
 from skim.core.config import Config
 from skim.data.database import Database
 from skim.monitor import Monitor
@@ -38,7 +38,7 @@ class TradingBot:
         self.order_service = IBKROrders(
             self.ib_client, self.market_data_service
         )
-        self.scanner_service = IBKRScanner(
+        self.scanner_service = IBKRGapScanner(
             self.ib_client, config.scanner_config
         )
         self.discord = DiscordNotifier(config.discord_webhook_url)

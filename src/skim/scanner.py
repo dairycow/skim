@@ -5,7 +5,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from .brokers.protocols import ScannerService
+from .brokers.protocols import GapScannerService
 from .data.models import Candidate
 from .scanners.asx_announcements import ASXAnnouncementScanner
 
@@ -15,7 +15,7 @@ class Scanner:
 
     def __init__(
         self,
-        scanner_service: ScannerService,
+        scanner_service: GapScannerService,
         gap_threshold: float = 3.0,
     ):
         """Initialise scanner with required services.
