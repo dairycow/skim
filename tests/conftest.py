@@ -300,7 +300,7 @@ def mock_trading_bot(mock_bot_config):
         patch("skim.core.bot.IBKRClient"),
         patch("skim.core.bot.IBKRMarketData"),
         patch("skim.core.bot.IBKROrders"),
-        patch("skim.core.bot.IBKRScanner"),
+        patch("skim.core.bot.IBKRGapScanner"),
         patch("skim.core.bot.Scanner"),
         patch("skim.core.bot.Trader"),
         patch("skim.core.bot.Monitor"),

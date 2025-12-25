@@ -6,7 +6,7 @@ from typing import Any
 from ..core.config import ScannerConfig
 from ..validation.scanners import GapStock, ScannerValidationError
 from .ibkr_client import IBKRClient
-from .protocols import ScannerService
+from .protocols import GapScannerService
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,10 @@ class IBKRScannerError(Exception):
     pass
 
 
-class IBKRScanner(ScannerService):
-    """IBKR market scanner operations
+class IBKRGapScanner(GapScannerService):
+    """IBKR gap scanner operations
 
-    Handles low-level scanner execution and gap scanning.
+    Handles low-level gap scanner execution.
     """
 
     def __init__(

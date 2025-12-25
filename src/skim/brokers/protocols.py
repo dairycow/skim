@@ -1,10 +1,11 @@
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from skim.data.models import MarketData, OrderResult, Position
 
 from ..validation.scanners import GapStock
 
 
+@runtime_checkable
 class BrokerConnectionManager(Protocol):
     """Protocol for a broker connection manager."""
 
@@ -25,6 +26,7 @@ class BrokerConnectionManager(Protocol):
         ...
 
 
+@runtime_checkable
 class MarketDataProvider(Protocol):
     """Protocol for a broker market data provider."""
 
@@ -44,6 +46,7 @@ class MarketDataProvider(Protocol):
         ...
 
 
+@runtime_checkable
 class OrderManager(Protocol):
     """Protocol for a broker order management service."""
 
@@ -76,8 +79,9 @@ class OrderManager(Protocol):
         ...
 
 
-class ScannerService(Protocol):
-    """Protocol for a broker scanner service."""
+@runtime_checkable
+class GapScannerService(Protocol):
+    """Protocol for a broker gap scanner service."""
 
     async def run_scanner(self, scan_params: dict) -> list[dict]:
         """Run a market scanner with specified parameters."""

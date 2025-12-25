@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from skim.brokers.ibkr_scanner import IBKRScanner
+from skim.brokers.ibkr_gap_scanner import IBKRGapScanner
 from skim.core.config import ScannerConfig
 from skim.validation.scanners import GapStock
 
@@ -17,12 +17,14 @@ def mock_ibkr_client():
 
 @pytest.fixture
 def scanner_service(mock_ibkr_client):
-    """Fixture for the IBKRScanner service."""
-    return IBKRScanner(client=mock_ibkr_client, scanner_config=ScannerConfig())
+    """Fixture for the IBKRGapScanner service."""
+    return IBKRGapScanner(
+        client=mock_ibkr_client, scanner_config=ScannerConfig()
+    )
 
 
 # Tests for _parse_scanner_response (new format)
-def test_parse_new_format_scanner_response(scanner_service: IBKRScanner):
+def test_parse_new_format_scanner_response(scanner_service: IBKRGapScanner):
     response = {
         "contracts": [
             {
@@ -45,7 +47,7 @@ def test_parse_new_format_scanner_response(scanner_service: IBKRScanner):
 
 
 # Tests for _parse_scanner_response (old format)
-def test_parse_old_format_scanner_response(scanner_service: IBKRScanner):
+def test_parse_old_format_scanner_response(scanner_service: IBKRGapScanner):
     response = [
         {
             "conid": 456,
@@ -62,12 +64,12 @@ def test_parse_old_format_scanner_response(scanner_service: IBKRScanner):
     assert parsed[0]["change_percent"] == 10.2
 
 
-def test_parse_scanner_response_invalid_format(scanner_service: IBKRScanner):
+def test_parse_scanner_response_invalid_format(scanner_service: IBKRGapScanner):
     assert scanner_service._parse_scanner_response("not a dict or list") == []
 
 
 # Tests for _validate_and_create_gap_stock
-def test_validate_gap_stock_success(scanner_service: IBKRScanner):
+def test_validate_gap_stock_success(scanner_service: IBKRGapScanner):
     result = {"symbol": "BHP", "conid": 555, "change_percent": 5.0}
     gap_stock = scanner_service._validate_and_create_gap_stock(
         result, min_gap=4.0
@@ -78,7 +80,7 @@ def test_validate_gap_stock_success(scanner_service: IBKRScanner):
     assert gap_stock.conid == 555
 
 
-def test_validate_gap_stock_below_min_gap(scanner_service: IBKRScanner):
+def test_validate_gap_stock_below_min_gap(scanner_service: IBKRGapScanner):
     result = {"symbol": "BHP", "conid": 555, "change_percent": 3.0}
     gap_stock = scanner_service._validate_and_create_gap_stock(
         result, min_gap=4.0
@@ -86,7 +88,7 @@ def test_validate_gap_stock_below_min_gap(scanner_service: IBKRScanner):
     assert gap_stock is None
 
 
-def test_validate_gap_stock_missing_data(scanner_service: IBKRScanner):
+def test_validate_gap_stock_missing_data(scanner_service: IBKRGapScanner):
     result = {"symbol": "BHP"}  # Missing conid
     gap_stock = scanner_service._validate_and_create_gap_stock(
         result, min_gap=4.0
@@ -94,14 +96,14 @@ def test_validate_gap_stock_missing_data(scanner_service: IBKRScanner):
     assert gap_stock is None
 
 
-def test_validate_gap_stock_pydantic_error(scanner_service: IBKRScanner):
+def test_validate_gap_stock_pydantic_error(scanner_service: IBKRGapScanner):
     # conid should be an int, pass a string to trigger ValueError on int() conversion
     result = {"symbol": "BHP", "conid": "not-an-int", "change_percent": 5.0}
     with pytest.raises(ValueError):
         scanner_service._validate_and_create_gap_stock(result, min_gap=4.0)
 
 
-# TODO: Add more unit tests for IBKRScanner
+# TODO: Add more unit tests for IBKRGapScanner
 # - Test run_scanner method (mocking _request)
 # - Test scan_for_gaps method (mocking run_scanner)
 # - Test get_scanner_params method
