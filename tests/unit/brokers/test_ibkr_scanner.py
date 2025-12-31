@@ -23,8 +23,8 @@ def scanner_service(mock_ibkr_client):
     )
 
 
-# Tests for _parse_scanner_response (new format)
-def test_parse_new_format_scanner_response(scanner_service: IBKRGapScanner):
+# Tests for _parse_scanner_response
+def test_parse_scanner_response_success(scanner_service: IBKRGapScanner):
     response = {
         "contracts": [
             {
@@ -46,26 +46,20 @@ def test_parse_new_format_scanner_response(scanner_service: IBKRGapScanner):
     assert scanner_service._parse_scanner_response(response) == expected
 
 
-# Tests for _parse_scanner_response (old format)
-def test_parse_old_format_scanner_response(scanner_service: IBKRGapScanner):
-    response = [
-        {
-            "conid": 456,
-            "symbol": "OLD",
-            "companyHeader": "Old Company",
-            "83": "10.2",  # change_percent
-        }
-    ]
-    # The parser adds more fields with defaults, so we only check the ones we care about
-    parsed = scanner_service._parse_scanner_response(response)
-    assert len(parsed) == 1
-    assert parsed[0]["conid"] == 456
-    assert parsed[0]["symbol"] == "OLD"
-    assert parsed[0]["change_percent"] == 10.2
-
-
 def test_parse_scanner_response_invalid_format(scanner_service: IBKRGapScanner):
-    assert scanner_service._parse_scanner_response("not a dict or list") == []
+    """Response must be a dict, not a list or string."""
+    assert scanner_service._parse_scanner_response("not a dict") == []
+    assert (
+        scanner_service._parse_scanner_response(["list", "not", "dict"]) == []
+    )
+
+
+def test_parse_scanner_response_empty_contracts(
+    scanner_service: IBKRGapScanner,
+):
+    """Handle empty contracts gracefully."""
+    assert scanner_service._parse_scanner_response({"contracts": []}) == []
+    assert scanner_service._parse_scanner_response({}) == []
 
 
 # Tests for _validate_and_create_gap_stock
@@ -108,3 +102,5 @@ def test_validate_gap_stock_pydantic_error(scanner_service: IBKRGapScanner):
 # - Test scan_for_gaps method (mocking run_scanner)
 # - Test get_scanner_params method
 # - Test _create_gap_scan_params
+# - Test _parse_scanner_response with malformed scan_data
+# - Test _parse_scanner_response with missing fields in contracts

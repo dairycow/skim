@@ -154,22 +154,24 @@ class IBKRGapScanner(GapScannerService):
             ) from e
 
     def _parse_scanner_response(self, response: Any) -> list[dict]:
-        """Parse IBKR scanner response into standardized format"""
-        if isinstance(response, dict) and "contracts" in response:
-            return self._parse_new_format(response["contracts"])
+        """Parse IBKR scanner response into standardized format
 
-        if not isinstance(response, list):
+        Expects response dict with 'contracts' key. Each contract has:
+        con_id, symbol, company_name, scan_data (gap percentage string).
+        """
+        if not isinstance(response, dict):
             logger.warning(
-                f"Unexpected scanner response format: {type(response)}"
+                f"Unexpected scanner response format: {type(response)}, expected dict"
             )
             return []
 
-        return self._parse_old_format(response)
+        contracts = response.get("contracts")
+        if not contracts:
+            logger.info("Scanner returned no contracts")
+            return []
 
-    def _parse_new_format(self, contracts: list) -> list[dict]:
-        """Parse new IBKR scanner response format"""
         results = []
-        logger.info(f"Scanner returned {len(contracts)} contracts (new format)")
+        logger.info(f"Scanner returned {len(contracts)} contracts")
 
         for contract in contracts:
             if not isinstance(contract, dict):
@@ -191,55 +193,7 @@ class IBKRGapScanner(GapScannerService):
 
             results.append(result)
 
-        return results
-
-    def _parse_old_format(self, response: list) -> list[dict]:
-        """Parse old IBKR scanner response format"""
-        results = []
-
-        for item in response:
-            if not isinstance(item, dict):
-                logger.debug(f"Skipping non-dict scanner result: {item}")
-                continue
-
-            result = {
-                "conid": item.get("conid"),
-                "symbol": item.get("symbol"),
-                "companyHeader": item.get("companyHeader"),
-            }
-
-            field_mapping = {
-                "31": "last_price",
-                "83": "change_percent",
-                "86": "ask",
-                "87": "volume",
-                "7741": "previous_close",
-                "7295": "today_open",
-            }
-
-            for field_code, field_name in field_mapping.items():
-                if field_code in item:
-                    value = item[field_code]
-                    if field_name == "volume":
-                        result[field_name] = int(value) if value else 0
-                    elif field_name in [
-                        "last_price",
-                        "change_percent",
-                        "previous_close",
-                        "today_open",
-                    ]:
-                        result[field_name] = float(value) if value else 0.0
-                    else:
-                        result[field_name] = value
-
-            if result.get("conid") and result.get("symbol"):
-                results.append(result)
-            else:
-                logger.debug(f"Skipping incomplete scanner result: {result}")
-
-        logger.info(
-            f"Scanner returned {len(results)} valid results (old format)"
-        )
+        logger.info(f"Parsed {len(results)} scanner results")
         return results
 
     def _validate_and_create_gap_stock(
