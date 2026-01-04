@@ -1,0 +1,5 @@
+# Non-Python files
+crontab
+
+# Test fixtures that should not be linted
+tests/fixtures/

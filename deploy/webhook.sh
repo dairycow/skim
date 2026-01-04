@@ -28,6 +28,9 @@ sudo chown root:root /etc/cron.d/skim-trading-bot
 echo "Restarting cron daemon..."
 sudo systemctl restart cron
 
+echo "Resetting database for schema migration..."
+rm -f /opt/skim/data/skim.db
+
 echo "Deployment complete! Running health check..."
 if sudo -u skim /opt/skim/.venv/bin/python -m skim.core.bot status > /dev/null 2>&1; then
     echo "Bot is healthy and running"

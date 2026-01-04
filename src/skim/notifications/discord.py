@@ -70,6 +70,80 @@ class DiscordNotifier:
             )
             return False
 
+    def send_gap_candidates(
+        self, candidates_found: int, candidates: list[dict[str, Any]]
+    ) -> bool:
+        """Send gap-only candidates notification
+
+        Args:
+            candidates_found: Number of candidates found
+            candidates: List of candidate dictionaries with ticker, gap_percent
+
+        Returns:
+            True if notification sent successfully, False otherwise
+        """
+        if not self.webhook_url:
+            logger.debug(
+                "No Discord webhook URL configured, skipping notification"
+            )
+            return False
+
+        try:
+            embed = self._build_gap_embed(candidates_found, candidates)
+            payload = {"embeds": [embed]}
+
+            response = requests.post(
+                self.webhook_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            logger.info("Discord gap notification sent successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send Discord gap notification: {e}")
+            return False
+
+    def send_news_candidates(
+        self, candidates_found: int, candidates: list[dict[str, Any]]
+    ) -> bool:
+        """Send news-only candidates notification
+
+        Args:
+            candidates_found: Number of candidates found
+            candidates: List of candidate dictionaries with ticker, headline
+
+        Returns:
+            True if notification sent successfully, False otherwise
+        """
+        if not self.webhook_url:
+            logger.debug(
+                "No Discord webhook URL configured, skipping notification"
+            )
+            return False
+
+        try:
+            embed = self._build_news_embed(candidates_found, candidates)
+            payload = {"embeds": [embed]}
+
+            response = requests.post(
+                self.webhook_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            logger.info("Discord news notification sent successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send Discord news notification: {e}")
+            return False
+
     def send_trade_notification(
         self,
         action: str,
@@ -223,3 +297,130 @@ class DiscordNotifier:
             "fields": fields,
             "timestamp": datetime.now().isoformat(),
         }
+
+    def _build_gap_embed(
+        self, candidates_found: int, candidates: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Build Discord embed for gap candidates
+
+        Args:
+            candidates_found: Number of candidates found
+            candidates: List of candidate dictionaries
+
+        Returns:
+            Discord embed dictionary
+        """
+        if candidates_found == 0:
+            return {
+                "title": "Gap Scan Complete",
+                "description": "No gap candidates found",
+                "color": 0xFFFF00,  # Yellow
+                "timestamp": datetime.now().isoformat(),
+            }
+        else:
+            return {
+                "title": "Gap Scan Complete",
+                "description": f"{candidates_found} gap candidates found",
+                "color": 0xFF6600,  # Orange
+                "fields": [
+                    {
+                        "name": "Gap Candidates",
+                        "value": self._format_gap_candidate_list(candidates),
+                        "inline": False,
+                    }
+                ],
+                "timestamp": datetime.now().isoformat(),
+            }
+
+    def _build_news_embed(
+        self, candidates_found: int, candidates: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Build Discord embed for news candidates
+
+        Args:
+            candidates_found: Number of candidates found
+            candidates: List of candidate dictionaries
+
+        Returns:
+            Discord embed dictionary
+        """
+        if candidates_found == 0:
+            return {
+                "title": "News Scan Complete",
+                "description": "No news candidates found",
+                "color": 0xFFFF00,  # Yellow
+                "timestamp": datetime.now().isoformat(),
+            }
+        else:
+            return {
+                "title": "News Scan Complete",
+                "description": f"{candidates_found} news candidates found",
+                "color": 0x0099FF,  # Blue
+                "fields": [
+                    {
+                        "name": "News Candidates",
+                        "value": self._format_news_candidate_list(candidates),
+                        "inline": False,
+                    }
+                ],
+                "timestamp": datetime.now().isoformat(),
+            }
+
+    def _format_gap_candidate_list(
+        self, candidates: list[dict[str, Any]]
+    ) -> str:
+        """Format gap candidate list for Discord display
+
+        Args:
+            candidates: List of candidate dictionaries
+
+        Returns:
+            Formatted string for Discord
+        """
+        if not candidates:
+            return "None"
+
+        formatted_candidates = []
+        for candidate in candidates:
+            ticker = candidate.get("ticker", "UNKNOWN")
+            gap_percent = candidate.get("gap_percent")
+
+            gap_str = (
+                f"{gap_percent:.1f}%" if gap_percent is not None else "N/A"
+            )
+
+            formatted_candidates.append(f"• **{ticker}** - Gap: {gap_str}")
+
+        return "\n".join(formatted_candidates)
+
+    def _format_news_candidate_list(
+        self, candidates: list[dict[str, Any]]
+    ) -> str:
+        """Format news candidate list for Discord display
+
+        Args:
+            candidates: List of candidate dictionaries
+
+        Returns:
+            Formatted string for Discord
+        """
+        if not candidates:
+            return "None"
+
+        formatted_candidates = []
+        for candidate in candidates[:10]:
+            ticker = candidate.get("ticker", "UNKNOWN")
+            headline = candidate.get("headline", "No announcement")
+
+            headline_truncated = headline[:80]
+
+            formatted_candidates.append(
+                f"• **{ticker}**\n  {headline_truncated}"
+            )
+
+        if len(candidates) > 10:
+            formatted_candidates.append(
+                f"\n... and {len(candidates) - 10} more"
+            )
+
+        return "\n".join(formatted_candidates)

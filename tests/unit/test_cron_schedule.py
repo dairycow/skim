@@ -22,20 +22,13 @@ def test_crontab_uses_venv_python(crontab_content):
     assert ">> /opt/skim/logs/cron.log" in crontab_content
 
 
-def test_crontab_includes_range_tracking_at_utc_1010(crontab_content):
-    """track_ranges must run 10 minutes after the UTC market open (23:10 UTC)."""
+def test_crontab_includes_scan_gaps_and_scan_news(crontab_content):
+    """crontab should include separate gap and news scans at 23:00 UTC."""
     assert (
-        "10 23 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot track_ranges"
+        "1 23 * * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan_gaps"
         in crontab_content
     )
     assert (
-        "10 23 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot track_ranges"
+        "1 23 * * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan_news"
         in crontab_content
     )
-
-
-def test_trade_follows_range_tracking(crontab_content):
-    """Ensure execution jobs are scheduled after range tracking to respect ORH sampling."""
-    range_index = crontab_content.index("-m skim.core.bot track_ranges")
-    trade_index = crontab_content.index("-m skim.core.bot trade")
-    assert range_index < trade_index

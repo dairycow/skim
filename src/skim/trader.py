@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 from skim.data.database import Database
-from skim.data.models import Candidate, Position
+from skim.data.models import Position, TradeableCandidate
 
 if TYPE_CHECKING:
     from skim.brokers.protocols import MarketDataProvider, OrderManager
@@ -47,7 +47,7 @@ class Trader:
         self.db = db
 
     async def execute_breakouts(
-        self, candidates: list[Candidate]
+        self, candidates: list[TradeableCandidate]
     ) -> list[TradeEvent]:
         """Execute breakout entries when price > or_high
 
@@ -61,13 +61,6 @@ class Trader:
 
         for candidate in candidates:
             try:
-                # Safety check: Skip candidates without ORH/ORL values
-                if candidate.or_high is None or candidate.or_low is None:
-                    logger.warning(
-                        f"{candidate.ticker}: Skipping - opening range not set (run track_ranges first)"
-                    )
-                    continue
-
                 # Get current market data
                 market_data = await self.market_data_provider.get_market_data(
                     candidate.ticker

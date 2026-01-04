@@ -3,7 +3,7 @@
 Responsibility:
 - Sample market data at 10:10 AM (10 minutes after market open)
 - Extract high/low values as ORH/ORL
-- Update candidates table with opening range values
+- Save opening ranges to database
 """
 
 import asyncio
@@ -14,6 +14,7 @@ from loguru import logger
 
 from .brokers.protocols import MarketDataProvider
 from .data.database import Database
+from .data.models import OpeningRange
 
 
 class RangeTracker:
@@ -90,8 +91,8 @@ class RangeTracker:
         # Step 1: Wait until target time
         await self._wait_until_target_time()
 
-        # Step 2: Get candidates without ranges
-        candidates = self.db.get_candidates_without_ranges()
+        # Step 2: Get candidates needing ranges
+        candidates = self.db.get_candidates_needing_ranges()
         if not candidates:
             logger.info("No candidates need opening range tracking")
             return 0
@@ -131,10 +132,14 @@ class RangeTracker:
                     )
                     continue
 
-                # Update database
-                self.db.update_candidate_ranges(
-                    candidate.ticker, or_high, or_low
+                # Save opening range
+                opening_range = OpeningRange(
+                    ticker=candidate.ticker,
+                    or_high=or_high,
+                    or_low=or_low,
+                    sample_date=datetime.now().isoformat(),
                 )
+                self.db.save_opening_range(opening_range)
 
                 logger.info(
                     f"{candidate.ticker}: Opening range set - ORH=${or_high:.2f}, ORL=${or_low:.2f}"
