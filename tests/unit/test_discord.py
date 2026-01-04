@@ -116,74 +116,9 @@ class TestDiscordNotifier:
 
         assert result is False
 
-    def test_build_embed_with_candidates(self):
-        """Test embed building with candidate data"""
-        webhook_url = "https://discord.com/api/webhooks/test/webhook"
-        notifier = DiscordNotifier(webhook_url)
-
-        candidates = [
-            {
-                "ticker": "BHP",
-                "gap_percent": 5.5,
-                "headline": "Trading Halt",
-            },
-            {
-                "ticker": "RIO",
-                "gap_percent": 4.2,
-                "headline": "Results Released",
-            },
-        ]
-
-        embed = notifier._build_embed(candidates_found=2, candidates=candidates)
-
-        assert embed["title"] == "ASX Market Scan Complete"
-        assert "2 new candidates found" in embed["description"]
-        assert embed["color"] == 0x00FF00  # Green colour
-
-        # Check fields contain candidate information
-        assert "fields" in embed
-        assert len(embed["fields"]) >= 1
-
-        # Find candidates field
-        candidates_field = None
-        for field in embed["fields"]:
-            if field["name"] == "New Candidates":
-                candidates_field = field
-                break
-
-        assert candidates_field is not None
-        assert "BHP" in candidates_field["value"]
-        assert "RIO" in candidates_field["value"]
-        assert "5.5%" in candidates_field["value"]
-        assert "4.2%" in candidates_field["value"]
-        assert "Trading Halt" in candidates_field["value"]
-        assert "Results Released" in candidates_field["value"]
-
-    def test_build_embed_no_candidates(self):
-        """Test embed building with no candidates"""
-        webhook_url = "https://discord.com/api/webhooks/test/webhook"
-        notifier = DiscordNotifier(webhook_url)
-
-        embed = notifier._build_embed(candidates_found=0, candidates=[])
-
-        assert embed["title"] == "ASX Market Scan Complete"
-        assert "No new candidates found" in embed["description"]
-        assert embed["color"] == 0xFFFF00  # Yellow colour
-
-    def test_build_embed_error_case(self):
-        """Test embed building for error case"""
-        webhook_url = "https://discord.com/api/webhooks/test/webhook"
-        notifier = DiscordNotifier(webhook_url)
-
-        embed = notifier._build_embed(candidates_found=-1, candidates=[])
-
-        assert embed["title"] == "ASX Market Scan Error"
-        assert embed["color"] == 0xFF0000  # Red colour
-
     def test_format_candidate_list(self):
         """Test candidate list formatting with headlines"""
-        webhook_url = "https://discord.com/api/webhooks/test/webhook"
-        notifier = DiscordNotifier(webhook_url)
+        from skim.notifications.discord import _format_candidate_list
 
         candidates = [
             {
@@ -198,7 +133,7 @@ class TestDiscordNotifier:
             },
         ]
 
-        formatted = notifier._format_candidate_list(candidates)
+        formatted = _format_candidate_list(candidates)
 
         assert "**BHP**" in formatted
         assert "**RIO**" in formatted
@@ -209,24 +144,22 @@ class TestDiscordNotifier:
 
     def test_format_candidate_list_empty(self):
         """Test empty candidate list formatting"""
-        webhook_url = "https://discord.com/api/webhooks/test/webhook"
-        notifier = DiscordNotifier(webhook_url)
+        from skim.notifications.discord import _format_candidate_list
 
-        formatted = notifier._format_candidate_list([])
+        formatted = _format_candidate_list([])
 
         assert formatted == "None"
 
     def test_format_candidate_list_missing_data(self):
         """Test candidate list formatting with missing headline"""
-        webhook_url = "https://discord.com/api/webhooks/test/webhook"
-        notifier = DiscordNotifier(webhook_url)
+        from skim.notifications.discord import _format_candidate_list
 
         candidates = [
             {"ticker": "BHP", "gap_percent": 5.5, "headline": None},
             {"ticker": "RIO", "gap_percent": 4.2},  # Missing headline key
         ]
 
-        formatted = notifier._format_candidate_list(candidates)
+        formatted = _format_candidate_list(candidates)
 
         assert "**BHP**" in formatted
         assert "**RIO**" in formatted
