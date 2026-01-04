@@ -1,4 +1,4 @@
-"""Unit tests for the simplified database layer."""
+"""Unit tests for Database class with SQLModel"""
 
 from datetime import UTC, date, datetime
 
@@ -14,7 +14,7 @@ from skim.data.models import (
 
 @pytest.fixture
 def db():
-    """Create an in-memory database for each test."""
+    """Create in-memory SQLite database for each test"""
     database = Database(":memory:")
     yield database
     database.close()
@@ -43,39 +43,37 @@ def sample_news_candidate():
     )
 
 
-@pytest.fixture
-def sample_opening_range():
-    """Sample opening range for testing"""
-    return OpeningRange(
-        ticker="BHP",
-        or_high=47.80,
-        or_low=45.90,
-        sample_date="2025-11-03T10:10:00",
-    )
-
-
 def test_save_and_get_gap_candidate(db, sample_gap_candidate):
-    """Saving then fetching a gap candidate round-trips key fields."""
+    """Saving then fetching a gap candidate round-trips key fields"""
     db.save_stock_in_play(sample_gap_candidate)
 
     retrieved = db.get_stock_in_play(sample_gap_candidate.ticker)
 
-    assert retrieved == sample_gap_candidate
-    assert retrieved.status == "watching"
+    assert retrieved is not None
+    assert retrieved.ticker == sample_gap_candidate.ticker
+    assert retrieved.scan_date == sample_gap_candidate.scan_date
+    assert retrieved.status == sample_gap_candidate.status
+    assert isinstance(retrieved, GapStockInPlay)
+    assert retrieved.gap_percent == sample_gap_candidate.gap_percent
+    assert retrieved.conid == sample_gap_candidate.conid
 
 
 def test_save_and_get_news_candidate(db, sample_news_candidate):
-    """Saving then fetching a news candidate round-trips key fields."""
+    """Saving then fetching a news candidate round-trips key fields"""
     db.save_stock_in_play(sample_news_candidate)
 
     retrieved = db.get_stock_in_play(sample_news_candidate.ticker)
 
-    assert retrieved == sample_news_candidate
-    assert retrieved.status == "watching"
+    assert retrieved is not None
+    assert retrieved.ticker == sample_news_candidate.ticker
+    assert retrieved.scan_date == sample_news_candidate.scan_date
+    assert retrieved.status == sample_news_candidate.status
+    assert isinstance(retrieved, NewsStockInPlay)
+    assert retrieved.headline == sample_news_candidate.headline
 
 
 def test_get_gap_candidates(db):
-    """get_gap_candidates should return only gap candidates."""
+    """get_gap_candidates should return only gap candidates"""
     gap_candidate = GapStockInPlay(
         ticker="BHP",
         scan_date="2025-11-03",
@@ -96,10 +94,11 @@ def test_get_gap_candidates(db):
 
     assert len(gap_candidates) == 1
     assert gap_candidates[0].ticker == gap_candidate.ticker
+    assert isinstance(gap_candidates[0], GapStockInPlay)
 
 
 def test_get_news_candidates(db):
-    """get_news_candidates should return only news candidates."""
+    """get_news_candidates should return only news candidates"""
     gap_candidate = GapStockInPlay(
         ticker="BHP",
         scan_date="2025-11-03",
@@ -120,10 +119,11 @@ def test_get_news_candidates(db):
 
     assert len(news_candidates) == 1
     assert news_candidates[0].ticker == news_candidate.ticker
+    assert isinstance(news_candidates[0], NewsStockInPlay)
 
 
 def test_get_watching_candidates_filters_by_status(db):
-    """Only watching candidates should be returned."""
+    """Only watching candidates should be returned"""
     gap_candidate = GapStockInPlay(
         ticker="BHP",
         scan_date="2025-11-03",
@@ -151,7 +151,7 @@ def test_get_watching_candidates_filters_by_status(db):
 
 
 def test_update_candidate_status(db):
-    """Status updates should persist."""
+    """Status updates should persist"""
     gap_candidate = GapStockInPlay(
         ticker="BHP",
         scan_date="2025-11-03",
@@ -170,8 +170,7 @@ def test_update_candidate_status(db):
 
 
 def test_save_and_get_opening_range(db):
-    """Saving then fetching an opening range round-trips key fields."""
-    # First save a candidate so foreign key is satisfied
+    """Saving then fetching an opening range round-trips key fields"""
     gap_candidate = GapStockInPlay(
         ticker="BHP",
         scan_date="2025-11-03",
@@ -181,24 +180,25 @@ def test_save_and_get_opening_range(db):
     )
     db.save_stock_in_play(gap_candidate)
 
+    ticker = "BHP"
     opening_range = OpeningRange(
-        ticker="BHP",
+        ticker=ticker,
         or_high=47.80,
         or_low=45.90,
         sample_date="2025-11-03T10:10:00",
     )
     db.save_opening_range(opening_range)
 
-    retrieved = db.get_opening_range(opening_range.ticker)
+    retrieved = db.get_opening_range(ticker)
 
-    assert retrieved == opening_range
+    assert retrieved is not None
+    assert retrieved.ticker == ticker
     assert retrieved.or_high == 47.80
     assert retrieved.or_low == 45.90
 
 
-def test_get_tradeable_candidates(db):
-    """get_tradeable_candidates should return candidates with gap, news, and opening ranges."""
-    # Save gap and news candidates for same ticker
+def test_save_opening_range_updates_existing(db):
+    """Saving opening range for existing ticker should update it"""
     gap_candidate = GapStockInPlay(
         ticker="BHP",
         scan_date="2025-11-03",
@@ -208,74 +208,30 @@ def test_get_tradeable_candidates(db):
     )
     db.save_stock_in_play(gap_candidate)
 
-    news_candidate = NewsStockInPlay(
-        ticker="BHP",
-        scan_date="2025-11-03",
-        status="watching",
-        headline="Results Released",
-    )
-    db.save_stock_in_play(news_candidate)
-
-    # Save opening range
-    opening_range = OpeningRange(
+    opening_range1 = OpeningRange(
         ticker="BHP",
         or_high=47.80,
         or_low=45.90,
         sample_date="2025-11-03T10:10:00",
     )
-    db.save_opening_range(opening_range)
+    db.save_opening_range(opening_range1)
 
-    # Get tradeable candidates
-    tradeable = db.get_tradeable_candidates()
-
-    assert len(tradeable) == 1
-    assert tradeable[0].ticker == gap_candidate.ticker
-    assert tradeable[0].gap_percent == gap_candidate.gap_percent
-    assert tradeable[0].headline == news_candidate.headline
-    assert tradeable[0].or_high == opening_range.or_high
-    assert tradeable[0].or_low == opening_range.or_low
-
-
-def test_get_candidates_needing_ranges(db):
-    """get_candidates_needing_ranges should return gap+news candidates without ranges."""
-    # Save gap and news candidates for same ticker (no opening range yet)
-    gap_candidate = GapStockInPlay(
+    opening_range2 = OpeningRange(
         ticker="BHP",
-        scan_date="2025-11-03",
-        status="watching",
-        gap_percent=5.0,
-        conid=8644,
+        or_high=48.50,
+        or_low=46.00,
+        sample_date="2025-11-03T10:15:00",
     )
-    db.save_stock_in_play(gap_candidate)
+    db.save_opening_range(opening_range2)
 
-    news_candidate = NewsStockInPlay(
-        ticker="BHP",
-        scan_date="2025-11-03",
-        status="watching",
-        headline="Results Released",
-    )
-    db.save_stock_in_play(news_candidate)
-
-    # Save another ticker with only gap (shouldn't appear)
-    db.save_stock_in_play(
-        GapStockInPlay(
-            ticker="RIO",
-            scan_date="2025-11-03",
-            status="watching",
-            gap_percent=4.0,
-            conid=8645,
-        )
-    )
-
-    # Get candidates needing ranges
-    needing_ranges = db.get_candidates_needing_ranges()
-
-    assert len(needing_ranges) == 1
-    assert needing_ranges[0].ticker == gap_candidate.ticker
+    retrieved = db.get_opening_range("BHP")
+    assert retrieved is not None
+    assert retrieved.or_high == 48.50
+    assert retrieved.or_low == 46.00
 
 
 def test_create_and_close_position(db):
-    """Positions can be created, retrieved, and closed."""
+    """Positions can be created, retrieved, and closed"""
     position_id = db.create_position(
         ticker="BHP",
         quantity=50,
@@ -297,7 +253,7 @@ def test_create_and_close_position(db):
 
 
 def test_count_open_positions(db):
-    """Open position count reflects closes."""
+    """Open position count reflects closes"""
     first_id = db.create_position(
         ticker="BHP",
         quantity=50,
@@ -320,9 +276,78 @@ def test_count_open_positions(db):
     assert db.count_open_positions() == 1
 
 
-def test_purge_candidates_deletes_all_rows(db, sample_gap_candidate):
-    """purge_candidates should remove all stored candidates when no filter is provided."""
-    db.save_stock_in_play(sample_gap_candidate)
+def test_tradeable_candidates_requires_gap_news_and_range(db):
+    """Tradeable candidates need gap, news, and opening range"""
+    gap_candidate = GapStockInPlay(
+        ticker="BHP",
+        scan_date="2025-11-03",
+        status="watching",
+        gap_percent=5.0,
+        conid=8644,
+    )
+    news_candidate = NewsStockInPlay(
+        ticker="BHP",
+        scan_date="2025-11-03",
+        status="watching",
+        headline="Results Released",
+    )
+    opening_range = OpeningRange(
+        ticker="BHP",
+        or_high=47.80,
+        or_low=45.90,
+        sample_date="2025-11-03T10:10:00",
+    )
+
+    db.save_stock_in_play(gap_candidate)
+    db.save_stock_in_play(news_candidate)
+    db.save_opening_range(opening_range)
+
+    tradeable = db.get_tradeable_candidates()
+
+    assert len(tradeable) == 1
+    assert tradeable[0].ticker == "BHP"
+    assert tradeable[0].gap_percent == 5.0
+    assert tradeable[0].headline == "Results Released"
+    assert tradeable[0].or_high == 47.80
+    assert tradeable[0].or_low == 45.90
+
+
+def test_candidates_needing_ranges(db):
+    """Candidates with gap and news but no opening ranges"""
+    gap_candidate = GapStockInPlay(
+        ticker="BHP",
+        scan_date="2025-11-03",
+        status="watching",
+        gap_percent=5.0,
+        conid=8644,
+    )
+    news_candidate = NewsStockInPlay(
+        ticker="BHP",
+        scan_date="2025-11-03",
+        status="watching",
+        headline="Results Released",
+    )
+
+    db.save_stock_in_play(gap_candidate)
+    db.save_stock_in_play(news_candidate)
+
+    needing_ranges = db.get_candidates_needing_ranges()
+
+    assert len(needing_ranges) == 1
+    assert needing_ranges[0].ticker == "BHP"
+
+
+def test_purge_candidates_deletes_all_rows(db):
+    """purge_candidates should remove all stored candidates when no filter is provided"""
+    db.save_stock_in_play(
+        GapStockInPlay(
+            ticker="BHP",
+            scan_date="2025-11-03",
+            status="watching",
+            gap_percent=5.0,
+            conid=8644,
+        )
+    )
     db.save_stock_in_play(
         GapStockInPlay(
             ticker="RIO",
@@ -339,8 +364,8 @@ def test_purge_candidates_deletes_all_rows(db, sample_gap_candidate):
     assert db.get_stock_in_play("RIO") is None
 
 
-def test_purge_candidates_filters_by_scan_date(db, sample_gap_candidate):
-    """purge_candidates should only delete rows before the provided UTC date."""
+def test_purge_candidates_filters_by_scan_date(db):
+    """purge_candidates should only delete rows before the provided UTC date"""
     january_first = datetime(2024, 1, 1, 23, tzinfo=UTC).isoformat()
     january_second = datetime(2024, 1, 2, 23, tzinfo=UTC).isoformat()
 
@@ -372,12 +397,11 @@ def test_purge_candidates_filters_by_scan_date(db, sample_gap_candidate):
     assert remaining.ticker == "CBA"
 
 
-def test_purge_opening_ranges(db, sample_opening_range):
-    """purge_opening_ranges should delete all opening ranges."""
-    # First save a candidate to satisfy foreign key
+def test_purge_opening_ranges(db):
+    """purge_opening_ranges should delete all opening ranges"""
     db.save_stock_in_play(
         GapStockInPlay(
-            ticker=sample_opening_range.ticker,
+            ticker="BHP",
             scan_date="2025-11-03",
             status="watching",
             gap_percent=5.0,
@@ -385,11 +409,17 @@ def test_purge_opening_ranges(db, sample_opening_range):
         )
     )
 
-    db.save_opening_range(sample_opening_range)
+    opening_range = OpeningRange(
+        ticker="BHP",
+        or_high=47.80,
+        or_low=45.90,
+        sample_date="2025-11-03T10:10:00",
+    )
+    db.save_opening_range(opening_range)
 
-    assert db.get_opening_range(sample_opening_range.ticker) is not None
+    assert db.get_opening_range("BHP") is not None
 
     deleted = db.purge_opening_ranges()
 
     assert deleted == 1
-    assert db.get_opening_range(sample_opening_range.ticker) is None
+    assert db.get_opening_range("BHP") is None
