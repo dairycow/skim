@@ -1,19 +1,16 @@
-# Skim Trading Bot - Simplified Cron Schedule
+# Skim Trading Bot - Multi-Strategy Architecture
 # Times are in UTC (convert from AEDT)
 # ASX market hours: 10:00 AM - 4:00 PM AEDT (23:00 - 05:00 UTC)
+# Strategy: orh_breakout (ORH Breakout Strategy)
+# CLI commands: scan, trade, manage, status, purge_candidates
 
 # Daily candidate purge (10 mins before morning scan)
 55 22 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot purge_candidates >> /opt/skim/logs/cron.log 2>&1
 55 22 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot purge_candidates >> /opt/skim/logs/cron.log 2>&1
-# Morning scans (10:00 AM AEDT = 23:00 UTC)
-# Run gap scan
-1 23 * * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan_gaps >> /opt/skim/logs/cron.log 2>&1
-# Run news scan (will merge with existing gap candidates)
-1 23 * * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan_news >> /opt/skim/logs/cron.log 2>&1
 
-# Track opening ranges (10:10 AM AEDT = 23:10 UTC)
-# Sample ORH/ORL for stocks with both gap AND news
-10 23 * * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot track_ranges >> /opt/skim/logs/cron.log 2>&1
+# Morning scan (10:00 AM AEDT = 23:00 UTC)
+# Runs full scan (gaps + news + range tracking) via ORH Breakout Strategy
+1 23 * * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
 
 # Execute breakouts (10:15 AM AEDT onwards, every 5 minutes)
 # Check candidates and buy when price > ORH
@@ -29,3 +26,4 @@
 */5 23,0,1,2,3,4,5,6 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot manage >> /opt/skim/logs/cron.log 2>&1
 
 # Blank line required at end of cron file
+
