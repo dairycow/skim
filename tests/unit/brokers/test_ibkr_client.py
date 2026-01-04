@@ -1,8 +1,10 @@
 import logging
+import threading
 from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
+from loguru import logger
 
 from skim.brokers.ibkr_client import IBKRAuthenticationError, IBKRClient
 
@@ -79,9 +81,16 @@ def minimal_client(monkeypatch) -> IBKRClient:
     client._connected = True
     client._paper_trading = True
 
+    # OAuth/session state
+    client._lst = "aW5pdGlhbA=="
+    client._lst_expiration = None
+    client._account_id = "DU123"
+    client._connected = True
+    client._paper_trading = True
+
     # Tickle thread state
     client._tickle_thread = None
-    client._tickle_stop_event = None
+    client._tickle_stop_event = threading.Event()
 
     # HTTP client will be injected per test
     client._http_client = None
@@ -189,7 +198,6 @@ async def test_request_raises_auth_error_after_failed_retry(
 
 def test_logging_bridge_routes_stdlib_to_loguru(monkeypatch):
     """Ensure the stdlib logging bridge forwards messages into loguru."""
-    from loguru import logger
 
     messages: list[str] = []
     token = logger.add(messages.append, format="{message}")
@@ -210,7 +218,6 @@ async def test_httpx_event_hooks_log_request_and_response(
     minimal_client: IBKRClient,
 ):
     """HTTPX request/response logs should flow into loguru."""
-    from loguru import logger
 
     messages: list[str] = []
     token = logger.add(messages.append, format="{message}")
