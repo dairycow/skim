@@ -211,7 +211,7 @@ def test_cleanup(ibkr_client):
 
 if __name__ == "__main__":
     # Allow running as script for manual testing
-    from tests.conftest import validate_oauth_environment
+    from tests.integration.conftest import validate_oauth_environment
 
     validate_oauth_environment()
 
