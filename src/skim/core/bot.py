@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Skim - ASX Trading Bot
 
-Thin orchestrator that dispatches work to specialized modules
+Orchestrator that manages multiple trading strategies
 """
 
 import asyncio
@@ -16,15 +16,16 @@ from skim.brokers.ibkr_market_data import IBKRMarketData
 from skim.brokers.ibkr_orders import IBKROrders
 from skim.core.config import Config
 from skim.data.database import Database
-from skim.monitor import Monitor
 from skim.notifications.discord import DiscordNotifier
-from skim.range_tracker import RangeTracker
-from skim.scanners import GapScanner, NewsScanner
-from skim.trader import Trader
+from skim.strategies import ORHBreakoutStrategy
+from skim.strategies.base import Strategy
 
 
 class TradingBot:
-    """Minimal trading bot orchestrator"""
+    """Multi-strategy trading bot orchestrator
+
+    Manages shared services and delegates to strategy-specific implementations
+    """
 
     def __init__(self, config: Config):
         """Initialise bot with configuration"""
@@ -32,7 +33,7 @@ class TradingBot:
         self.config = config
         self.db = Database(config.db_path)
 
-        # --- Service Instantiation ---
+        # --- Shared Service Instantiation ---
         self.ib_client = IBKRClient(paper_trading=config.paper_trading)
         self.market_data_service = IBKRMarketData(self.ib_client)
         self.order_service = IBKROrders(
@@ -43,24 +44,47 @@ class TradingBot:
         )
         self.discord = DiscordNotifier(config.discord_webhook_url)
 
-        # --- Business Logic Modules ---
-        self.gap_scanner = GapScanner(
-            scanner_service=self.scanner_service,
-            gap_threshold=config.scanner_config.gap_threshold,
-        )
-        self.news_scanner = NewsScanner()
-        self.range_tracker = RangeTracker(
-            market_data_service=self.market_data_service,
-            db=self.db,
-        )
-        self.trader = Trader(
-            self.market_data_service,
-            self.order_service,
-            self.db,
-        )
-        self.monitor = Monitor(self.market_data_service)
+        # --- Strategy Registration ---
+        self.strategies: dict[str, Strategy] = {}
+        self._register_strategies()
 
         logger.info("Bot initialised successfully")
+
+    def _register_strategies(self) -> None:
+        """Register available strategies
+
+        Add new strategies here when implemented
+        """
+        self.strategies["orh_breakout"] = ORHBreakoutStrategy(
+            ib_client=self.ib_client,
+            scanner_service=self.scanner_service,
+            market_data_service=self.market_data_service,
+            order_service=self.order_service,
+            db=self.db,
+            discord=self.discord,
+            config=self.config,
+        )
+
+        logger.info(f"Registered {len(self.strategies)} strategies")
+
+    def _get_strategy(self, strategy_name: str) -> Strategy:
+        """Get strategy by name
+
+        Args:
+            strategy_name: Name of the strategy
+
+        Returns:
+            Strategy instance
+
+        Raises:
+            ValueError: If strategy not found
+        """
+        if strategy_name not in self.strategies:
+            raise ValueError(
+                f"Unknown strategy: {strategy_name}. "
+                f"Available strategies: {list(self.strategies.keys())}"
+            )
+        return self.strategies[strategy_name]
 
     async def _ensure_connection(self):
         """Ensure IB connection is active"""
@@ -68,88 +92,17 @@ class TradingBot:
             logger.info("Connecting to IBKR...")
             await self.ib_client.connect(timeout=20)
 
-    async def scan_gaps(self) -> int:
-        """Scan for gap-only candidates"""
-        logger.info("Scanning for gap-only candidates...")
-        try:
-            await self._ensure_connection()
-            candidates = await self.gap_scanner.find_gap_candidates()
+    async def scan(self, strategy: str = "orh_breakout") -> int:
+        """Execute strategy scan phase
 
-            count = len(candidates)
-            if not candidates:
-                logger.warning("No gap candidates found")
-            else:
-                for candidate in candidates:
-                    self.db.save_stock_in_play(candidate)
+        Args:
+            strategy: Strategy name to scan
 
-            # Notify via Discord
-            try:
-                payload = [
-                    {
-                        "ticker": c.ticker,
-                        "gap_percent": c.gap_percent,
-                    }
-                    for c in candidates
-                ]
-                self.discord.send_gap_candidates(count, payload)
-            except Exception as notify_err:
-                logger.error(
-                    f"Failed to send Discord gap notification: {notify_err}"
-                )
-
-            logger.info(f"Gap scan complete. Found {count} candidates")
-            return count
-        except Exception as e:
-            logger.error(f"Gap scan failed: {e}", exc_info=True)
-            return 0
-
-    async def scan_news(self) -> int:
-        """Scan for news-only candidates"""
-        logger.info("Scanning for news-only candidates...")
-        try:
-            candidates = await self.news_scanner.find_news_candidates()
-
-            count = len(candidates)
-            if not candidates:
-                logger.warning("No news candidates found")
-            else:
-                for candidate in candidates:
-                    self.db.save_stock_in_play(candidate)
-
-            # Notify via Discord
-            try:
-                payload = [
-                    {
-                        "ticker": c.ticker,
-                        "headline": c.headline,
-                    }
-                    for c in candidates
-                ]
-                self.discord.send_news_candidates(count, payload)
-            except Exception as notify_err:
-                logger.error(
-                    f"Failed to send Discord news notification: {notify_err}"
-                )
-
-            logger.info(f"News scan complete. Found {count} candidates")
-            return count
-        except Exception as e:
-            logger.error(f"News scan failed: {e}", exc_info=True)
-            return 0
-
-    async def track_ranges(self) -> int:
-        """Track opening ranges for candidates without ORH/ORL values"""
-        logger.info("Tracking opening ranges...")
-        try:
-            await self._ensure_connection()
-            updated = await self.range_tracker.track_opening_ranges()
-            logger.info(
-                f"Opening range tracking complete. Updated {updated} candidates"
-            )
-            return updated
-        except Exception as e:
-            logger.error(f"Opening range tracking failed: {e}", exc_info=True)
-            return 0
+        Returns:
+            Number of candidates found
+        """
+        strat = self._get_strategy(strategy)
+        return await strat.scan()
 
     async def fetch_market_data(self, ticker: str):
         """Fetch a single ticker's market data via IBKR."""
@@ -177,75 +130,41 @@ class TradingBot:
             )
             return None
 
-    async def trade(self) -> int:
-        """Execute breakout entries for tradeable candidates"""
-        logger.info("Executing breakouts...")
-        try:
-            await self._ensure_connection()
-            candidates = self.db.get_tradeable_candidates()
-            if not candidates:
-                logger.info("No tradeable candidates found.")
-                return 0
+    async def trade(self, strategy: str = "orh_breakout") -> int:
+        """Execute breakout entries
 
-            logger.info(f"Found {len(candidates)} tradeable candidates")
-            events = await self.trader.execute_breakouts(candidates)
+        Args:
+            strategy: Strategy name to trade
 
-            for event in events:
-                self.discord.send_trade_notification(
-                    action=event.action,
-                    ticker=event.ticker,
-                    quantity=event.quantity,
-                    price=event.price,
-                    pnl=event.pnl,
-                )
+        Returns:
+            Number of trades executed
+        """
+        strat = self._get_strategy(strategy)
+        return await strat.trade()
 
-            return len(events)
-        except Exception as e:
-            logger.error(f"Trade execution failed: {e}", exc_info=True)
-            return 0
+    async def manage(self, strategy: str = "orh_breakout") -> int:
+        """Monitor positions and execute stops
 
-    async def manage(self) -> int:
-        """Monitor positions and execute stops"""
-        logger.info("Managing positions...")
-        try:
-            await self._ensure_connection()
-            positions = self.db.get_open_positions()
-            if not positions:
-                logger.info("No open positions to manage.")
-                return 0
+        Args:
+            strategy: Strategy name to manage
 
-            stops_hit = await self.monitor.check_stops(positions)
-            if not stops_hit:
-                logger.info("No stop losses hit.")
-                return 0
+        Returns:
+            Number of positions managed
+        """
+        strat = self._get_strategy(strategy)
+        return await strat.manage()
 
-            events = await self.trader.execute_stops(stops_hit)
+    async def status(self, strategy: str = "orh_breakout") -> bool:
+        """Perform health check
 
-            for event in events:
-                self.discord.send_trade_notification(
-                    action=event.action,
-                    ticker=event.ticker,
-                    quantity=event.quantity,
-                    price=event.price,
-                    pnl=event.pnl,
-                )
+        Args:
+            strategy: Strategy name to check
 
-            return len(events)
-        except Exception as e:
-            logger.error(f"Position management failed: {e}", exc_info=True)
-            return 0
-
-    async def status(self) -> bool:
-        """Lightweight health check - ensures IBKR connection is live."""
-        logger.info("Performing health check...")
-        try:
-            await self._ensure_connection()
-            account = self.ib_client.get_account()
-            logger.info(f"Health check OK. Connected account: {account}")
-            return True
-        except Exception as e:
-            logger.error(f"Health check failed: {e}", exc_info=True)
-            return False
+        Returns:
+            True if healthy
+        """
+        strat = self._get_strategy(strategy)
+        return await strat.health_check()
 
     async def purge_candidates(
         self, only_before_utc_date: date | None = None
@@ -276,7 +195,7 @@ def main():
         level="INFO",
     )
     logger.info("=" * 60)
-    logger.info("SKIM TRADING BOT - ORH BREAKOUT STRATEGY")
+    logger.info("SKIM TRADING BOT - MULTI-STRATEGY")
     logger.info("=" * 60)
 
     try:
@@ -289,7 +208,7 @@ def main():
 
     if len(sys.argv) < 2:
         logger.error(
-            "No method specified. Available: scan_gaps, scan_news, track_ranges, trade, manage, status"
+            "No method specified. Available: scan, trade, manage, status, purge_candidates, fetch_market_data"
         )
         sys.exit(1)
 
@@ -297,12 +216,8 @@ def main():
 
     async def run():
         try:
-            if method == "scan_gaps":
-                await bot.scan_gaps()
-            elif method == "scan_news":
-                await bot.scan_news()
-            elif method == "track_ranges":
-                await bot.track_ranges()
+            if method == "scan":
+                await bot.scan()
             elif method in ("fetch_market_data", "market_data"):
                 if len(sys.argv) < 3:
                     logger.error(

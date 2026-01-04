@@ -224,12 +224,16 @@ class Database:
                 scan_date=row["scan_date"],
                 status=row["status"],
                 headline=row["headline"],
-                announcement_type=row["announcement_type"]
-                if "announcement_type" in row
-                else "pricesens",
-                announcement_timestamp=row["announcement_timestamp"]
-                if "announcement_timestamp" in row
-                else None,
+                announcement_type=(
+                    row["announcement_type"]
+                    if "announcement_type" in row
+                    else "pricesens"
+                ),
+                announcement_timestamp=(
+                    row["announcement_timestamp"]
+                    if "announcement_timestamp" in row
+                    else None
+                ),
             )
             for row in rows
         ]
