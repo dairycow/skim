@@ -9,7 +9,15 @@ import pytest
 from dotenv import load_dotenv
 
 from skim.data.database import Database
-from skim.data.models import Candidate, MarketData, OrderResult, Position
+from skim.data.models import (
+    GapStockInPlay,
+    MarketData,
+    NewsStockInPlay,
+    OpeningRange,
+    OrderResult,
+    Position,
+    TradeableCandidate,
+)
 
 # =============================================================================
 # Global Test Setup
@@ -55,17 +63,63 @@ def test_db():
 
 
 @pytest.fixture(scope="session")
-def sample_candidate() -> Candidate:
-    """Sample candidate for testing
+def sample_gap_candidate() -> GapStockInPlay:
+    """Sample gap-only candidate for testing
 
     Session scope: Immutable dataclass, safe to share across all tests.
     """
-    return Candidate(
+    return GapStockInPlay(
+        ticker="RIO",
+        scan_date="2025-11-03",
+        status="watching",
+        gap_percent=4.2,
+        conid=8645,
+    )
+
+
+@pytest.fixture(scope="session")
+def sample_news_candidate() -> NewsStockInPlay:
+    """Sample news-only candidate for testing
+
+    Session scope: Immutable dataclass, safe to share across all tests.
+    """
+    return NewsStockInPlay(
+        ticker="CBA",
+        scan_date="2025-11-03",
+        status="watching",
+        headline="Trading Halt",
+    )
+
+
+@pytest.fixture(scope="session")
+def sample_opening_range() -> OpeningRange:
+    """Sample opening range for testing
+
+    Session scope: Immutable dataclass, safe to share across all tests.
+    """
+    return OpeningRange(
         ticker="BHP",
         or_high=47.80,
         or_low=45.90,
+        sample_date="2025-11-03T10:10:00",
+    )
+
+
+@pytest.fixture(scope="session")
+def sample_tradeable_candidate() -> TradeableCandidate:
+    """Sample tradeable candidate for testing
+
+    Session scope: Immutable dataclass, safe to share across all tests.
+    """
+    return TradeableCandidate(
+        ticker="BHP",
         scan_date="2025-11-03",
         status="watching",
+        gap_percent=5.0,
+        conid=8644,
+        headline="Results Released",
+        or_high=47.80,
+        or_low=45.90,
     )
 
 
@@ -505,7 +559,7 @@ def ibkr_client():
 @pytest.fixture
 def mock_ibkr_scanner(mocker):
     """Mock IBKRGapScanner for testing decoupled scanner"""
-    from skim.scanners.ibkr_gap_scanner import IBKRGapScanner
+    from skim.brokers.ibkr_gap_scanner import IBKRGapScanner
 
     scanner = mocker.MagicMock(spec=IBKRGapScanner)
     return scanner

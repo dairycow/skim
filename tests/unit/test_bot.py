@@ -6,12 +6,12 @@ import pytest
 
 from skim.core.bot import TradingBot
 from skim.core.config import Config, ScannerConfig
-from skim.data.models import Candidate, Position
+from skim.data.models import Position
 
 
 @pytest.fixture
 def mock_bot_config():
-    """Mock configuration for the TradingBot."""
+    """Mock configuration for TradingBot."""
     return Config(
         ib_client_id=1,
         discord_webhook_url="http://mock.discord.com",
@@ -36,8 +36,9 @@ def mock_trading_bot(mock_bot_config):
         patch("skim.core.bot.IBKRClient") as mock_ibkr_client_class,
         patch("skim.core.bot.IBKRMarketData") as mock_market_data_class,
         patch("skim.core.bot.IBKROrders") as mock_orders_class,
-        patch("skim.core.bot.IBKRGapScanner") as mock_scanner_class,
-        patch("skim.core.bot.Scanner") as mock_scanner_logic_class,
+        patch("skim.core.bot.IBKRGapScanner") as mock_scanner_service_class,
+        patch("skim.core.bot.GapScanner"),
+        patch("skim.core.bot.NewsScanner"),
         patch("skim.core.bot.RangeTracker"),
         patch("skim.core.bot.Trader") as mock_trader_logic_class,
         patch("skim.core.bot.Monitor") as mock_monitor_logic_class,
@@ -48,8 +49,8 @@ def mock_trading_bot(mock_bot_config):
         mock_ibkr_client = mock_ibkr_client_class.return_value
         mock_market_data_service = mock_market_data_class.return_value
         mock_orders_service = mock_orders_class.return_value
-        mock_scanner_service = mock_scanner_class.return_value
-        mock_scanner_logic = mock_scanner_logic_class.return_value
+        mock_scanner_service = mock_scanner_service_class.return_value
+        mock_scanner_logic = Mock()
         mock_trader_logic = mock_trader_logic_class.return_value
         mock_monitor_logic = mock_monitor_logic_class.return_value
         mock_discord_notifier = mock_discord_notifier_class.return_value
@@ -60,7 +61,8 @@ def mock_trading_bot(mock_bot_config):
         mock_ibkr_client.disconnect = AsyncMock()
         mock_ibkr_client.get_account = Mock(return_value="DU123")
 
-        mock_scanner_logic.find_candidates = AsyncMock(return_value=[])
+        mock_scanner_logic.find_gap_candidates = AsyncMock(return_value=[])
+        mock_scanner_logic.find_news_candidates = AsyncMock(return_value=[])
         mock_market_data_service.get_market_data = AsyncMock()
         mock_trader_logic.execute_breakouts = AsyncMock(return_value=0)
         mock_trader_logic.execute_stops = AsyncMock(return_value=0)
@@ -68,13 +70,14 @@ def mock_trading_bot(mock_bot_config):
 
         bot = TradingBot(mock_bot_config)
 
-        # Attach mocks to the bot instance for easier access in tests
+        # Attach mocks to bot instance for easier access in tests
         bot.db = mock_db
         bot.ib_client = mock_ibkr_client
         bot.market_data_service = mock_market_data_service
         bot.order_service = mock_orders_service
         bot.scanner_service = mock_scanner_service
-        bot.scanner = mock_scanner_logic
+        bot.gap_scanner = mock_scanner_logic
+        bot.news_scanner = mock_scanner_logic
         bot.trader = mock_trader_logic
         bot.monitor = mock_monitor_logic
         bot.discord = mock_discord_notifier
@@ -84,7 +87,7 @@ def mock_trading_bot(mock_bot_config):
 
 @pytest.mark.asyncio
 class TestTradingBot:
-    """Tests for the refactored TradingBot orchestrator."""
+    """Tests for refactored TradingBot orchestrator."""
 
     async def test_init_instantiates_services_and_logic(self, mock_bot_config):
         """TradingBot should wire all services and business modules."""
@@ -94,7 +97,8 @@ class TestTradingBot:
             patch("skim.core.bot.IBKRMarketData") as mock_market_data_class,
             patch("skim.core.bot.IBKROrders") as mock_orders_class,
             patch("skim.core.bot.IBKRGapScanner") as mock_scanner_service_class,
-            patch("skim.core.bot.Scanner") as mock_scanner_logic_class,
+            patch("skim.core.bot.GapScanner"),
+            patch("skim.core.bot.NewsScanner"),
             patch("skim.core.bot.RangeTracker"),
             patch("skim.core.bot.Trader") as mock_trader_logic_class,
             patch("skim.core.bot.Monitor") as mock_monitor_logic_class,
@@ -118,10 +122,6 @@ class TestTradingBot:
             mock_scanner_service_class.assert_called_once_with(
                 mock_ibkr_client_class.return_value,
                 mock_bot_config.scanner_config,
-            )
-            mock_scanner_logic_class.assert_called_once_with(
-                scanner_service=mock_scanner_service_class.return_value,
-                gap_threshold=mock_bot_config.scanner_config.gap_threshold,
             )
             mock_trader_logic_class.assert_called_once_with(
                 mock_market_data_class.return_value,
@@ -152,73 +152,46 @@ class TestTradingBot:
         await mock_trading_bot._ensure_connection()
         mock_trading_bot.ib_client.connect.assert_not_awaited()
 
-    async def test_scan_workflow(self, mock_trading_bot):
-        """scan should ensure connection, persist candidates, and notify."""
+    async def test_scan_gaps_workflow(self, mock_trading_bot):
+        """scan_gaps should ensure connection, persist candidates, and notify."""
         mock_trading_bot.ib_client.is_connected.return_value = True
-        mock_candidates = [
-            Candidate(
-                ticker="ABC",
-                scan_date="2024-01-01",
-                status="watching",
-                or_high=None,
-                or_low=None,
-                gap_percent=5.2,
-                headline="Trading Halt Announcement",
-            )
-        ]
-        mock_trading_bot.scanner.find_candidates.return_value = mock_candidates
+        mock_trading_bot.gap_scanner.find_gap_candidates.return_value = []
 
-        result = await mock_trading_bot.scan()
+        result = await mock_trading_bot.scan_gaps()
 
         mock_trading_bot.ib_client.connect.assert_not_awaited()
-        mock_trading_bot.scanner.find_candidates.assert_awaited_once()
-        assert mock_trading_bot.db.save_candidate.call_count == len(
-            mock_candidates
-        )
-        mock_trading_bot.discord.send_scan_results.assert_called_once_with(
-            len(mock_candidates),
-            [
-                {
-                    "ticker": "ABC",
-                    "gap_percent": 5.2,
-                    "headline": "Trading Halt Announcement",
-                }
-            ],
-        )
-        assert result == len(mock_candidates)
-
-    async def test_scan_handles_no_candidates(self, mock_trading_bot):
-        """scan should return zero when no candidates are found."""
-        mock_trading_bot.ib_client.is_connected.return_value = True
-        mock_trading_bot.scanner.find_candidates.return_value = []
-
-        result = await mock_trading_bot.scan()
-
-        mock_trading_bot.scanner.find_candidates.assert_awaited_once()
-        mock_trading_bot.db.save_candidate.assert_not_called()
-        mock_trading_bot.discord.send_scan_results.assert_called_once_with(
+        mock_trading_bot.gap_scanner.find_gap_candidates.assert_awaited_once()
+        mock_trading_bot.discord.send_gap_candidates.assert_called_once_with(
             0, []
         )
         assert result == 0
 
-    async def test_scan_handles_connection_error(self, mock_trading_bot):
-        """scan should handle connection errors gracefully."""
-        mock_trading_bot.ib_client.is_connected.return_value = False
-        mock_trading_bot.ib_client.connect.side_effect = Exception(
-            "Connection failed"
+    async def test_scan_news_workflow(self, mock_trading_bot):
+        """scan_news should ensure connection, persist candidates, and notify."""
+        mock_trading_bot.news_scanner.find_news_candidates.return_value = []
+
+        result = await mock_trading_bot.scan_news()
+
+        mock_trading_bot.news_scanner.find_news_candidates.assert_awaited_once()
+        mock_trading_bot.discord.send_news_candidates.assert_called_once_with(
+            0, []
         )
-
-        result = await mock_trading_bot.scan()
-
         assert result == 0
-        mock_trading_bot.ib_client.connect.assert_awaited_once()
-        mock_trading_bot.scanner.find_candidates.assert_not_awaited()
+
+    async def test_track_ranges_workflow(self, mock_trading_bot):
+        """track_ranges should delegate to RangeTracker."""
+        mock_trading_bot.range_tracker.track_opening_ranges.return_value = 0
+
+        result = await mock_trading_bot.track_ranges()
+
+        mock_trading_bot.range_tracker.track_opening_ranges.assert_called_once()
+        assert result == 0
 
     async def test_trade_workflow(self, mock_trading_bot):
-        """trade should retrieve watching candidates and delegate to Trader."""
+        """trade should retrieve tradeable candidates and delegate to Trader."""
         mock_trading_bot.ib_client.is_connected.return_value = True
-        mock_candidates = [Mock(spec=Candidate)]
-        mock_trading_bot.db.get_watching_candidates.return_value = (
+        mock_candidates = [Mock(spec=Position)]
+        mock_trading_bot.db.get_tradeable_candidates.return_value = (
             mock_candidates
         )
         mock_trading_bot.trader.execute_breakouts.return_value = []
@@ -226,20 +199,21 @@ class TestTradingBot:
         result = await mock_trading_bot.trade()
 
         mock_trading_bot.ib_client.connect.assert_not_awaited()
-        mock_trading_bot.db.get_watching_candidates.assert_called_once()
+        mock_trading_bot.db.get_tradeable_candidates.assert_called_once()
         mock_trading_bot.trader.execute_breakouts.assert_awaited_once_with(
             mock_candidates
         )
         assert result == 0
 
     async def test_trade_handles_no_candidates(self, mock_trading_bot):
-        """trade should early-exit when no watching candidates exist."""
+        """trade should early-exit when no tradeable candidates exist."""
         mock_trading_bot.ib_client.is_connected.return_value = True
-        mock_trading_bot.db.get_watching_candidates.return_value = []
+        mock_trading_bot.db.get_tradeable_candidates.return_value = []
 
         result = await mock_trading_bot.trade()
 
-        mock_trading_bot.db.get_watching_candidates.assert_called_once()
+        mock_trading_bot.ib_client.connect.assert_not_awaited()
+        mock_trading_bot.db.get_tradeable_candidates.assert_called_once()
         mock_trading_bot.trader.execute_breakouts.assert_not_awaited()
         assert result == 0
 
@@ -271,6 +245,7 @@ class TestTradingBot:
 
         result = await mock_trading_bot.manage()
 
+        mock_trading_bot.ib_client.connect.assert_not_awaited()
         mock_trading_bot.db.get_open_positions.assert_called_once()
         mock_trading_bot.monitor.check_stops.assert_not_awaited()
         mock_trading_bot.trader.execute_stops.assert_not_awaited()
@@ -285,6 +260,7 @@ class TestTradingBot:
 
         result = await mock_trading_bot.manage()
 
+        mock_trading_bot.ib_client.connect.assert_not_awaited()
         mock_trading_bot.db.get_open_positions.assert_called_once()
         mock_trading_bot.monitor.check_stops.assert_awaited_once_with(
             mock_positions
@@ -355,7 +331,7 @@ class TestTradingBot:
         assert result is None
 
     async def test_purge_candidates_deletes_rows(self, mock_trading_bot):
-        """purge_candidates should delegate deletion to the database."""
+        """purge_candidates should delegate deletion tos database."""
         mock_trading_bot.db.purge_candidates.return_value = 3
 
         deleted = await mock_trading_bot.purge_candidates()

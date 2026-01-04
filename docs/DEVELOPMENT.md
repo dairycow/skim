@@ -75,11 +75,12 @@ uv run pytest                       # Testing
 ### Running Bot Locally
 ```bash
 # Run bot commands
-uv run python -m skim.core.bot scan
-uv run python -m skim.core.bot track_ranges
-uv run python -m skim.core.bot trade
-uv run python -m skim.core.bot manage
-uv run python -m skim.core.bot purge_candidates  # Clears previous-day candidates
+uv run python -m skim.core.bot purge_candidates  # Clear previous-day candidates
+uv run python -m skim.core.bot scan_gaps         # Scan for gap-only candidates
+uv run python -m skim.core.bot scan_news        # Scan for news-only candidates
+uv run python -m skim.core.bot track_ranges      # Sample ORH/ORL for gap+news candidates
+uv run python -m skim.core.bot trade             # Execute breakouts
+uv run python -m skim.core.bot manage            # Monitor and manage positions
 ```
 
 ## Testing
@@ -193,11 +194,12 @@ Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 - Defaults to a UTC clock with `market_open_time=23:00` (10:00 AM AEDT) so cron timing and in-code delays stay in lockstep. If market hours shift, update both `crontab` and the range tracker configuration together.
 
 ### Cron Schedule (UTC, AEDT = UTC+11)
-- **22:55 UTC (09:55 AEDT)** - purge_candidates (clear prior candidates before the morning scan)
-- **23:00 UTC (10:00 AEDT)** - scan (find gaps + announcements)
-- **23:10 UTC (10:10 AEDT)** - track_ranges (sample ORH/ORL before trading)
-- **23:15-06:00 UTC (*/5)** - trade (execute breakouts)
-- **23:15-06:00 UTC (*/5)** - manage (monitor stops)
+- **22:55 UTC (09:55 AEDT)** - purge_candidates (clear prior candidates before the morning scans)
+- **23:00 UTC (10:00 AEDT)** - scan_gaps (find gap-only candidates)
+- **23:00 UTC (10:00 AEDT)** - scan_news (find news-only candidates, merges with gap candidates)
+- **23:10 UTC (10:10 AEDT)** - track_ranges (sample ORH/ORL for gap+news candidates before trading)
+- **23:15-06:00 UTC (*/5)** - trade (execute breakouts for candidates with gap+news+ORH/ORL)
+- **23:15-06:00 UTC (*/5)** - manage (monitor stops for open positions)
 
 Production uses the repository `crontab` (copied to `/etc/cron.d/skim-trading-bot`) which includes the `skim` user field and redirects to `/opt/skim/logs/cron.log`.
 

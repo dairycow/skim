@@ -1,40 +1,96 @@
 """Unit tests for data models - simplified design"""
 
-from skim.data.models import Candidate, MarketData, Position
+from skim.data.models import (
+    GapStockInPlay,
+    MarketData,
+    NewsStockInPlay,
+    OpeningRange,
+    Position,
+    TradeableCandidate,
+)
 
 
-def test_candidate_from_db_row():
-    """Test creating Candidate from database row"""
-    row = {
-        "ticker": "BHP",
-        "or_high": 47.50,
-        "or_low": 44.80,
-        "scan_date": "2025-11-03",
-        "status": "watching",
-    }
-
-    candidate = Candidate.from_db_row(row)
-
-    assert candidate.ticker == "BHP"
-    assert candidate.or_high == 47.50
-    assert candidate.or_low == 44.80
-    assert candidate.scan_date == "2025-11-03"
-    assert candidate.status == "watching"
-
-
-def test_candidate_creation():
-    """Test creating Candidate directly"""
-    candidate = Candidate(
+def test_gap_stock_in_play_creation():
+    """Test creating GapStockInPlay directly"""
+    candidate = GapStockInPlay(
         ticker="BHP",
-        or_high=47.50,
-        or_low=44.80,
         scan_date="2025-11-03T10:00:00",
         status="watching",
+        gap_percent=5.0,
+        conid=8644,
     )
 
     assert candidate.ticker == "BHP"
-    assert candidate.or_high == 47.50
-    assert candidate.or_low == 44.80
+    assert candidate.gap_percent == 5.0
+    assert candidate.scan_date == "2025-11-03T10:00:00"
+    assert candidate.status == "watching"
+
+
+def test_news_stock_in_play_creation():
+    """Test creating NewsStockInPlay directly"""
+    candidate = NewsStockInPlay(
+        ticker="BHP",
+        scan_date="2025-11-03T10:00:00",
+        status="watching",
+        headline="Results Released",
+    )
+
+    assert candidate.ticker == "BHP"
+    assert candidate.headline == "Results Released"
+    assert candidate.scan_date == "2025-11-03T10:00:00"
+    assert candidate.status == "watching"
+
+
+def test_opening_range_creation():
+    """Test creating OpeningRange directly"""
+    opening_range = OpeningRange(
+        ticker="BHP",
+        or_high=47.80,
+        or_low=45.90,
+        sample_date="2025-11-03T10:10:00",
+    )
+
+    assert opening_range.ticker == "BHP"
+    assert opening_range.or_high == 47.80
+    assert opening_range.or_low == 45.90
+    assert opening_range.sample_date == "2025-11-03T10:10:00"
+
+
+def test_opening_range_from_db_row():
+    """Test creating OpeningRange from database row"""
+    row = {
+        "ticker": "BHP",
+        "or_high": 47.80,
+        "or_low": 45.90,
+        "sample_date": "2025-11-03T10:10:00",
+    }
+
+    opening_range = OpeningRange.from_db_row(row)
+
+    assert opening_range.ticker == "BHP"
+    assert opening_range.or_high == 47.80
+    assert opening_range.or_low == 45.90
+    assert opening_range.sample_date == "2025-11-03T10:10:00"
+
+
+def test_tradeable_candidate_creation():
+    """Test creating TradeableCandidate directly"""
+    candidate = TradeableCandidate(
+        ticker="BHP",
+        scan_date="2025-11-03T10:00:00",
+        status="watching",
+        gap_percent=5.0,
+        conid=8644,
+        headline="Results Released",
+        or_high=47.80,
+        or_low=45.90,
+    )
+
+    assert candidate.ticker == "BHP"
+    assert candidate.gap_percent == 5.0
+    assert candidate.headline == "Results Released"
+    assert candidate.or_high == 47.80
+    assert candidate.or_low == 45.90
     assert candidate.scan_date == "2025-11-03T10:00:00"
     assert candidate.status == "watching"
 
@@ -155,32 +211,32 @@ def test_market_data_mid_price():
 def test_candidate_status_transitions():
     """Test candidate status transitions through workflow"""
     # Start as watching
-    candidate = Candidate(
+    candidate = GapStockInPlay(
         ticker="BHP",
-        or_high=47.50,
-        or_low=44.80,
         scan_date="2025-11-03T10:00:00",
         status="watching",
+        gap_percent=5.0,
+        conid=8644,
     )
     assert candidate.status == "watching"
 
     # Create new instance with entered status
-    entered = Candidate(
+    entered = GapStockInPlay(
         ticker="BHP",
-        or_high=47.50,
-        or_low=44.80,
         scan_date="2025-11-03T10:00:00",
         status="entered",
+        gap_percent=5.0,
+        conid=8644,
     )
     assert entered.status == "entered"
 
     # Create new instance with closed status
-    closed = Candidate(
+    closed = GapStockInPlay(
         ticker="BHP",
-        or_high=47.50,
-        or_low=44.80,
         scan_date="2025-11-03T10:00:00",
         status="closed",
+        gap_percent=5.0,
+        conid=8644,
     )
     assert closed.status == "closed"
 

@@ -4,7 +4,8 @@ Skim is a minimal, cron-driven ASX trading bot using an Opening Range High (ORH)
 
 ## Core Modules
 
-- `src/skim/scanner.py` – Find candidates with gaps + announcements
+- `src/skim/scanners/gap_scanner.py` – Find gap-only candidates
+- `src/skim/scanners/news_scanner.py` – Find news-only candidates
 - `src/skim/range_tracker.py` – Sample and store ORH/ORL values
 - `src/skim/trader.py` – Execute breakout entries and stops
 - `src/skim/monitor.py` – Check positions, trigger stops
@@ -18,38 +19,58 @@ Supporting modules:
 
 ## Trading Workflow
 
-### 1. Morning Scan (10:00 AM)
+### 1. Gap Scan (10:00 AM)
 ```
-scan() → Find gaps + announcements → Save candidates (ORH/ORL = NULL)
-```
-
-### 2. Range Tracking (10:10 AM, UTC clock)
-```
-track_ranges() → Wait until 10:10 → Sample market data → Set ORH/ORL
-```
-> Range tracking uses a UTC clock with a default market open of **23:00 UTC** (10:00 AM AEDT) so cron and in-code timing stay aligned.
-
-### 3. Execution (10:15 AM, then every 5 min)
-```
-trade() → Get watching candidates → Check if price > ORH → Buy with stop = ORL
+scan_gaps() → Find gap-only candidates → Save to database
 ```
 
-### 4. Monitoring (every 5 min during market)
+### 2. News Scan (10:00 AM)
+```
+scan_news() → Find news-only candidates → Merge with gap candidates
+```
+> News scan merges with existing gap candidates by updating the same record with headline fields.
+
+### 3. Range Tracking (10:10 AM, UTC clock)
+```
+track_ranges() → Get gap+news candidates → Sample market data → Set ORH/ORL
+```
+> Range tracking uses a UTC clock with a default market open of **23:00 UTC** (10:00 AM AEDT) so cron and in-code timing stay aligned. Only tracks candidates with both gap and news.
+
+### 4. Execution (10:15 AM, then every 5 min)
+```
+trade() → Get tradeable candidates (gap+news+ORH/ORL) → Check if price > ORH → Buy with stop = ORL
+```
+
+### 5. Monitoring (every 5 min during market)
 ```
 manage() → Get open positions → Check if price < stop_loss → Sell
 ```
 
 ## Data Model
 
-Two tables only:
+Three tables:
 
 **candidates**
 ```sql
 ticker TEXT PRIMARY KEY
-or_high REAL             -- Opening range high (NULL until tracked)
-or_low REAL              -- Opening range low (NULL until tracked)
 scan_date TEXT           -- When added
 status TEXT              -- 'watching' | 'entered' | 'closed'
+gap_percent REAL         -- Gap percentage (from gap scan)
+conid INTEGER            -- IBKR contract ID
+headline TEXT            -- News headline (from news scan)
+announcement_type TEXT   -- Announcement type (default 'pricesens')
+announcement_timestamp TEXT -- Announcement timestamp
+created_at TEXT
+```
+
+**opening_ranges**
+```sql
+ticker TEXT PRIMARY KEY
+or_high REAL             -- Opening range high
+or_low REAL              -- Opening range low
+sample_date TEXT         -- When sampled
+created_at TEXT
+FOREIGN KEY (ticker) REFERENCES candidates(ticker)
 ```
 
 **positions**
@@ -81,8 +102,14 @@ status TEXT              -- 'open' | 'closed'
 Canonical schedule lives in `crontab` and is copied to `/etc/cron.d/skim-trading-bot` during deploys:
 
 ```cron
-# 23:00 UTC (10:00 AEDT) - Market open, scan for candidates
-0 23 * * 0-4 bot scan
+# 22:55 UTC (09:55 AEDT) - Purge previous candidates
+55 22 * * 0-4 bot purge_candidates
+
+# 23:00 UTC (10:00 AEDT) - Gap scan
+1 23 * * 0-4 bot scan_gaps
+
+# 23:00 UTC (10:00 AEDT) - News scan (merges with gap candidates)
+1 23 * * 0-4 bot scan_news
 
 # 23:10 UTC (10:10 AEDT) - Track opening ranges
 10 23 * * 0-4 bot track_ranges

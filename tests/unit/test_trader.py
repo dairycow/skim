@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from skim.data.models import Candidate, Position
+from skim.data.models import Position, TradeableCandidate
 from skim.trader import TradeEvent, Trader
 
 
@@ -20,12 +20,15 @@ def trader():
 @pytest.mark.asyncio
 async def test_execute_breakouts_places_order_when_price_above_orh(trader):
     trader_instance, market_data, orders, db = trader
-    candidate = Candidate(
+    candidate = TradeableCandidate(
         ticker="BHP",
         or_high=10.0,
         or_low=9.5,
         scan_date="2024-01-01",
         status="watching",
+        gap_percent=5.0,
+        conid=8644,
+        headline="Results Released",
     )
     market_data.get_market_data.return_value = type(
         "MarketData", (), {"last_price": 10.5}
@@ -46,12 +49,15 @@ async def test_execute_breakouts_places_order_when_price_above_orh(trader):
 @pytest.mark.asyncio
 async def test_execute_breakouts_skips_when_price_not_above_orh(trader):
     trader_instance, market_data, orders, db = trader
-    candidate = Candidate(
+    candidate = TradeableCandidate(
         ticker="RIO",
         or_high=20.0,
         or_low=19.0,
         scan_date="2024-01-01",
         status="watching",
+        gap_percent=4.0,
+        conid=8645,
+        headline="Trading Halt",
     )
     market_data.get_market_data.return_value = type(
         "MarketData", (), {"last_price": 19.5}

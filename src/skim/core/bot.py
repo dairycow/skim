@@ -19,7 +19,7 @@ from skim.data.database import Database
 from skim.monitor import Monitor
 from skim.notifications.discord import DiscordNotifier
 from skim.range_tracker import RangeTracker
-from skim.scanner import Scanner
+from skim.scanners import GapScanner, NewsScanner
 from skim.trader import Trader
 
 
@@ -44,10 +44,11 @@ class TradingBot:
         self.discord = DiscordNotifier(config.discord_webhook_url)
 
         # --- Business Logic Modules ---
-        self.scanner = Scanner(
+        self.gap_scanner = GapScanner(
             scanner_service=self.scanner_service,
             gap_threshold=config.scanner_config.gap_threshold,
         )
+        self.news_scanner = NewsScanner()
         self.range_tracker = RangeTracker(
             market_data_service=self.market_data_service,
             db=self.db,
@@ -67,40 +68,73 @@ class TradingBot:
             logger.info("Connecting to IBKR...")
             await self.ib_client.connect(timeout=20)
 
-    async def scan(self) -> int:
-        """Scan for candidates with gap + announcement + opening range"""
-        logger.info("Scanning for candidates...")
+    async def scan_gaps(self) -> int:
+        """Scan for gap-only candidates"""
+        logger.info("Scanning for gap-only candidates...")
         try:
             await self._ensure_connection()
-            candidates = await self.scanner.find_candidates()
+            candidates = await self.gap_scanner.find_gap_candidates()
 
             count = len(candidates)
             if not candidates:
-                logger.warning("No candidates found")
+                logger.warning("No gap candidates found")
             else:
                 for candidate in candidates:
-                    self.db.save_candidate(candidate)
+                    self.db.save_stock_in_play(candidate)
 
-            # Notify via Discord (safe to call even when zero candidates)
+            # Notify via Discord
             try:
                 payload = [
                     {
                         "ticker": c.ticker,
                         "gap_percent": c.gap_percent,
+                    }
+                    for c in candidates
+                ]
+                self.discord.send_gap_candidates(count, payload)
+            except Exception as notify_err:
+                logger.error(
+                    f"Failed to send Discord gap notification: {notify_err}"
+                )
+
+            logger.info(f"Gap scan complete. Found {count} candidates")
+            return count
+        except Exception as e:
+            logger.error(f"Gap scan failed: {e}", exc_info=True)
+            return 0
+
+    async def scan_news(self) -> int:
+        """Scan for news-only candidates"""
+        logger.info("Scanning for news-only candidates...")
+        try:
+            candidates = await self.news_scanner.find_news_candidates()
+
+            count = len(candidates)
+            if not candidates:
+                logger.warning("No news candidates found")
+            else:
+                for candidate in candidates:
+                    self.db.save_stock_in_play(candidate)
+
+            # Notify via Discord
+            try:
+                payload = [
+                    {
+                        "ticker": c.ticker,
                         "headline": c.headline,
                     }
                     for c in candidates
                 ]
-                self.discord.send_scan_results(count, payload)
+                self.discord.send_news_candidates(count, payload)
             except Exception as notify_err:
                 logger.error(
-                    f"Failed to send Discord scan notification: {notify_err}"
+                    f"Failed to send Discord news notification: {notify_err}"
                 )
 
-            logger.info(f"Scan complete. Found {count} candidates")
+            logger.info(f"News scan complete. Found {count} candidates")
             return count
         except Exception as e:
-            logger.error(f"Scan failed: {e}", exc_info=True)
+            logger.error(f"News scan failed: {e}", exc_info=True)
             return 0
 
     async def track_ranges(self) -> int:
@@ -144,15 +178,16 @@ class TradingBot:
             return None
 
     async def trade(self) -> int:
-        """Execute breakout entries for watching candidates"""
+        """Execute breakout entries for tradeable candidates"""
         logger.info("Executing breakouts...")
         try:
             await self._ensure_connection()
-            candidates = self.db.get_watching_candidates()
+            candidates = self.db.get_tradeable_candidates()
             if not candidates:
-                logger.info("No candidates to trade.")
+                logger.info("No tradeable candidates found.")
                 return 0
 
+            logger.info(f"Found {len(candidates)} tradeable candidates")
             events = await self.trader.execute_breakouts(candidates)
 
             for event in events:
@@ -254,7 +289,7 @@ def main():
 
     if len(sys.argv) < 2:
         logger.error(
-            "No method specified. Available: scan, track_ranges, trade, manage, status"
+            "No method specified. Available: scan_gaps, scan_news, track_ranges, trade, manage, status"
         )
         sys.exit(1)
 
@@ -262,8 +297,10 @@ def main():
 
     async def run():
         try:
-            if method == "scan":
-                await bot.scan()
+            if method == "scan_gaps":
+                await bot.scan_gaps()
+            elif method == "scan_news":
+                await bot.scan_news()
             elif method == "track_ranges":
                 await bot.track_ranges()
             elif method in ("fetch_market_data", "market_data"):
