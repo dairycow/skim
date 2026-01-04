@@ -1,14 +1,13 @@
 """IBKR scanner operations with async support"""
 
-import logging
 from typing import Any
+
+from loguru import logger
 
 from ..core.config import ScannerConfig
 from ..validation.scanners import GapStock, ScannerValidationError
 from .ibkr_client import IBKRClient
 from .protocols import GapScannerService
-
-logger = logging.getLogger(__name__)
 
 
 class IBKRScannerError(Exception):
