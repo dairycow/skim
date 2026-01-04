@@ -39,7 +39,6 @@ def mock_trading_bot(mock_bot_config):
         patch("skim.core.bot.ORHBreakoutStrategy") as mock_strategy_class,
         patch("skim.core.bot.DiscordNotifier") as mock_discord_notifier_class,
     ):
-        # Mock instances
         mock_db = mock_db_class.return_value
         mock_ibkr_client = mock_ibkr_client_class.return_value
         mock_market_data_service = mock_market_data_class.return_value
@@ -48,7 +47,6 @@ def mock_trading_bot(mock_bot_config):
         mock_strategy = Mock()
         mock_discord_notifier = mock_discord_notifier_class.return_value
 
-        # Configure mocks for async methods
         mock_ibkr_client.is_connected.return_value = False
         mock_ibkr_client.connect = AsyncMock()
         mock_ibkr_client.disconnect = AsyncMock()
@@ -56,7 +54,6 @@ def mock_trading_bot(mock_bot_config):
 
         mock_market_data_service.get_market_data = AsyncMock()
 
-        # Mock strategy methods
         mock_strategy.scan = AsyncMock(return_value=0)
         mock_strategy.trade = AsyncMock(return_value=0)
         mock_strategy.manage = AsyncMock(return_value=0)
@@ -65,7 +62,6 @@ def mock_trading_bot(mock_bot_config):
 
         bot = TradingBot(mock_bot_config)
 
-        # Attach mocks to bot instance for easier access in tests
         bot.db = mock_db
         bot.ib_client = mock_ibkr_client
         bot.market_data_service = mock_market_data_service
