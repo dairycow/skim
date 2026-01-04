@@ -1,11 +1,21 @@
-"""Simplified database layer for Skim trading bot"""
+"""Database layer using SQLModel for Skim trading bot"""
 
-import sqlite3
 from datetime import date
+from typing import TYPE_CHECKING
 
 from loguru import logger
+from sqlmodel import (
+    Session,
+    SQLModel,
+    col,
+    create_engine,
+    delete,
+    select,
+)
 
+# SQLModel model imports for dataclass conversion
 from .models import (
+    Candidate,
     GapStockInPlay,
     NewsStockInPlay,
     OpeningRange,
@@ -14,72 +24,37 @@ from .models import (
     TradeableCandidate,
 )
 
+if TYPE_CHECKING:
+    from sqlmodel import Session
+
 
 class Database:
-    """SQLite database manager - minimal schema"""
+    """SQLite database manager using SQLModel"""
 
     def __init__(self, db_path: str):
         """Initialise database connection and create schema
 
         Args:
-                db_path: Path to SQLite database file or ":memory:" for in-memory DB
+            db_path: Path to SQLite database file or ":memory:" for in-memory DB
         """
-        self.db_path = db_path
-        self.db = sqlite3.connect(db_path, check_same_thread=False)
-        self.db.row_factory = sqlite3.Row  # Enable dict-like row access
+        self.engine = create_engine(
+            f"sqlite:///{db_path}",
+            connect_args={"check_same_thread": False},
+        )
         self._create_schema()
         logger.info(f"Database initialised: {db_path}")
 
     def _create_schema(self):
         """Create database tables if they don't exist"""
-        cursor = self.db.cursor()
+        SQLModel.metadata.create_all(self.engine)
 
-        # Candidates table (simplified, no ORH/ORL, no candidate_type)
-        cursor.execute("""
-			CREATE TABLE IF NOT EXISTS candidates (
-				ticker TEXT PRIMARY KEY,
-				scan_date TEXT NOT NULL,
-				status TEXT NOT NULL DEFAULT 'watching',
-				gap_percent REAL,
-				conid INTEGER,
-				headline TEXT,
-				announcement_type TEXT DEFAULT 'pricesens',
-				announcement_timestamp TEXT,
-				created_at TEXT DEFAULT CURRENT_TIMESTAMP
-			)
-		""")
+    def get_session(self) -> Session:
+        """Get a new database session
 
-        # Opening ranges table (new, separate from candidates)
-        cursor.execute("""
-			CREATE TABLE IF NOT EXISTS opening_ranges (
-				ticker TEXT PRIMARY KEY,
-				or_high REAL NOT NULL,
-				or_low REAL NOT NULL,
-				sample_date TEXT NOT NULL,
-				created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (ticker) REFERENCES candidates(ticker) ON DELETE CASCADE
-			)
-		""")
-
-        # Positions table
-        cursor.execute("""
-			CREATE TABLE IF NOT EXISTS positions (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				ticker TEXT NOT NULL,
-				quantity INTEGER NOT NULL,
-				entry_price REAL NOT NULL,
-				stop_loss REAL NOT NULL,
-				entry_date TEXT NOT NULL,
-				status TEXT NOT NULL DEFAULT 'open',
-				exit_price REAL,
-				exit_date TEXT,
-				created_at TEXT DEFAULT CURRENT_TIMESTAMP
-			)
-		""")
-
-        self.db.commit()
-
-    # Candidate methods
+        Returns:
+            Session: SQLModel session
+        """
+        return Session(self.engine)
 
     def save_stock_in_play(self, stock_in_play: StockInPlay) -> None:
         """Save or update a stock in play (any subclass)
@@ -87,211 +62,200 @@ class Database:
         Args:
             stock_in_play: StockInPlay object or any subclass to save
         """
-        cursor = self.db.cursor()
+        with self.get_session() as session:
+            if isinstance(stock_in_play, GapStockInPlay):
+                candidate = session.exec(
+                    select(Candidate).where(
+                        Candidate.ticker == stock_in_play.ticker
+                    )
+                ).first()
 
-        if isinstance(stock_in_play, GapStockInPlay):
-            cursor.execute(
-                """
-            INSERT OR REPLACE INTO candidates
-            (ticker, scan_date, status, gap_percent, conid, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
-                (
-                    stock_in_play.ticker,
-                    stock_in_play.scan_date,
-                    stock_in_play.status,
-                    stock_in_play.gap_percent,
-                    stock_in_play.conid,
-                    stock_in_play.scan_date,  # Use scan_date as created_at
-                ),
-            )
-        elif isinstance(stock_in_play, NewsStockInPlay):
-            # Check if candidate already exists (has gap data)
-            existing = cursor.execute(
-                "SELECT ticker FROM candidates WHERE ticker = ?",
-                (stock_in_play.ticker,),
-            ).fetchone()
+                if candidate:
+                    candidate.gap_percent = stock_in_play.gap_percent
+                    candidate.conid = stock_in_play.conid
+                    candidate.scan_date = stock_in_play.scan_date
+                else:
+                    candidate = Candidate(
+                        ticker=stock_in_play.ticker,
+                        scan_date=stock_in_play.scan_date,
+                        status=stock_in_play.status,
+                        gap_percent=stock_in_play.gap_percent,
+                        conid=stock_in_play.conid,
+                    )
+                    session.add(candidate)
+            elif isinstance(stock_in_play, NewsStockInPlay):
+                candidate = session.exec(
+                    select(Candidate).where(
+                        Candidate.ticker == stock_in_play.ticker
+                    )
+                ).first()
 
-            if existing:
-                # Update existing candidate with news fields (preserve gap data)
-                cursor.execute(
-                    """
-                    UPDATE candidates
-                    SET headline = ?, announcement_type = ?, announcement_timestamp = ?
-                    WHERE ticker = ?
-                """,
-                    (
-                        stock_in_play.headline,
-                        stock_in_play.announcement_type,
-                        stock_in_play.announcement_timestamp,
-                        stock_in_play.ticker,
-                    ),
-                )
+                if candidate:
+                    candidate.headline = stock_in_play.headline
+                    candidate.announcement_type = (
+                        stock_in_play.announcement_type
+                    )
+                    candidate.announcement_timestamp = (
+                        stock_in_play.announcement_timestamp
+                    )
+                else:
+                    candidate = Candidate(
+                        ticker=stock_in_play.ticker,
+                        scan_date=stock_in_play.scan_date,
+                        status=stock_in_play.status,
+                        headline=stock_in_play.headline,
+                        announcement_type=stock_in_play.announcement_type,
+                        announcement_timestamp=stock_in_play.announcement_timestamp,
+                    )
+                    session.add(candidate)
             else:
-                # Insert new news candidate
-                cursor.execute(
-                    """
-                    INSERT INTO candidates
-                    (ticker, scan_date, status, headline, announcement_type, announcement_timestamp, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                    (
-                        stock_in_play.ticker,
-                        stock_in_play.scan_date,
-                        stock_in_play.status,
-                        stock_in_play.headline,
-                        stock_in_play.announcement_type,
-                        stock_in_play.announcement_timestamp,
-                        stock_in_play.scan_date,  # Use scan_date as created_at
-                    ),
+                raise ValueError(
+                    f"Unknown StockInPlay type: {type(stock_in_play)}"
                 )
-        else:
-            raise ValueError(f"Unknown StockInPlay type: {type(stock_in_play)}")
 
-        self.db.commit()
+            session.commit()
 
     def get_stock_in_play(self, ticker: str) -> StockInPlay | None:
         """Get stock in play by ticker (polymorphic)
 
         Args:
-                ticker: Stock ticker symbol
+            ticker: Stock ticker symbol
 
         Returns:
-                StockInPlay object or None if not found
+            StockInPlay object or None if not found
         """
-        cursor = self.db.cursor()
-        cursor.execute("SELECT * FROM candidates WHERE ticker = ?", (ticker,))
-        row = cursor.fetchone()
+        with self.get_session() as session:
+            candidate = session.exec(
+                select(Candidate).where(Candidate.ticker == ticker)
+            ).first()
 
-        if not row:
-            return None
+            if not candidate:
+                return None
 
-        # Infer type from field presence
-        if row["gap_percent"] is not None:
-            return GapStockInPlay(
-                ticker=row["ticker"],
-                scan_date=row["scan_date"],
-                status=row["status"],
-                gap_percent=row["gap_percent"],
-                conid=row["conid"],
-            )
-        elif row["headline"] is not None:
-            return NewsStockInPlay(
-                ticker=row["ticker"],
-                scan_date=row["scan_date"],
-                status=row["status"],
-                headline=row["headline"],
-                announcement_type=row["announcement_type"],
-                announcement_timestamp=row["announcement_timestamp"],
-            )
+            if candidate.gap_percent is not None:
+                return GapStockInPlay(
+                    ticker=candidate.ticker,
+                    scan_date=candidate.scan_date,
+                    status=candidate.status,
+                    gap_percent=candidate.gap_percent,
+                    conid=candidate.conid,
+                )
+            elif candidate.headline is not None:
+                return NewsStockInPlay(
+                    ticker=candidate.ticker,
+                    scan_date=candidate.scan_date,
+                    status=candidate.status,
+                    headline=candidate.headline,
+                    announcement_type=candidate.announcement_type,
+                    announcement_timestamp=candidate.announcement_timestamp,
+                )
 
     def get_gap_candidates(self) -> list[GapStockInPlay]:
         """Get all gap-only candidates with status='watching'
 
         Returns:
-                List of GapStockInPlay objects
+            List of GapStockInPlay objects
         """
-        cursor = self.db.cursor()
-        cursor.execute(
-            "SELECT * FROM candidates WHERE gap_percent IS NOT NULL AND status = 'watching'"
-        )
-        rows = cursor.fetchall()
-        return [
-            GapStockInPlay(
-                ticker=row["ticker"],
-                scan_date=row["scan_date"],
-                status=row["status"],
-                gap_percent=row["gap_percent"],
-                conid=row["conid"] if "conid" in row else None,
-            )
-            for row in rows
-        ]
+        with self.get_session() as session:
+            candidates = session.exec(
+                select(Candidate)
+                .where(col(Candidate.gap_percent).is_not(None))
+                .where(Candidate.status == "watching")
+            ).all()
+
+            return [
+                GapStockInPlay(
+                    ticker=c.ticker,
+                    scan_date=c.scan_date,
+                    status=c.status,
+                    gap_percent=c.gap_percent,
+                    conid=c.conid,
+                )
+                for c in candidates
+            ]
 
     def get_news_candidates(self) -> list[NewsStockInPlay]:
         """Get all news-only candidates with status='watching'
 
         Returns:
-                List of NewsStockInPlay objects
+            List of NewsStockInPlay objects
         """
-        cursor = self.db.cursor()
-        cursor.execute(
-            "SELECT * FROM candidates WHERE headline IS NOT NULL AND status = 'watching'"
-        )
-        rows = cursor.fetchall()
-        return [
-            NewsStockInPlay(
-                ticker=row["ticker"],
-                scan_date=row["scan_date"],
-                status=row["status"],
-                headline=row["headline"],
-                announcement_type=(
-                    row["announcement_type"]
-                    if "announcement_type" in row
-                    else "pricesens"
-                ),
-                announcement_timestamp=(
-                    row["announcement_timestamp"]
-                    if "announcement_timestamp" in row
-                    else None
-                ),
-            )
-            for row in rows
-        ]
+        with self.get_session() as session:
+            candidates = session.exec(
+                select(Candidate)
+                .where(col(Candidate.headline).is_not(None))
+                .where(Candidate.status == "watching")
+            ).all()
+
+            return [
+                NewsStockInPlay(
+                    ticker=c.ticker,
+                    scan_date=c.scan_date,
+                    status=c.status,
+                    headline=c.headline,
+                    announcement_type=c.announcement_type,
+                    announcement_timestamp=c.announcement_timestamp,
+                )
+                for c in candidates
+            ]
 
     def get_tradeable_candidates(self) -> list[TradeableCandidate]:
         """Get candidates with both gap and news AND opening ranges
 
         Returns tradeable candidates with ORH/ORL for trading.
         """
-        cursor = self.db.cursor()
-        cursor.execute("""
-            SELECT c.*, o.or_high, o.or_low
-            FROM candidates c
-            JOIN opening_ranges o ON c.ticker = o.ticker
-            WHERE c.gap_percent IS NOT NULL
-              AND c.headline IS NOT NULL
-              AND c.status = 'watching'
-        """)
-        rows = cursor.fetchall()
-        return [
-            TradeableCandidate(
-                ticker=row["ticker"],
-                scan_date=row["scan_date"],
-                status=row["status"],
-                gap_percent=row["gap_percent"],
-                conid=row["conid"] if "conid" in row else None,
-                headline=row["headline"],
-                or_high=row["or_high"],
-                or_low=row["or_low"],
-            )
-            for row in rows
-        ]
+        with self.get_session() as session:
+            candidates = session.exec(
+                select(Candidate)
+                .join(OpeningRange)
+                .where(col(Candidate.gap_percent).is_not(None))
+                .where(col(Candidate.headline).is_not(None))
+                .where(Candidate.status == "watching")
+            ).all()
+
+            return [
+                TradeableCandidate(
+                    ticker=c.ticker,
+                    scan_date=c.scan_date,
+                    status=c.status,
+                    gap_percent=c.gap_percent,
+                    conid=c.conid,
+                    headline=c.headline,
+                    or_high=c.opening_range.or_high,
+                    or_low=c.opening_range.or_low,
+                )
+                for c in candidates
+            ]
 
     def get_watching_candidates(self) -> list[StockInPlay]:
         """Get all candidates with status='watching' (all types)
 
         Returns:
-                List of StockInPlay objects
+            List of StockInPlay objects
         """
-        cursor = self.db.cursor()
-        cursor.execute("SELECT * FROM candidates WHERE status = 'watching'")
-        rows = cursor.fetchall()
-        result = [self.get_stock_in_play(row["ticker"]) for row in rows]
-        return [s for s in result if s is not None]
+        with self.get_session() as session:
+            candidates = session.exec(
+                select(Candidate).where(Candidate.status == "watching")
+            ).all()
+
+            result = [self.get_stock_in_play(c.ticker) for c in candidates]
+            return [s for s in result if s is not None]
 
     def update_candidate_status(self, ticker: str, status: str) -> None:
         """Update candidate status
 
         Args:
-                ticker: Stock ticker symbol
-                status: New status ('watching' | 'entered' | 'closed')
+            ticker: Stock ticker symbol
+            status: New status ('watching' | 'entered' | 'closed')
         """
-        cursor = self.db.cursor()
-        cursor.execute(
-            "UPDATE candidates SET status = ? WHERE ticker = ?",
-            (status, ticker),
-        )
-        self.db.commit()
+        with self.get_session() as session:
+            candidate = session.exec(
+                select(Candidate).where(Candidate.ticker == ticker)
+            ).first()
+
+            if candidate:
+                candidate.status = status
+                session.commit()
 
     def purge_candidates(self, only_before_utc_date: date | None = None) -> int:
         """Delete candidates, optionally filtering to rows before a given UTC date.
@@ -303,24 +267,21 @@ class Database:
         Returns:
             Number of rows deleted.
         """
-        cursor = self.db.cursor()
+        with self.get_session() as session:
+            if only_before_utc_date:
+                stmt = delete(Candidate).where(
+                    Candidate.scan_date < only_before_utc_date.isoformat()
+                )
+                logger.info(
+                    f"Purged candidates before {only_before_utc_date.isoformat()}"
+                )
+            else:
+                stmt = delete(Candidate)
+                logger.info("Purged all candidates")
 
-        if only_before_utc_date:
-            cursor.execute(
-                "DELETE FROM candidates WHERE DATE(scan_date) < DATE(?)",
-                (only_before_utc_date.isoformat(),),
-            )
-            logger.info(
-                f"Purged candidates before {only_before_utc_date.isoformat()}"
-            )
-        else:
-            cursor.execute("DELETE FROM candidates")
-            logger.info("Purged all candidates")
-
-        self.db.commit()
-        return cursor.rowcount or 0
-
-    # Opening range methods
+            result = session.exec(stmt)
+            session.commit()
+            return result.rowcount
 
     def save_opening_range(self, opening_range: OpeningRange) -> None:
         """Save or update opening range for a ticker
@@ -328,19 +289,21 @@ class Database:
         Args:
             opening_range: OpeningRange object to save
         """
-        cursor = self.db.cursor()
-        cursor.execute(
-            """INSERT OR REPLACE INTO opening_ranges
-            (ticker, or_high, or_low, sample_date)
-            VALUES (?, ?, ?, ?)""",
-            (
-                opening_range.ticker,
-                opening_range.or_high,
-                opening_range.or_low,
-                opening_range.sample_date,
-            ),
-        )
-        self.db.commit()
+        with self.get_session() as session:
+            existing = session.exec(
+                select(OpeningRange).where(
+                    OpeningRange.ticker == opening_range.ticker
+                )
+            ).first()
+
+            if existing:
+                existing.or_high = opening_range.or_high
+                existing.or_low = opening_range.or_low
+                existing.sample_date = opening_range.sample_date
+            else:
+                session.add(opening_range)
+
+            session.commit()
 
     def get_opening_range(self, ticker: str) -> OpeningRange | None:
         """Get opening range for a ticker
@@ -351,35 +314,29 @@ class Database:
         Returns:
             OpeningRange object or None if not found
         """
-        cursor = self.db.cursor()
-        cursor.execute(
-            "SELECT * FROM opening_ranges WHERE ticker = ?", (ticker,)
-        )
-        row = cursor.fetchone()
-
-        if row:
-            return OpeningRange.from_db_row(dict(row))
-        return None
+        with self.get_session() as session:
+            return session.exec(
+                select(OpeningRange).where(OpeningRange.ticker == ticker)
+            ).first()
 
     def get_candidates_needing_ranges(self) -> list[StockInPlay]:
         """Get gap+news candidates that need opening ranges
 
         Returns:
-                List of StockInPlay objects (will be GapStockInPlay)
+            List of StockInPlay objects (will be GapStockInPlay)
         """
-        cursor = self.db.cursor()
-        cursor.execute("""
-            SELECT c.*
-            FROM candidates c
-            LEFT JOIN opening_ranges o ON c.ticker = o.ticker
-            WHERE c.gap_percent IS NOT NULL
-              AND c.headline IS NOT NULL
-              AND c.status = 'watching'
-              AND o.ticker IS NULL
-        """)
-        rows = cursor.fetchall()
-        result = [self.get_stock_in_play(row["ticker"]) for row in rows]
-        return [s for s in result if s is not None]
+        with self.get_session() as session:
+            candidates = session.exec(
+                select(Candidate)
+                .outerjoin(OpeningRange)
+                .where(col(Candidate.gap_percent).is_not(None))
+                .where(col(Candidate.headline).is_not(None))
+                .where(Candidate.status == "watching")
+                .where(col(OpeningRange.ticker).is_(None))
+            ).all()
+
+            result = [self.get_stock_in_play(c.ticker) for c in candidates]
+            return [s for s in result if s is not None]
 
     def purge_opening_ranges(self) -> int:
         """Delete all opening ranges
@@ -387,13 +344,11 @@ class Database:
         Returns:
             Number of rows deleted.
         """
-        cursor = self.db.cursor()
-        cursor.execute("DELETE FROM opening_ranges")
-        logger.info("Purged all opening ranges")
-        self.db.commit()
-        return cursor.rowcount or 0
-
-    # Position methods
+        with self.get_session() as session:
+            result = session.exec(delete(OpeningRange))
+            session.commit()
+            logger.info("Purged all opening ranges")
+            return result.rowcount
 
     def create_position(
         self,
@@ -406,73 +361,68 @@ class Database:
         """Create a new position
 
         Args:
-                ticker: Stock ticker symbol
-                quantity: Number of shares
-                entry_price: Entry price per share
-                stop_loss: Stop loss price per share
-                entry_date: ISO format datetime string
+            ticker: Stock ticker symbol
+            quantity: Number of shares
+            entry_price: Entry price per share
+            stop_loss: Stop loss price per share
+            entry_date: ISO format datetime string
 
         Returns:
-                Position ID
+            Position ID
         """
-        cursor = self.db.cursor()
-        cursor.execute(
-            """
-            INSERT INTO positions
-            (ticker, quantity, entry_price, stop_loss, entry_date, status)
-            VALUES (?, ?, ?, ?, ?, 'open')
-        """,
-            (ticker, quantity, entry_price, stop_loss, entry_date),
-        )
-        self.db.commit()
-        return cursor.lastrowid or 0
+        with self.get_session() as session:
+            position = Position(
+                ticker=ticker,
+                quantity=quantity,
+                entry_price=entry_price,
+                stop_loss=stop_loss,
+                entry_date=entry_date,
+                status="open",
+            )
+            session.add(position)
+            session.commit()
+            session.refresh(position)
+            return position.id if position.id is not None else 0
 
     def get_position(self, position_id: int) -> Position | None:
         """Get position by ID
 
         Args:
-                position_id: Position ID
+            position_id: Position ID
 
         Returns:
-                Position object or None if not found
+            Position object or None if not found
         """
-        cursor = self.db.cursor()
-        cursor.execute("SELECT * FROM positions WHERE id = ?", (position_id,))
-        row = cursor.fetchone()
-
-        if row:
-            return Position.from_db_row(dict(row))
-        return None
+        with self.get_session() as session:
+            return session.exec(
+                select(Position).where(Position.id == position_id)
+            ).first()
 
     def get_open_positions(self) -> list[Position]:
         """Get all open positions
 
         Returns:
-                List of Position objects with status='open'
+            List of Position objects with status='open'
         """
-        cursor = self.db.cursor()
-        cursor.execute("SELECT * FROM positions WHERE status = 'open'")
-        rows = cursor.fetchall()
-        return [Position.from_db_row(dict(row)) for row in rows]
+        with self.get_session() as session:
+            return session.exec(
+                select(Position).where(Position.status == "open")
+            ).all()
 
     def count_open_positions(self) -> int:
         """Count open positions
 
         Returns:
-                Number of positions with status='open'
+            Number of positions with status='open'
         """
-        cursor = self.db.cursor()
-        cursor.execute(
-            "SELECT COUNT(*) as count FROM positions WHERE status = 'open'"
-        )
-        row = cursor.fetchone()
-        return row["count"] if row else 0
+        with self.get_session() as session:
+            open_positions = session.exec(
+                select(Position).where(Position.status == "open")
+            ).all()
+            return len(open_positions)
 
     def close_position(
-        self,
-        position_id: int,
-        exit_price: float,
-        exit_date: str,
+        self, position_id: int, exit_price: float, exit_date: str
     ) -> None:
         """Close a position
 
@@ -481,23 +431,22 @@ class Database:
             exit_price: Exit price per share
             exit_date: ISO format datetime string
         """
-        cursor = self.db.cursor()
-        cursor.execute(
-            """
-            UPDATE positions
-            SET status = 'closed', exit_price = ?, exit_date = ?
-            WHERE id = ?
-        """,
-            (exit_price, exit_date, position_id),
-        )
-        self.db.commit()
+        with self.get_session() as session:
+            position = session.exec(
+                select(Position).where(Position.id == position_id)
+            ).first()
+
+            if position:
+                position.status = "closed"
+                position.exit_price = exit_price
+                position.exit_date = exit_date
+                session.commit()
 
     def close(self) -> None:
-        """Close database connection"""
-        if self.db:
-            self.db.close()
+        """Dispose of database engine"""
+        if self.engine:
+            self.engine.dispose()
 
-    # Backward compatibility
     def save_candidate(self, stock_in_play: StockInPlay) -> None:
         """Backward compatibility alias for save_stock_in_play"""
         self.save_stock_in_play(stock_in_play)

@@ -1,6 +1,17 @@
-"""Data models for Skim trading bot - simplified"""
+"""Data models for Skim trading bot - SQLModel"""
 
 from dataclasses import dataclass
+from datetime import datetime
+from typing import TYPE_CHECKING, Optional
+
+from sqlmodel import (
+    Field,
+    Relationship,
+    SQLModel,
+)
+
+if TYPE_CHECKING:
+    pass
 
 
 @dataclass
@@ -9,7 +20,7 @@ class StockInPlay:
 
     ticker: str
     scan_date: str
-    status: str  # 'watching' | 'entered' | 'closed'
+    status: str
 
 
 @dataclass
@@ -30,25 +41,6 @@ class NewsStockInPlay(StockInPlay):
 
 
 @dataclass
-class OpeningRange:
-    """Opening range high/low for a candidate"""
-
-    ticker: str
-    or_high: float
-    or_low: float
-    sample_date: str
-
-    @classmethod
-    def from_db_row(cls, row: dict) -> "OpeningRange":
-        return cls(
-            ticker=row["ticker"],
-            or_high=row["or_high"],
-            or_low=row["or_low"],
-            sample_date=row["sample_date"],
-        )
-
-
-@dataclass
 class TradeableCandidate:
     """Combined view of candidate + opening range for trading"""
 
@@ -60,41 +52,6 @@ class TradeableCandidate:
     headline: str
     or_high: float
     or_low: float
-
-
-@dataclass
-class Position:
-    """Open trading position"""
-
-    ticker: str
-    quantity: int
-    entry_price: float
-    stop_loss: float
-    entry_date: str
-    status: str  # 'open' | 'closed'
-    id: int | None = None
-    exit_price: float | None = None
-    exit_date: str | None = None
-
-    @classmethod
-    def from_db_row(cls, row: dict) -> "Position":
-        """Create from database row"""
-        return cls(
-            id=row.get("id"),
-            ticker=row["ticker"],
-            quantity=row["quantity"],
-            entry_price=row["entry_price"],
-            stop_loss=row["stop_loss"],
-            entry_date=row["entry_date"],
-            status=row["status"],
-            exit_price=row.get("exit_price"),
-            exit_date=row.get("exit_date"),
-        )
-
-    @property
-    def is_open(self) -> bool:
-        """Check if position is still open"""
-        return self.status == "open"
 
 
 @dataclass
@@ -131,3 +88,80 @@ class OrderResult:
     quantity: int
     filled_price: float | None = None
     status: str = "submitted"
+
+
+class OpeningRangeBase(SQLModel):
+    """Base model for OpeningRange"""
+
+    ticker: str
+    or_high: float
+    or_low: float
+    sample_date: str
+
+
+class OpeningRange(OpeningRangeBase, table=True):
+    """Opening range high/low for a candidate (database table)"""
+
+    __tablename__ = "opening_ranges"
+
+    ticker: str = Field(foreign_key="candidates.ticker", primary_key=True)
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    candidate: Optional["Candidate"] = Relationship(
+        back_populates="opening_range"
+    )
+
+
+class PositionBase(SQLModel):
+    """Base model for Position"""
+
+    ticker: str
+    quantity: int
+    entry_price: float
+    stop_loss: float
+    entry_date: str
+    status: str = "open"
+
+
+class Position(PositionBase, table=True):
+    """Open trading position (database table)"""
+
+    __tablename__ = "positions"
+
+    id: int | None = Field(default=None, primary_key=True)
+    exit_price: float | None = None
+    exit_date: str | None = None
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    @property
+    def is_open(self) -> bool:
+        """Check if position is still open"""
+        return self.status == "open"
+
+
+class CandidateBase(SQLModel):
+    """Base model for Candidate"""
+
+    ticker: str = Field(primary_key=True)
+    scan_date: str
+    status: str = "watching"
+
+
+class Candidate(CandidateBase, table=True):
+    """Candidate for trading (database table)"""
+
+    __tablename__ = "candidates"
+
+    gap_percent: float | None = None
+    conid: int | None = None
+    headline: str | None = None
+    announcement_type: str = "pricesens"
+    announcement_timestamp: str | None = None
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    opening_range: OpeningRange | None = Relationship(
+        back_populates="candidate"
+    )
+
+
+OpeningRange.model_rebuild()
