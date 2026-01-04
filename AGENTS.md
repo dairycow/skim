@@ -1,7 +1,7 @@
 # AGENTS
 
 ## Project Overview
-Skim: Automated ASX ORH breakout bot using IBKR OAuth1. Phases driven by cron—see `crontab` for timings. Modern Python (pyproject, 3.13+), uv for all python/pytest/ruff/pre-commit. Use Australian English; no emojis; delegate to subagents when possible.
+Skim: Automated ASX trading bot using Strategy pattern with multiple trading strategies. Current strategy: ORH breakout. Phases driven by cron—see `crontab` for timings. Modern Python (pyproject, 3.13+), uv for all python/pytest/ruff/pre-commit. Use Australian English; no emojis; delegate to subagents when possible.
 
 ## Essential Commands
 
@@ -21,11 +21,10 @@ Skim: Automated ASX ORH breakout bot using IBKR OAuth1. Phases driven by cron—
 
 ### Bot Execution
 - Purge candidates: `uv run python -m skim.core.bot purge_candidates`
-- Scan gaps: `uv run python -m skim.core.bot scan_gaps`
-- Scan news: `uv run python -m skim.core.bot scan_news`
-- Track opening ranges: `uv run python -m skim.core.bot track_ranges`
+- Scan (full strategy scan): `uv run python -m skim.core.bot scan`
 - Trade breakouts: `uv run python -m skim.core.bot trade`
 - Manage positions: `uv run python -m skim.core.bot manage`
+- Health check: `uv run python -m skim.core.bot status`
 
 ## Code Style Guidelines
 
@@ -92,10 +91,12 @@ Skim: Automated ASX ORH breakout bot using IBKR OAuth1. Phases driven by cron—
 - Log configuration values on load at DEBUG level
 
 ### Architecture & State
-- Phases are independent: core modules do not call each other
+- Strategy pattern: TradingBot delegates to strategy implementations
+- Strategies: Independent, self-contained implementations in src/skim/strategies/
 - States: Candidates (watching→entered→closed); Positions (open→closed)
 - Protocol-based abstractions in brokers/protocols.py for testability
-- Core orchestrator: src/skim/core/bot.py
+- Core orchestrator: src/skim/core/bot.py (multi-strategy dispatcher)
+- Shared services: IBKRClient, Database, Discord (injected into strategies)
 - Use async/await for IBKR client operations
 - Database and models in data/; persistence handled by Database class
 
