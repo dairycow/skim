@@ -8,7 +8,8 @@ Handles:
 """
 
 import asyncio
-import logging
+
+from loguru import logger
 
 from skim.data.models import MarketData
 
@@ -19,8 +20,6 @@ from ..validation.price_parsing import (
 )
 from .ibkr_client import IBKRClient
 from .protocols import MarketDataProvider
-
-logger = logging.getLogger(__name__)
 
 
 class IBKRMarketDataError(Exception):

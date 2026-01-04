@@ -1,14 +1,13 @@
 """IBKR order management operations with async support"""
 
-import logging
 from typing import Any
+
+from loguru import logger
 
 from skim.data.models import OrderResult, Position
 
 from .ibkr_client import IBKRClient
 from .protocols import MarketDataProvider, OrderManager
-
-logger = logging.getLogger(__name__)
 
 
 class IBKROrdersError(Exception):

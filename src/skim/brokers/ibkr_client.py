@@ -18,12 +18,10 @@ from typing import Any, cast
 from urllib.parse import quote, quote_plus
 
 import httpx
-from loguru import logger as loguru_logger
+from loguru import logger
 
 from ..core.config import Config
 from .ibkr_oauth import generate_lst
-
-logger = logging.getLogger(__name__)
 
 
 class IBKRClientError(Exception):
@@ -112,7 +110,15 @@ class IBKRClient:
         # Ensure stdlib logging is bridged into loguru for IBKR/httpx modules
         self.install_logging_bridge()
 
-    # ========== Logging ==========
+    class _LoguruHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            try:
+                level = logger.level(record.levelname).name
+            except ValueError:
+                level = record.levelno
+            logger.opt(depth=6, exception=record.exc_info).log(
+                level, record.getMessage()
+            )
 
     @classmethod
     def install_logging_bridge(cls) -> None:
@@ -120,17 +126,7 @@ class IBKRClient:
         if cls._logging_bridge_installed:
             return
 
-        class _LoguruHandler(logging.Handler):
-            def emit(self, record: logging.LogRecord) -> None:
-                try:
-                    level = loguru_logger.level(record.levelname).name
-                except ValueError:
-                    level = record.levelno
-                loguru_logger.opt(depth=6, exception=record.exc_info).log(
-                    level, record.getMessage()
-                )
-
-        handler = _LoguruHandler()
+        handler = cls._LoguruHandler()
         for name in ("skim.brokers", "httpx"):
             std_logger = logging.getLogger(name)
             std_logger.setLevel(logging.DEBUG)
@@ -309,7 +305,7 @@ class IBKRClient:
         return self._connected and self._lst is not None
 
     def get_account(self) -> str:
-        """Get the connected account ID
+        """Get connected account ID
 
         Returns:
             Account ID string (e.g., "DUN090463" for paper account)
@@ -347,6 +343,7 @@ class IBKRClient:
             logger.info(
                 f"LST generated successfully, expires at {expiration_dt}"
             )
+
         except Exception as e:
             raise IBKRAuthenticationError(f"LST generation failed: {e}") from e
 
@@ -378,7 +375,6 @@ class IBKRClient:
                 return first_item
             elif isinstance(first_item, dict):
                 return first_item.get("accountId") or first_item.get("id")
-
         return None
 
     # ========== Keepalive Thread (Tickle) ==========
@@ -496,6 +492,7 @@ class IBKRClient:
                 b64_str_hmac_hash = base64.b64encode(bytes_hmac_hash).decode(
                     "utf-8"
                 )
+
                 oauth_params["oauth_signature"] = quote_plus(b64_str_hmac_hash)
                 oauth_params["realm"] = self.REALM
 
@@ -544,9 +541,6 @@ class IBKRClient:
                     lst_regenerated = True
                     continue
 
-                elif response.status_code in (401, 410) and lst_regenerated:
-                    raise IBKRAuthenticationError(self._format_error(response))
-
                 elif response.status_code in (400, 404):
                     # Client errors - don't retry
                     logger.error(
@@ -574,6 +568,13 @@ class IBKRClient:
                             f"Max retries exceeded: {response.status_code} - {response.text}"
                         )
 
+                elif response.status_code in (401, 410) and lst_regenerated:
+                    self._log_auth_failure(
+                        response,
+                        "Authentication failed after LST regeneration",
+                    )
+                    raise IBKRAuthenticationError(self._format_error(response))
+
                 else:
                     # Other errors
                     logger.error(
@@ -599,6 +600,7 @@ class IBKRClient:
             raise IBKRAuthenticationError(
                 f"Authentication failed after LST regeneration: {endpoint}"
             )
+
         raise IBKRClientError("Request failed after all retries")
 
     def _format_error(self, response: httpx.Response) -> str:
@@ -620,7 +622,11 @@ class IBKRClient:
         logger.warning(f"{prefix} ({response.status_code}): {body}")
 
     def _is_lst_expiring(self, skew_seconds: int = 300) -> bool:
-        """Check if the current LST is close to expiring."""
+        """Check if current LST is close to expiring.
+
+        Returns:
+            True if close to expiration (within skew_seconds)
+        """
         if self._lst_expiration is None:
             return False
         now_ms = int(datetime.now().timestamp() * 1000)
