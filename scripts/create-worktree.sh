@@ -30,6 +30,8 @@ fi
 # Create the worktree with new branch
 git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME"
 
+cd "$WORKTREE_PATH"
+
 # Copy necessary files and directories
 cp "$PROJECT_ROOT/.env" . 2>/dev/null || true
 cp -r "$PROJECT_ROOT/.vscode" . 2>/dev/null || true
@@ -51,9 +53,5 @@ echo "2. git worktree remove $WORKTREE_PATH"
 echo "3. git branch -d $BRANCH_NAME"
 echo ""
 
-# cd to the worktree if script is sourced, otherwise print instruction
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
-    cd "$WORKTREE_PATH"
-else
-    echo "Run 'source $0 $BRANCH_NAME' to cd into the worktree"
-fi
+echo "Now cd into the worktree:"
+echo "cd $WORKTREE_PATH"
