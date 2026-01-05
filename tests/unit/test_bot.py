@@ -55,6 +55,8 @@ def mock_trading_bot(mock_bot_config):
         mock_market_data_service.get_market_data = AsyncMock()
 
         mock_strategy.scan = AsyncMock(return_value=0)
+        mock_strategy.track_ranges = AsyncMock(return_value=0)
+        mock_strategy.alert = AsyncMock(return_value=0)
         mock_strategy.trade = AsyncMock(return_value=0)
         mock_strategy.manage = AsyncMock(return_value=0)
         mock_strategy.health_check = AsyncMock(return_value=True)
@@ -139,6 +141,28 @@ class TestTradingBot:
 
         mock_trading_bot.strategies["orh_breakout"].scan.assert_awaited_once()
         assert result == 8
+
+    async def test_track_ranges_delegates_to_strategy(self, mock_trading_bot):
+        """track_ranges should delegate to strategy."""
+        mock_trading_bot.strategies[
+            "orh_breakout"
+        ].track_ranges.return_value = 5
+
+        result = await mock_trading_bot.track_ranges()
+
+        mock_trading_bot.strategies[
+            "orh_breakout"
+        ].track_ranges.assert_awaited_once()
+        assert result == 5
+
+    async def test_alert_delegates_to_strategy(self, mock_trading_bot):
+        """alert should delegate to strategy."""
+        mock_trading_bot.strategies["orh_breakout"].alert.return_value = 2
+
+        result = await mock_trading_bot.alert()
+
+        mock_trading_bot.strategies["orh_breakout"].alert.assert_awaited_once()
+        assert result == 2
 
     async def test_trade_delegates_to_strategy(self, mock_trading_bot):
         """trade should delegate to the strategy."""
