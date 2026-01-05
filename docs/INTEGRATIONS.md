@@ -117,6 +117,21 @@ tail -100 logs/skim_*.log | grep oauth        # Check logs
 
 **Rate Limits**: Implement backoff for HTTP 429 errors.
 
+### Session Conflicts
+
+**Symptom**: Scanner returns HTTP 500 with error `"Finished: EMPTY response is received."`
+
+**Cause**: IBKR allows only one brokerage session per username. If you're logged into TradingView, IBKR Web Portal, or any other IBKR interface, the scanner will fail even though authentication succeeds.
+
+**Resolution**:
+1. Log out of TradingView, IBKR Portal, or any other IBKR sessions
+2. Wait 1-2 minutes for session to clear
+3. Re-run the scan
+
+**Verification**: Check logs for `'competing': False` - this indicates IBKR doesn't detect a conflict, but the scanner endpoint may still be affected by other sessions.
+
+**Alternative**: The bot's `connect()` method calls `/logout` before creating a new session with `compete: True`, but some sessions (like TradingView) may use a different session type that isn't cleared by this mechanism.
+
 ## ASX Announcements
 
 Uses ASX public API to filter price-sensitive announcements.
