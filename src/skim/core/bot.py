@@ -16,6 +16,9 @@ from skim.brokers.ibkr_market_data import IBKRMarketData
 from skim.brokers.ibkr_orders import IBKROrders
 from skim.core.config import Config
 from skim.data.database import Database
+from skim.data.repositories.orh_repository import (
+    ORHCandidateRepository,
+)
 from skim.notifications.discord import DiscordNotifier
 from skim.strategies import ORHBreakoutStrategy
 from skim.strategies.base import Strategy
@@ -55,12 +58,14 @@ class TradingBot:
 
         Add new strategies here when implemented
         """
+        orh_repo = ORHCandidateRepository(self.db)
         self.strategies["orh_breakout"] = ORHBreakoutStrategy(
             ib_client=self.ib_client,
             scanner_service=self.scanner_service,
             market_data_service=self.market_data_service,
             order_service=self.order_service,
             db=self.db,
+            orh_repo=orh_repo,
             discord=self.discord,
             config=self.config,
         )

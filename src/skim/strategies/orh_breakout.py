@@ -16,6 +16,9 @@ if TYPE_CHECKING:
     from skim.brokers.ibkr_orders import IBKROrders
     from skim.core.config import Config
     from skim.data.database import Database
+    from skim.data.repositories.orh_repository import (
+        ORHCandidateRepository,
+    )
     from skim.notifications.discord import DiscordNotifier
 
 
@@ -37,6 +40,7 @@ class ORHBreakoutStrategy(Strategy):
         market_data_service: IBKRMarketData,
         order_service: IBKROrders,
         db: Database,
+        orh_repo: ORHCandidateRepository,
         discord: DiscordNotifier,
         config: Config,
     ):
@@ -47,12 +51,14 @@ class ORHBreakoutStrategy(Strategy):
             scanner_service: Gap scanner service
             market_data_service: Market data service
             order_service: Order placement service
-            db: Database for persistence
+            db: Database for position persistence
+            orh_repo: ORH repository for candidate management
             discord: Discord notification service
             config: Strategy configuration
         """
         self.ib_client = ib_client
         self.db = db
+        self.orh_repo = orh_repo
         self.discord = discord
         self.config = config
 
@@ -69,7 +75,7 @@ class ORHBreakoutStrategy(Strategy):
         )
         self.news_scanner = NewsScanner()
         self.range_tracker = RangeTracker(
-            market_data_service=market_data_service, db=self.db
+            market_data_service=market_data_service, orh_repo=orh_repo
         )
         self.trader = Trader(market_data_service, order_service, self.db)
         self.monitor = Monitor(market_data_service)
@@ -104,7 +110,9 @@ class ORHBreakoutStrategy(Strategy):
         """
         logger.info("Purging candidates...")
         try:
-            deleted = self.db.purge_candidates(only_before_utc_date)
+            deleted = self.db.purge_candidates(
+                only_before_utc_date, strategy_name=self.orh_repo.STRATEGY_NAME
+            )
             logger.info(f"Deleted {deleted} candidate rows")
             return deleted
         except Exception as e:
@@ -127,7 +135,7 @@ class ORHBreakoutStrategy(Strategy):
                 logger.warning("No gap candidates found")
             else:
                 for candidate in candidates:
-                    self.db.save_stock_in_play(candidate)
+                    self.orh_repo.save_gap_candidate(candidate)
 
             logger.info(f"Gap scan complete. Found {count} candidates")
             return count
@@ -150,7 +158,7 @@ class ORHBreakoutStrategy(Strategy):
                 logger.warning("No news candidates found")
             else:
                 for candidate in candidates:
-                    self.db.save_stock_in_play(candidate)
+                    self.orh_repo.save_news_candidate(candidate)
 
             logger.info(f"News scan complete. Found {count} candidates")
             return count
@@ -195,7 +203,7 @@ class ORHBreakoutStrategy(Strategy):
         logger.info("Executing breakouts...")
         try:
             await self._ensure_connection()
-            candidates = self.db.get_tradeable_candidates()
+            candidates = self.orh_repo.get_tradeable_candidates()
             if not candidates:
                 logger.info("No tradeable candidates found.")
                 return 0
@@ -260,7 +268,7 @@ class ORHBreakoutStrategy(Strategy):
         """
         logger.info("Sending alert for tradeable candidates...")
         try:
-            candidates = self.db.get_tradeable_candidates()
+            candidates = self.orh_repo.get_tradeable_candidates()
             count = len(candidates)
 
             if not candidates:

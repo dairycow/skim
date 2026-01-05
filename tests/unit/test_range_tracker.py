@@ -15,7 +15,7 @@ def tracker_with_utc_clock():
     def make_tracker(now):
         return RangeTracker(
             market_data_service=AsyncMock(),
-            db=Mock(),
+            orh_repo=Mock(),
             market_open_time=time(23, 0, tzinfo=UTC),
             range_duration_minutes=10,
             now_provider=lambda: now,

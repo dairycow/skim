@@ -13,8 +13,7 @@ from datetime import UTC, datetime, time, timedelta
 from loguru import logger
 
 from .brokers.protocols import MarketDataProvider
-from .data.database import Database
-from .data.models import OpeningRange
+from .data.repositories.orh_repository import ORHCandidateRepository
 
 
 class RangeTracker:
@@ -23,7 +22,7 @@ class RangeTracker:
     def __init__(
         self,
         market_data_service: MarketDataProvider,
-        db: Database,
+        orh_repo: ORHCandidateRepository,
         market_open_time: time = time(
             23, 0, tzinfo=UTC
         ),  # 10:00 AM AEDT = 23:00 UTC
@@ -34,13 +33,13 @@ class RangeTracker:
 
         Args:
             market_data_service: Service for fetching market data
-            db: Database for updating candidates
+            orh_repo: ORH repository for candidate management
             market_open_time: Market opening time in UTC (default 23:00 UTC)
             range_duration_minutes: Duration of opening range in minutes (default 10)
             now_provider: Callable returning current datetime (UTC). Defaults to datetime.now(timezone.utc).
         """
         self.market_data = market_data_service
-        self.db = db
+        self.orh_repo = orh_repo
         self.market_open_time = market_open_time
         self.range_duration_minutes = range_duration_minutes
         self._now_provider = now_provider or (lambda: datetime.now(UTC))
@@ -92,7 +91,7 @@ class RangeTracker:
         await self._wait_until_target_time()
 
         # Step 2: Get candidates needing ranges
-        candidates = self.db.get_candidates_needing_ranges()
+        candidates = self.orh_repo.get_candidates_needing_ranges()
         if not candidates:
             logger.info("No candidates need opening range tracking")
             return 0
@@ -132,14 +131,12 @@ class RangeTracker:
                     )
                     continue
 
-                # Save opening range
-                opening_range = OpeningRange(
+                # Save opening range via repository
+                self.orh_repo.save_opening_range(
                     ticker=candidate.ticker,
                     or_high=or_high,
                     or_low=or_low,
-                    sample_date=datetime.now().isoformat(),
                 )
-                self.db.save_opening_range(opening_range)
 
                 logger.info(
                     f"{candidate.ticker}: Opening range set - ORH=${or_high:.2f}, ORL=${or_low:.2f}"

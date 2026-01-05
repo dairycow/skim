@@ -55,6 +55,16 @@ class TradeableCandidate:
 
 
 @dataclass
+class OpeningRange:
+    """Opening range data (dataclass only, no DB table)"""
+
+    ticker: str
+    or_high: float
+    or_low: float
+    sample_date: str
+
+
+@dataclass
 class MarketData:
     """Real-time market data snapshot"""
 
@@ -90,28 +100,6 @@ class OrderResult:
     status: str = "submitted"
 
 
-class OpeningRangeBase(SQLModel):
-    """Base model for OpeningRange"""
-
-    ticker: str
-    or_high: float
-    or_low: float
-    sample_date: str
-
-
-class OpeningRange(OpeningRangeBase, table=True):
-    """Opening range high/low for a candidate (database table)"""
-
-    __tablename__ = "opening_ranges"
-
-    ticker: str = Field(foreign_key="candidates.ticker", primary_key=True)
-    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
-
-    candidate: Optional["Candidate"] = Relationship(
-        back_populates="opening_range"
-    )
-
-
 class PositionBase(SQLModel):
     """Base model for Position"""
 
@@ -145,23 +133,29 @@ class CandidateBase(SQLModel):
     ticker: str = Field(primary_key=True)
     scan_date: str
     status: str = "watching"
+    strategy_name: str = Field(index=True)
 
 
 class Candidate(CandidateBase, table=True):
-    """Candidate for trading (database table)"""
+    """Generic candidate for trading (database table)"""
 
     __tablename__ = "candidates"
 
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class ORHCandidate(SQLModel, table=True):
+    """ORH-specific candidate data"""
+
+    __tablename__ = "orh_candidates"
+
+    ticker: str = Field(primary_key=True, foreign_key="candidates.ticker")
     gap_percent: float | None = None
     conid: int | None = None
     headline: str | None = None
     announcement_type: str = "pricesens"
     announcement_timestamp: str | None = None
+    or_high: float | None = None
+    or_low: float | None = None
+    sample_date: str | None = None
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
-
-    opening_range: OpeningRange | None = Relationship(
-        back_populates="candidate"
-    )
-
-
-OpeningRange.model_rebuild()
