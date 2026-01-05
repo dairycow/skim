@@ -63,3 +63,15 @@ class Strategy(ABC):
             Number of candidates alerted
         """
         return 0
+
+    async def track_ranges(self) -> int:
+        """Track opening ranges for candidates
+
+        Strategies can override this to track opening ranges.
+        Some strategies (like ORH breakout) need to track opening ranges
+        before executing trades.
+
+        Returns:
+            Number of candidates updated with opening ranges
+        """
+        return 0

@@ -217,30 +217,37 @@ if __name__ == "__main__":
 
     test_client = IBKRClient(paper_trading=True)
 
-    try:
-        test_client_initialization()
+    import asyncio
 
-        # Connect for remaining tests
-        test_client.connect()
+    async def run_tests():
+        try:
+            test_client_initialization()
 
-        test_client_connection(test_client)
-        test_account_operations(test_client)
-        test_market_data_operations(test_client)
-        test_order_workflow(test_client)
-        test_session_persistence(test_client)
-        test_error_handling(test_client)
-        test_cleanup(test_client)
+            # Connect for remaining tests
+            await test_client.connect()
 
-        # Disconnect
-        test_client.disconnect()
+            test_client_connection(test_client)
+            test_account_operations(test_client)
+            test_market_data_operations(test_client)
+            test_order_workflow(test_client)
+            test_session_persistence(test_client)
+            test_error_handling(test_client)
+            test_cleanup(test_client)
 
-        logger.info("\n✓ All end-to-end workflow tests completed successfully!")
+            # Disconnect
+            await test_client.disconnect()
 
-    except Exception as e:
-        logger.error(f"✗ Test failed: {e}")
-        import traceback
+            logger.info(
+                "\n✓ All end-to-end workflow tests completed successfully!"
+            )
 
-        traceback.print_exc()
-        import sys
+        except Exception as e:
+            logger.error(f"✗ Test failed: {e}")
+            import traceback
 
-        sys.exit(1)
+            traceback.print_exc()
+            import sys
+
+            sys.exit(1)
+
+    asyncio.run(run_tests())

@@ -142,17 +142,17 @@ class TradingBot:
         logger.info(f"Fetching market data for {ticker}...")
         try:
             await self._ensure_connection()
-            data = await self.market_data_service.get_market_data(ticker)
+            result = await self.market_data_service.get_market_data(ticker)
 
-            if not data:
-                logger.warning(f"No market data returned for {ticker}")
+            if not result or isinstance(result, dict):
+                logger.warning(f"No valid market data returned for {ticker}")
                 return None
 
             logger.info(
-                f"{ticker} market data - last={data.last_price}, high={data.high}, low={data.low}, "
-                f"bid={data.bid}, ask={data.ask}, volume={data.volume}"
+                f"{ticker} market data - last={result.last_price}, high={result.high}, low={result.low}, "
+                f"bid={result.bid}, ask={result.ask}, volume={result.volume}"
             )
-            return data
+            return result
         except Exception as e:
             logger.error(
                 f"Market data fetch failed for {ticker}: {e}", exc_info=True

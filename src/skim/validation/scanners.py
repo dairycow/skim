@@ -171,7 +171,9 @@ class ASXAnnouncement(BaseModel):
     )
     announcement_type: Literal["pricesens", "other"] = "other"
     timestamp: datetime = Field(description="Announcement timestamp")
-    pdf_url: str | None = Field(None, description="URL to announcement PDF")
+    pdf_url: str | None = Field(
+        default=None, description="URL to announcement PDF"
+    )
 
     @field_validator("ticker")
     @classmethod
@@ -193,7 +195,7 @@ class PriceSensitiveFilter(BaseModel):
         default_factory=list, description="Tickers to exclude"
     )
     include_only_tickers: list[str] | None = Field(
-        None, description="Only include these tickers"
+        default=None, description="Only include these tickers"
     )
     min_headline_length: int = Field(
         default=10, ge=1, description="Minimum headline length"

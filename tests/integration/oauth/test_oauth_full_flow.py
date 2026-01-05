@@ -63,7 +63,7 @@ def test_client_creation_with_oauth(oauth_config):
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_oauth_connection_workflow(oauth_config):
+async def test_oauth_connection_workflow(oauth_config):
     """Test complete OAuth connection workflow."""
     logger.info("Testing complete OAuth connection workflow...")
 
@@ -71,7 +71,7 @@ def test_oauth_connection_workflow(oauth_config):
 
     # Test connection (this will internally handle OAuth LST generation)
     logger.info("Connecting to IBKR using OAuth...")
-    client.connect()
+    await client.connect()
 
     assert client.is_connected(), "Failed to connect using OAuth"
 
@@ -85,15 +85,8 @@ def test_oauth_connection_workflow(oauth_config):
 
     logger.info(f"✓ Account retrieved: {account_id}")
 
-    # Test a simple read operation
-    try:
-        balance = client.get_account_balance()
-        logger.info(f"✓ Account balance retrieved: {balance is not None}")
-    except Exception as e:
-        logger.warning(f"Could not retrieve account balance: {e}")
-
     # Cleanup
-    client.disconnect()
+    await client.disconnect()
     assert not client.is_connected(), "Failed to disconnect"
 
     logger.info("✓ OAuth workflow completed successfully")
@@ -101,24 +94,24 @@ def test_oauth_connection_workflow(oauth_config):
 
 @pytest.mark.integration
 @pytest.mark.manual
-def test_oauth_session_persistence(oauth_config):
+async def test_oauth_session_persistence(oauth_config):
     """Test OAuth session persistence and reconnection."""
     logger.info("Testing OAuth session persistence...")
 
     client = IBKRClient(paper_trading=True)
 
     # First connection
-    client.connect()
+    await client.connect()
     assert client.is_connected(), "Initial connection failed"
 
     account_id_1 = client.get_account()
 
     # Disconnect
-    client.disconnect()
+    await client.disconnect()
     assert not client.is_connected(), "Disconnection failed"
 
     # Reconnect (should generate new LST)
-    client.connect()
+    await client.connect()
     assert client.is_connected(), "Reconnection failed"
 
     account_id_2 = client.get_account()
@@ -131,7 +124,7 @@ def test_oauth_session_persistence(oauth_config):
     logger.info("✓ OAuth session persistence working correctly")
 
     # Cleanup
-    client.disconnect()
+    await client.disconnect()
 
 
 if __name__ == "__main__":
@@ -152,10 +145,12 @@ if __name__ == "__main__":
     }
 
     try:
+        import asyncio
+
         test_oauth_lst_generation(config)
         test_client_creation_with_oauth(config)
-        test_oauth_connection_workflow(config)
-        test_oauth_session_persistence(config)
+        asyncio.run(test_oauth_connection_workflow(config))
+        asyncio.run(test_oauth_session_persistence(config))
 
         logger.info("\n✓ All OAuth full flow tests completed successfully!")
 

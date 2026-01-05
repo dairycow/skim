@@ -149,6 +149,7 @@ async def test_get_market_data_retries_after_preflight_warmup(mocker):
     result = await market_data_service.get_market_data("ABC")
 
     assert result is not None
+    assert not isinstance(result, dict)
     assert result.ticker == "ABC"
     assert result.last_price == 1.0
     assert result.high == 1.2

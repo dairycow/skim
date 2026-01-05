@@ -76,6 +76,7 @@ class TestIBKRPennyStockParsing:
         result = await market_data_service.get_market_data("123456")
 
         assert result is not None
+        assert not isinstance(result, dict)
         assert validate_minimum_price(result.last_price)
         assert result.last_price == 0.005
         assert result.bid == 0.004

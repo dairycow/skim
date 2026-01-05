@@ -274,4 +274,4 @@ class TestTradingBotDiscordIntegration:
         assert result == 1
 
         # Verify Discord notifier was created with None URL
-        assert bot.discord_notifier.webhook_url is None
+        assert bot.discord.webhook_url is None

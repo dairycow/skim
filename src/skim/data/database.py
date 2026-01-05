@@ -75,8 +75,6 @@ class Database:
         """
         from .models import Candidate
 
-        from .models import Candidate
-
         with self.get_session() as session:
             conditions = []
             if strategy_name:

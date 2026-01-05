@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from loguru import logger
-from sqlmodel import Session, col, delete, select
+from sqlmodel import col, delete, select
 
 from skim.data.models import (
     Candidate,
