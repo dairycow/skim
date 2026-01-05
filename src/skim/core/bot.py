@@ -104,6 +104,30 @@ class TradingBot:
         strat = self._get_strategy(strategy)
         return await strat.scan()
 
+    async def track_ranges(self, strategy: str = "orh_breakout") -> int:
+        """Track opening ranges for candidates
+
+        Args:
+            strategy: Strategy name to track ranges for
+
+        Returns:
+            Number of candidates updated with opening ranges
+        """
+        strat = self._get_strategy(strategy)
+        return await strat.track_ranges()
+
+    async def alert(self, strategy: str = "orh_breakout") -> int:
+        """Send alerts for tradeable candidates
+
+        Args:
+            strategy: Strategy name to alert for
+
+        Returns:
+            Number of candidates alerted
+        """
+        strat = self._get_strategy(strategy)
+        return await strat.alert()
+
     async def fetch_market_data(self, ticker: str):
         """Fetch a single ticker's market data via IBKR."""
         if not ticker:
@@ -208,7 +232,7 @@ def main():
 
     if len(sys.argv) < 2:
         logger.error(
-            "No method specified. Available: scan, trade, manage, status, purge_candidates, fetch_market_data"
+            "No method specified. Available: scan, track_ranges, alert, trade, manage, status, purge_candidates, fetch_market_data"
         )
         sys.exit(1)
 
@@ -218,6 +242,10 @@ def main():
         try:
             if method == "scan":
                 await bot.scan()
+            elif method == "track_ranges":
+                await bot.track_ranges()
+            elif method == "alert":
+                await bot.alert()
             elif method in ("fetch_market_data", "market_data"):
                 if len(sys.argv) < 3:
                     logger.error(

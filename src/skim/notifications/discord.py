@@ -51,14 +51,15 @@ def _handle_discord_errors(func: Callable) -> Callable:
     return wrapper
 
 
-def _format_gap_candidate_list(candidates: list[dict]) -> str:
-    """Format gap candidate list for Discord display
+def _format_tradeable_candidate_list(candidates: list[dict]) -> str:
+    """Format tradeable candidate list for Discord display
 
     Args:
-        candidates: List of candidate dictionaries
+        candidates: List of candidate dictionaries with ticker, gap_percent,
+                    headline, or_high, or_low
 
     Returns:
-        Formatted string for Discord
+        Formatted string for Discord (truncated if > 1024 chars)
     """
     if not candidates:
         return "None"
@@ -66,95 +67,45 @@ def _format_gap_candidate_list(candidates: list[dict]) -> str:
     formatted_candidates = []
     for candidate in candidates:
         ticker = candidate.get("ticker", "UNKNOWN")
-        gap_percent = candidate.get("gap_percent")
-
-        gap_str = f"{gap_percent:.1f}%" if gap_percent is not None else "N/A"
-
-        formatted_candidates.append(f"• **{ticker}** - Gap: {gap_str}")
-
-    return "\n".join(formatted_candidates)
-
-
-def _format_news_candidate_list(candidates: list[dict]) -> str:
-    """Format news candidate list for Discord display
-
-    Args:
-        candidates: List of candidate dictionaries
-
-    Returns:
-        Formatted string for Discord
-    """
-    if not candidates:
-        return "None"
-
-    formatted_candidates = []
-    for candidate in candidates[:10]:
-        ticker = candidate.get("ticker", "UNKNOWN")
-        headline = candidate.get("headline", "No announcement")
-
-        headline_truncated = headline[:80]
-
-        formatted_candidates.append(f"• **{ticker}**\n  {headline_truncated}")
-
-    if len(candidates) > 10:
-        formatted_candidates.append(f"\n... and {len(candidates) - 10} more")
-
-    return "\n".join(formatted_candidates)
-
-
-def _format_candidate_list(candidates: list[dict]) -> str:
-    """Format candidate list for Discord display
-
-    Args:
-        candidates: List of candidate dictionaries
-
-    Returns:
-        Formatted string for Discord
-    """
-    if not candidates:
-        return "None"
-
-    formatted_candidates = []
-    for candidate in candidates:
-        ticker = candidate.get("ticker", "UNKNOWN")
-        gap_percent = candidate.get("gap_percent")
-        headline = candidate.get("headline")
-
-        gap_str = f"{gap_percent:.1f}%" if gap_percent is not None else "N/A"
-        headline_str = headline if headline else "No announcement"
-
-        formatted_candidates.append(
-            f"• **{ticker}** - Gap: {gap_str}\n  {headline_str}"
+        gap = (
+            f"{candidate.get('gap_percent', 0):.1f}%"
+            if candidate.get("gap_percent")
+            else "N/A"
+        )
+        headline_str = candidate.get("headline", "") or "No headline"
+        headline = (
+            (headline_str[:55] + "...")
+            if len(headline_str) > 55
+            else headline_str
+        )
+        orh = (
+            f"{candidate.get('or_high', 0):.2f}"
+            if candidate.get("or_high")
+            else "N/A"
+        )
+        orl = (
+            f"{candidate.get('or_low', 0):.2f}"
+            if candidate.get("or_low")
+            else "N/A"
         )
 
-    return "\n".join(formatted_candidates)
+        formatted = f"• **{ticker}** - Gap: {gap} | ORH: {orh} | ORL: {orl}\n  {headline}"
+        formatted_candidates.append(formatted)
+
+    result = "\n".join(formatted_candidates)
+    if len(result) > 1024:
+        result = result[:1007] + "\n... (truncated)"
+
+    return result
 
 
-SCAN_RESULTS_TEMPLATE = EmbedTemplate(
-    title="ASX Market Scan Complete",
+TRADEABLE_CANDIDATES_TEMPLATE = EmbedTemplate(
+    title="Tradeable Candidates Ready",
     color=0x00FF00,
-    empty_description="No new candidates found with price-sensitive announcements",
-    success_description=lambda count: f"{count} new candidates found",
-    field_name="New Candidates",
-    formatter=_format_candidate_list,
-)
-
-GAP_CANDIDATES_TEMPLATE = EmbedTemplate(
-    title="Gap Scan Complete",
-    color=0xFF6600,
-    empty_description="No gap candidates found",
-    success_description=lambda count: f"{count} gap candidates found",
-    field_name="Gap Candidates",
-    formatter=_format_gap_candidate_list,
-)
-
-NEWS_CANDIDATES_TEMPLATE = EmbedTemplate(
-    title="News Scan Complete",
-    color=0x0099FF,
-    empty_description="No news candidates found",
-    success_description=lambda count: f"{count} news candidates found",
-    field_name="News Candidates",
-    formatter=_format_news_candidate_list,
+    empty_description="No tradeable candidates found",
+    success_description=lambda count: f"{count} tradeable candidates",
+    field_name="Candidates",
+    formatter=_format_tradeable_candidate_list,
 )
 
 
@@ -169,63 +120,21 @@ class DiscordNotifier:
         """
         self.webhook_url = webhook_url
 
-    def send_scan_results(
+    def send_tradeable_candidates(
         self, candidates_found: int, candidates: list[dict[str, Any]]
     ) -> bool:
-        """Send scan results notification to Discord
+        """Send tradeable candidates notification
 
         Args:
-            candidates_found: Number of candidates found
-            candidates: List of candidate dictionaries with ticker, gap_percent, price
-
-        Returns:
-            True if notification sent successfully, False otherwise
-        """
-        if candidates_found < 0:
-            return self._send_embed_notification(
-                template=SCAN_RESULTS_TEMPLATE,
-                candidates_found=candidates_found,
-                candidates=candidates,
-                is_error=True,
-            )
-        return self._send_embed_notification(
-            template=SCAN_RESULTS_TEMPLATE,
-            candidates_found=candidates_found,
-            candidates=candidates,
-        )
-
-    def send_gap_candidates(
-        self, candidates_found: int, candidates: list[dict[str, Any]]
-    ) -> bool:
-        """Send gap-only candidates notification
-
-        Args:
-            candidates_found: Number of candidates found
-            candidates: List of candidate dictionaries with ticker, gap_percent
+            candidates_found: Number of tradeable candidates found
+            candidates: List of candidate dictionaries with ticker, gap_percent,
+                        headline, or_high, or_low
 
         Returns:
             True if notification sent successfully, False otherwise
         """
         return self._send_embed_notification(
-            template=GAP_CANDIDATES_TEMPLATE,
-            candidates_found=candidates_found,
-            candidates=candidates,
-        )
-
-    def send_news_candidates(
-        self, candidates_found: int, candidates: list[dict[str, Any]]
-    ) -> bool:
-        """Send news-only candidates notification
-
-        Args:
-            candidates_found: Number of candidates found
-            candidates: List of candidate dictionaries with ticker, headline
-
-        Returns:
-            True if notification sent successfully, False otherwise
-        """
-        return self._send_embed_notification(
-            template=NEWS_CANDIDATES_TEMPLATE,
+            template=TRADEABLE_CANDIDATES_TEMPLATE,
             candidates_found=candidates_found,
             candidates=candidates,
         )

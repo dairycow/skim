@@ -24,38 +24,39 @@ class TestDiscordNotifier:
 
         assert notifier.webhook_url is None
 
-    def test_send_scan_results_success(self, mocker):
-        """Test successful scan results notification"""
+    def test_send_tradeable_candidates_success(self, mocker):
+        """Test successful tradeable candidates notification"""
         webhook_url = "https://discord.com/api/webhooks/test/webhook"
         notifier = DiscordNotifier(webhook_url)
 
-        # Mock successful HTTP response
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
-
         mock_post = mocker.patch("requests.post", return_value=mock_response)
 
         candidates = [
             {
                 "ticker": "BHP",
                 "gap_percent": 5.5,
-                "headline": "Trading Halt",
+                "headline": "Results Released",
+                "or_high": 47.80,
+                "or_low": 45.90,
             },
             {
                 "ticker": "RIO",
                 "gap_percent": 4.2,
-                "headline": "Results Released",
+                "headline": "Trading Halt",
+                "or_high": 92.30,
+                "or_low": 90.10,
             },
         ]
 
-        result = notifier.send_scan_results(
+        result = notifier.send_tradeable_candidates(
             candidates_found=2, candidates=candidates
         )
 
         assert result is True
         mock_post.assert_called_once()
 
-        # Verify the call arguments
         call_args = mock_post.call_args
         assert call_args[0][0] == webhook_url
         assert "json" in call_args[1]
@@ -65,17 +66,38 @@ class TestDiscordNotifier:
         assert len(payload["embeds"]) == 1
 
         embed = payload["embeds"][0]
-        assert embed["title"] == "ASX Market Scan Complete"
-        assert "2 new candidates found" in embed["description"]
-        assert embed["color"] == 0x00FF00  # Green colour
+        assert embed["title"] == "Tradeable Candidates Ready"
+        assert "2 tradeable candidates" in embed["description"]
+        assert embed["color"] == 0x00FF00
 
-    def test_send_scan_results_no_webhook(self):
-        """Test scan results notification without webhook URL"""
+    def test_send_tradeable_candidates_no_webhook(self):
+        """Test tradeable candidates notification without webhook URL"""
         notifier = DiscordNotifier(None)
 
-        result = notifier.send_scan_results(candidates_found=2, candidates=[])
+        result = notifier.send_tradeable_candidates(
+            candidates_found=2, candidates=[]
+        )
 
         assert result is False
+
+    def test_send_tradeable_candidates_empty(self, mocker):
+        """Test empty tradeable candidates notification"""
+        webhook_url = "https://discord.com/api/webhooks/test/webhook"
+        notifier = DiscordNotifier(webhook_url)
+
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_post = mocker.patch("requests.post", return_value=mock_response)
+
+        result = notifier.send_tradeable_candidates(
+            candidates_found=0, candidates=[]
+        )
+
+        assert result is True
+        payload = mock_post.call_args[1]["json"]
+        embed = payload["embeds"][0]
+        assert embed["description"] == "No tradeable candidates found"
+        assert embed["color"] == 0xFFFF00
 
     @pytest.mark.parametrize(
         "exception_type,exception_msg,test_description",
@@ -93,14 +115,13 @@ class TestDiscordNotifier:
             (requests.exceptions.Timeout, "Timeout", "timeout"),
         ],
     )
-    def test_send_scan_results_error_handling(
+    def test_send_tradeable_candidates_error_handling(
         self, mocker, exception_type, exception_msg, test_description
     ):
-        """Test scan results notification handles various errors (parameterized)"""
+        """Test tradeable candidates notification handles various errors (parameterized)"""
         webhook_url = "https://discord.com/api/webhooks/test/webhook"
         notifier = DiscordNotifier(webhook_url)
 
-        # For HTTPError, we need to mock the response object differently
         if exception_type == requests.exceptions.HTTPError:
             mock_response = Mock()
             mock_response.raise_for_status.side_effect = exception_type(
@@ -112,62 +133,100 @@ class TestDiscordNotifier:
                 "requests.post", side_effect=exception_type(exception_msg)
             )
 
-        result = notifier.send_scan_results(candidates_found=1, candidates=[])
+        result = notifier.send_tradeable_candidates(
+            candidates_found=1, candidates=[]
+        )
 
         assert result is False
 
-    def test_format_candidate_list(self):
-        """Test candidate list formatting with headlines"""
-        from skim.notifications.discord import _format_candidate_list
+    def test_format_tradeable_candidate_list(self):
+        """Test tradeable candidate list formatting"""
+        from skim.notifications.discord import _format_tradeable_candidate_list
 
         candidates = [
             {
                 "ticker": "BHP",
                 "gap_percent": 5.5,
-                "headline": "Trading Halt Announcement",
+                "headline": "Results Released",
+                "or_high": 47.80,
+                "or_low": 45.90,
             },
             {
                 "ticker": "RIO",
                 "gap_percent": 4.2,
-                "headline": "Quarterly Results Released",
+                "headline": "Trading Halt Announcement",
+                "or_high": 92.30,
+                "or_low": 90.10,
             },
         ]
 
-        formatted = _format_candidate_list(candidates)
+        formatted = _format_tradeable_candidate_list(candidates)
 
         assert "**BHP**" in formatted
         assert "**RIO**" in formatted
         assert "5.5%" in formatted
         assert "4.2%" in formatted
-        assert "Trading Halt Announcement" in formatted
-        assert "Quarterly Results Released" in formatted
+        assert "47.80" in formatted
+        assert "92.30" in formatted
+        assert "Results Release" in formatted
+        assert "Trading Halt Announce" in formatted
 
-    def test_format_candidate_list_empty(self):
-        """Test empty candidate list formatting"""
-        from skim.notifications.discord import _format_candidate_list
+    def test_format_tradeable_candidate_list_empty(self):
+        """Test empty tradeable candidate list formatting"""
+        from skim.notifications.discord import _format_tradeable_candidate_list
 
-        formatted = _format_candidate_list([])
+        formatted = _format_tradeable_candidate_list([])
 
         assert formatted == "None"
 
-    def test_format_candidate_list_missing_data(self):
-        """Test candidate list formatting with missing headline"""
-        from skim.notifications.discord import _format_candidate_list
+    def test_format_tradeable_candidate_list_missing_data(self):
+        """Test tradeable candidate list formatting with missing data"""
+        from skim.notifications.discord import _format_tradeable_candidate_list
 
         candidates = [
-            {"ticker": "BHP", "gap_percent": 5.5, "headline": None},
-            {"ticker": "RIO", "gap_percent": 4.2},  # Missing headline key
+            {
+                "ticker": "BHP",
+                "gap_percent": 5.5,
+                "headline": None,
+                "or_high": 47.80,
+                "or_low": 45.90,
+            },
+            {
+                "ticker": "RIO",
+                "gap_percent": None,
+                "headline": "Results",
+                "or_high": None,
+                "or_low": None,
+            },
         ]
 
-        formatted = _format_candidate_list(candidates)
+        formatted = _format_tradeable_candidate_list(candidates)
 
         assert "**BHP**" in formatted
         assert "**RIO**" in formatted
-        assert "5.5%" in formatted
-        assert "4.2%" in formatted
-        assert (
-            "No announcement" in formatted
-        )  # Should show fallback for missing headline
+        assert "No headline" in formatted
+        assert "Gap: N/A" in formatted
+        assert "ORH: N/A" in formatted
+
+    def test_format_tradeable_candidate_list_truncation(self):
+        """Test tradeable candidate list truncation at 1024 chars"""
+        from skim.notifications.discord import _format_tradeable_candidate_list
+
+        candidates = [
+            {
+                "ticker": f"STK{i:03d}",
+                "gap_percent": 1.0,
+                "headline": "A" * 100,
+                "or_high": 10.0,
+                "or_low": 9.0,
+            }
+            for i in range(20)
+        ]
+
+        formatted = _format_tradeable_candidate_list(candidates)
+
+        assert len(formatted) <= 1024
+        assert "... (truncated)" in formatted
 
     def test_send_trade_notification_success(self, mocker):
         """Test successful trade notification."""

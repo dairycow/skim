@@ -129,18 +129,6 @@ class ORHBreakoutStrategy(Strategy):
                 for candidate in candidates:
                     self.db.save_stock_in_play(candidate)
 
-            # Notify via Discord
-            try:
-                payload = [
-                    {"ticker": c.ticker, "gap_percent": c.gap_percent}
-                    for c in candidates
-                ]
-                self.discord.send_gap_candidates(count, payload)
-            except Exception as notify_err:
-                logger.error(
-                    f"Failed to send Discord gap notification: {notify_err}"
-                )
-
             logger.info(f"Gap scan complete. Found {count} candidates")
             return count
         except Exception as e:
@@ -163,18 +151,6 @@ class ORHBreakoutStrategy(Strategy):
             else:
                 for candidate in candidates:
                     self.db.save_stock_in_play(candidate)
-
-            # Notify via Discord
-            try:
-                payload = [
-                    {"ticker": c.ticker, "headline": c.headline}
-                    for c in candidates
-                ]
-                self.discord.send_news_candidates(count, payload)
-            except Exception as notify_err:
-                logger.error(
-                    f"Failed to send Discord news notification: {notify_err}"
-                )
 
             logger.info(f"News scan complete. Found {count} candidates")
             return count
@@ -274,6 +250,39 @@ class ORHBreakoutStrategy(Strategy):
             return len(events)
         except Exception as e:
             logger.error(f"Position management failed: {e}", exc_info=True)
+            return 0
+
+    async def alert(self) -> int:
+        """Send Discord notification for tradeable candidates
+
+        Returns:
+            Number of candidates alerted
+        """
+        logger.info("Sending alert for tradeable candidates...")
+        try:
+            candidates = self.db.get_tradeable_candidates()
+            count = len(candidates)
+
+            if not candidates:
+                logger.info("No tradeable candidates to alert")
+                return 0
+
+            payload = [
+                {
+                    "ticker": c.ticker,
+                    "gap_percent": c.gap_percent,
+                    "headline": c.headline,
+                    "or_high": c.or_high,
+                    "or_low": c.or_low,
+                }
+                for c in candidates
+            ]
+
+            self.discord.send_tradeable_candidates(count, payload)
+            logger.info(f"Alert sent for {count} tradeable candidates")
+            return count
+        except Exception as e:
+            logger.error(f"Alert failed: {e}", exc_info=True)
             return 0
 
     async def health_check(self) -> bool:

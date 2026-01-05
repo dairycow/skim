@@ -52,3 +52,14 @@ class Strategy(ABC):
             True if strategy is healthy
         """
         return True
+
+    async def alert(self) -> int:
+        """Send notifications for tradeable candidates
+
+        Strategies can override this to send Discord alerts.
+        Called after track_ranges completes and before trade execution.
+
+        Returns:
+            Number of candidates alerted
+        """
+        return 0

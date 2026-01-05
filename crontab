@@ -9,8 +9,13 @@
 55 22 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot purge_candidates >> /opt/skim/logs/cron.log 2>&1
 
 # Morning scan (10:00 AM AEDT = 23:00 UTC)
-# Runs full scan (gaps + news + range tracking) via ORH Breakout Strategy
-1 23 * * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
+1 23 * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan >> /opt/skim/logs/cron.log 2>&1
+
+# Track opening ranges (10:10 AM AEDT = 23:10 UTC)
+10 23 * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot track_ranges >> /opt/skim/logs/cron.log 2>&1
+
+# Alert tradeable candidates (10:12 AM AEDT = 23:12 UTC)
+12 23 * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot alert >> /opt/skim/logs/cron.log 2>&1
 
 # Execute breakouts (10:15 AM AEDT onwards, every 5 minutes)
 # Check candidates and buy when price > ORH

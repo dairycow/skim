@@ -13,7 +13,7 @@ def crontab_content():
 
 
 def test_crontab_runs_bot_methods(crontab_content):
-    for command in ("scan", "trade", "manage"):
+    for command in ("scan", "track_ranges", "alert", "trade", "manage"):
         assert f"-m skim.core.bot {command}" in crontab_content
 
 
@@ -23,8 +23,8 @@ def test_crontab_uses_venv_python(crontab_content):
 
 
 def test_crontab_includes_scan_at_market_open(crontab_content):
-    """crontab should include scan at 23:00 UTC (10:00 AM AEDT)."""
+    """crontab should include scan at 23:01 UTC (10:01 AM AEDT)."""
     assert (
-        "1 23 * * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan"
+        "1 23 * * 0-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.core.bot scan"
         in crontab_content
     )
