@@ -64,5 +64,12 @@ git worktree remove "$WORKTREE_PATH"
 echo "Deleting branch: $BRANCH_NAME"
 git branch -d "$BRANCH_NAME"
 
+# Delete database file
+DB_PATH="$PROJECT_ROOT/data/skim.db"
+if [ -f "$DB_PATH" ]; then
+    echo "Deleting database file: $DB_PATH"
+    rm "$DB_PATH"
+fi
+
 echo ""
 echo "Successfully merged $BRANCH_NAME into main and cleaned up worktree."
