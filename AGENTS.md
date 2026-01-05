@@ -93,12 +93,16 @@ Skim: Automated ASX trading bot using Strategy pattern with multiple trading str
 ### Architecture & State
 - Strategy pattern: TradingBot delegates to strategy implementations
 - Strategies: Independent, self-contained implementations in src/skim/strategies/
+- CandidateRepository protocol for strategy-specific candidate management
+- Each strategy owns its candidate data through dedicated repository
+- Database handles generic operations only (positions, candidate status updates)
 - States: Candidates (watching→entered→closed); Positions (open→closed)
 - Protocol-based abstractions in brokers/protocols.py for testability
 - Core orchestrator: src/skim/core/bot.py (multi-strategy dispatcher)
 - Shared services: IBKRClient, Database, Discord (injected into strategies)
 - Use async/await for IBKR client operations
 - Database and models in data/; persistence handled by Database class
+- New strategies create their own repository and table in src/skim/data/repositories/
 
 ### Deployment & Logging
 - GitOps to prod via main branch

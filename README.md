@@ -4,7 +4,7 @@ Automated ASX trading bot using a multi-strategy architecture with Strategy patt
 
 ## Features
 
-- Multi-strategy architecture with Strategy pattern
+- Multi-strategy architecture with strategy-specific candidate repositories
 - ORH breakout strategy (Opening Range High)
 - Easy to add new trading strategies
 - Cron-scheduled trading workflow

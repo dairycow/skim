@@ -59,8 +59,11 @@ The bot operates in four distinct phases (all times AEDT):
 - `ibkr_scanner.py` - Stock scanner integration
 
 **Data Layer** (src/skim/data/):
-- `database.py` - SQLite persistence
-- `models.py` - Data models (Candidate, Position)
+- `database.py` - SQLite persistence (generic operations only)
+- `repositories/` - Strategy-specific candidate repositories
+  - `base.py` - CandidateRepository protocol (generic interface)
+  - `orh_repository.py` - ORH strategy implementation
+- `models.py` - Data models (Candidate, Position, ORHCandidate)
 
 ### Status Transitions
 
@@ -128,6 +131,12 @@ Each workflow phase (scan, track_ranges, trade, manage) is independent and testa
 1. Update `ScannerConfig` in `src/skim/core/config.py`
 2. Update tests in `tests/unit/test_scanner.py`
 3. Modify `Scanner` class in `src/skim/scanner.py`
+
+### Adding New Trading Strategies
+1. Create repository in `src/skim/data/repositories/<strategy>_repository.py` implementing `CandidateRepository` protocol
+2. Create strategy table in `src/skim/data/models.py` for strategy-specific data
+3. Implement strategy in `src/skim/strategies/<strategy>.py`
+4. Register in `src/skim/core/bot.py` _register_strategies() method
 
 ### Adding New Broker Features
 1. Add method to appropriate service in `src/skim/brokers/`
