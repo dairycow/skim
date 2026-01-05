@@ -261,18 +261,18 @@ class ORHBreakoutStrategy(Strategy):
             return 0
 
     async def alert(self) -> int:
-        """Send Discord notification for tradeable candidates
+        """Send Discord notification for alertable candidates
 
         Returns:
             Number of candidates alerted
         """
-        logger.info("Sending alert for tradeable candidates...")
+        logger.info("Sending alert for alertable candidates...")
         try:
-            candidates = self.orh_repo.get_tradeable_candidates()
+            candidates = self.orh_repo.get_alertable_candidates()
             count = len(candidates)
 
             if not candidates:
-                logger.info("No tradeable candidates to alert")
+                logger.info("No alertable candidates to alert")
                 return 0
 
             payload = [
@@ -280,14 +280,12 @@ class ORHBreakoutStrategy(Strategy):
                     "ticker": c.ticker,
                     "gap_percent": c.gap_percent,
                     "headline": c.headline,
-                    "or_high": c.or_high,
-                    "or_low": c.or_low,
                 }
                 for c in candidates
             ]
 
             self.discord.send_tradeable_candidates(count, payload)
-            logger.info(f"Alert sent for {count} tradeable candidates")
+            logger.info(f"Alert sent for {count} alertable candidates")
             return count
         except Exception as e:
             logger.error(f"Alert failed: {e}", exc_info=True)

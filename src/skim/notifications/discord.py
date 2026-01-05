@@ -56,7 +56,7 @@ def _format_tradeable_candidate_list(candidates: list[dict]) -> str:
 
     Args:
         candidates: List of candidate dictionaries with ticker, gap_percent,
-                    headline, or_high, or_low
+                    headline, or_high (optional), or_low (optional)
 
     Returns:
         Formatted string for Discord (truncated if > 1024 chars)
@@ -128,7 +128,7 @@ class DiscordNotifier:
         Args:
             candidates_found: Number of tradeable candidates found
             candidates: List of candidate dictionaries with ticker, gap_percent,
-                        headline, or_high, or_low
+                        headline, or_high (optional), or_low (optional)
 
         Returns:
             True if notification sent successfully, False otherwise
