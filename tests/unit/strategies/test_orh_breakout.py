@@ -29,31 +29,27 @@ class TestORHBreakoutStrategyAlert:
 
     async def test_alert_sends_tradeable_candidates(self, mock_strategy):
         """alert() should query DB and send Discord notification."""
-        mock_tradeable = [
+        mock_alertable = [
             Mock(
                 ticker="BHP",
                 gap_percent=5.0,
                 headline="Results",
-                or_high=47.80,
-                or_low=45.90,
             ),
             Mock(
                 ticker="RIO",
                 gap_percent=4.2,
                 headline="Halt",
-                or_high=92.30,
-                or_low=90.10,
             ),
         ]
-        mock_strategy.orh_repo.get_tradeable_candidates = Mock(
-            return_value=mock_tradeable
+        mock_strategy.orh_repo.get_alertable_candidates = Mock(
+            return_value=mock_alertable
         )
         mock_strategy.discord.send_tradeable_candidates = Mock()
 
         count = await mock_strategy.alert()
 
         assert count == 2
-        mock_strategy.orh_repo.get_tradeable_candidates.assert_called_once()
+        mock_strategy.orh_repo.get_alertable_candidates.assert_called_once()
         mock_strategy.discord.send_tradeable_candidates.assert_called_once_with(
             2,
             [
@@ -61,32 +57,28 @@ class TestORHBreakoutStrategyAlert:
                     "ticker": "BHP",
                     "gap_percent": 5.0,
                     "headline": "Results",
-                    "or_high": 47.80,
-                    "or_low": 45.90,
                 },
                 {
                     "ticker": "RIO",
                     "gap_percent": 4.2,
                     "headline": "Halt",
-                    "or_high": 92.30,
-                    "or_low": 90.10,
                 },
             ],
         )
 
     async def test_alert_returns_zero_when_no_candidates(self, mock_strategy):
-        """alert() should return 0 when no tradeable candidates exist."""
-        mock_strategy.orh_repo.get_tradeable_candidates = Mock(return_value=[])
+        """alert() should return 0 when no alertable candidates exist."""
+        mock_strategy.orh_repo.get_alertable_candidates = Mock(return_value=[])
 
         count = await mock_strategy.alert()
 
         assert count == 0
-        mock_strategy.orh_repo.get_tradeable_candidates.assert_called_once()
+        mock_strategy.orh_repo.get_alertable_candidates.assert_called_once()
         mock_strategy.discord.send_tradeable_candidates.assert_not_called()
 
     async def test_alert_handles_database_error(self, mock_strategy):
         """alert() should return 0 and log error when DB query fails."""
-        mock_strategy.orh_repo.get_tradeable_candidates = Mock(
+        mock_strategy.orh_repo.get_alertable_candidates = Mock(
             side_effect=Exception("DB error")
         )
 

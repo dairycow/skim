@@ -222,6 +222,36 @@ class ORHCandidateRepository:
                 for orh, candidate in results
             ]
 
+    def get_alertable_candidates(self) -> list[TradeableCandidate]:
+        """Get candidates with gap and news (no range requirement)
+
+        Returns:
+            List of TradeableCandidate objects ready for alerting
+        """
+        with self.db.get_session() as session:
+            statement = (
+                select(ORHCandidate, Candidate)
+                .join(Candidate)
+                .where(col(ORHCandidate.gap_percent).is_not(None))
+                .where(col(ORHCandidate.headline).is_not(None))
+                .where(Candidate.status == "watching")
+            )
+            results = session.exec(statement).all()
+
+            return [
+                TradeableCandidate(
+                    ticker=orh.ticker,
+                    scan_date=candidate.scan_date,
+                    status=candidate.status,
+                    gap_percent=orh.gap_percent or 0.0,
+                    conid=orh.conid,
+                    headline=orh.headline or "",
+                    or_high=0.0,
+                    or_low=0.0,
+                )
+                for orh, candidate in results
+            ]
+
     def get_candidates_needing_ranges(self) -> list[GapStockInPlay]:
         """Get gap+news candidates without opening ranges
 

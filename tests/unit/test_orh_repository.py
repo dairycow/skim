@@ -122,6 +122,38 @@ def test_get_tradeable_candidates_requires_all_data(
     assert len(tradeable) == 1
 
 
+def test_get_alertable_candidates_no_range_required(
+    orh_repo, sample_gap_candidate, sample_news_candidate
+):
+    """Alertable candidates only need gap and news"""
+    orh_repo.save_gap_candidate(sample_gap_candidate)
+    orh_repo.save_news_candidate(sample_news_candidate)
+
+    alertable = orh_repo.get_alertable_candidates()
+
+    assert len(alertable) == 1
+    assert alertable[0].ticker == "BHP"
+    assert alertable[0].gap_percent == 5.0
+    assert alertable[0].headline == "Results Released"
+    assert alertable[0].or_high == 0.0
+    assert alertable[0].or_low == 0.0
+
+
+def test_get_alertable_candidates_requires_gap_and_news(
+    orh_repo, sample_gap_candidate, sample_news_candidate
+):
+    """Alertable candidates need both gap and news"""
+    orh_repo.save_gap_candidate(sample_gap_candidate)
+
+    alertable = orh_repo.get_alertable_candidates()
+    assert len(alertable) == 0
+
+    orh_repo.save_news_candidate(sample_news_candidate)
+
+    alertable = orh_repo.get_alertable_candidates()
+    assert len(alertable) == 1
+
+
 def test_get_candidates_needing_ranges(
     orh_repo, sample_gap_candidate, sample_news_candidate
 ):
