@@ -127,16 +127,16 @@ if __name__ == "__main__":
 
     test_client = IBKRClient(paper_trading=True)
     asyncio.run(test_client.connect())
-    services = (
+    test_services = (
         IBKRMarketData(test_client),
         IBKROrders(test_client, IBKRMarketData(test_client)),
     )
 
     try:
-        asyncio.run(test_account_balance(services))
-        asyncio.run(test_get_positions(services))
-        asyncio.run(test_market_data(services))
-        asyncio.run(test_contract_caching(services))
+        asyncio.run(test_account_balance(test_services))
+        asyncio.run(test_get_positions(test_services))
+        asyncio.run(test_market_data(test_services))
+        asyncio.run(test_contract_caching(test_services))
 
         logger.info(
             "\n✓ All client read operation tests completed successfully!"

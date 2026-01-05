@@ -123,12 +123,7 @@ class TestPennyStockScanning:
             "DU12345"  # Mock get_account for IBKRScanner
         )
 
-        scanner_config = ScannerConfig(
-            instrument="STK",
-            locations=["STK.ASX"],
-            scan_code="TOP_PERC_GAIN",
-            filters={"excludeConvertible": True},
-        )
+        scanner_config = ScannerConfig()
         scanner = IBKRGapScanner(mock_ibkr_client, scanner_config)
 
         gap_stocks = await scanner.scan_for_gaps(min_gap=20.0)

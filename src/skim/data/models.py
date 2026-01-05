@@ -2,11 +2,10 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlmodel import (
     Field,
-    Relationship,
     SQLModel,
 )
 
@@ -114,7 +113,7 @@ class PositionBase(SQLModel):
 class Position(PositionBase, table=True):
     """Open trading position (database table)"""
 
-    __tablename__ = "positions"
+    __tablename__ = "positions"  # type: ignore[assignment]
 
     id: int | None = Field(default=None, primary_key=True)
     exit_price: float | None = None
@@ -139,7 +138,7 @@ class CandidateBase(SQLModel):
 class Candidate(CandidateBase, table=True):
     """Generic candidate for trading (database table)"""
 
-    __tablename__ = "candidates"
+    __tablename__ = "candidates"  # type: ignore[assignment]
 
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
@@ -147,7 +146,7 @@ class Candidate(CandidateBase, table=True):
 class ORHCandidate(SQLModel, table=True):
     """ORH-specific candidate data"""
 
-    __tablename__ = "orh_candidates"
+    __tablename__ = "orh_candidates"  # type: ignore[assignment]
 
     ticker: str = Field(primary_key=True, foreign_key="candidates.ticker")
     gap_percent: float | None = None

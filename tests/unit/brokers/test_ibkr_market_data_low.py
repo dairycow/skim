@@ -68,6 +68,7 @@ class TestIBKRMarketDataWithLow:
         result = await market_data_service.get_market_data("AAPL")
 
         assert result is not None
+        assert not isinstance(result, dict)
         assert result.ticker == "AAPL"
         assert result.last_price == 150.0
         assert result.bid == 149.5
@@ -108,6 +109,7 @@ class TestIBKRMarketDataWithLow:
         result = await market_data_service.get_market_data("AAPL")
 
         assert result is not None
+        assert not isinstance(result, dict)
         assert result.ticker == "AAPL"
         assert result.last_price == 150.0
         assert result.bid == 149.5

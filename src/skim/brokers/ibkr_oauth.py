@@ -78,6 +78,8 @@ def generate_lst(
         ciphertext=base64.b64decode(access_token_secret),
         sentinel=None,
     )
+    if bytes_decrypted_secret is None:
+        raise ValueError("Failed to decrypt access token secret")
     prepend = bytes_decrypted_secret.hex()
 
     # Step 6: Build OAuth parameters

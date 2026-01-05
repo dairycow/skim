@@ -96,6 +96,7 @@ class ASXAnnouncementScanner:
                                 headline=headline,
                                 announcement_type="pricesens",
                                 timestamp=timestamp,
+                                pdf_url=None,
                             )
                             announcements.append(announcement)
 

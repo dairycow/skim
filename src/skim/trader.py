@@ -62,15 +62,18 @@ class Trader:
         for candidate in candidates:
             try:
                 # Get current market data
-                market_data = await self.market_data_provider.get_market_data(
+                result = await self.market_data_provider.get_market_data(
                     candidate.ticker
                 )
-
-                if not market_data or not market_data.last_price:
+                if result is None or isinstance(result, dict):
                     logger.warning(f"{candidate.ticker}: No valid market data")
                     continue
 
-                current_price = market_data.last_price
+                if not result or not result.last_price:
+                    logger.warning(f"{candidate.ticker}: No valid market data")
+                    continue
+
+                current_price = result.last_price
 
                 # Check if price has broken above or_high
                 if current_price <= candidate.or_high:
@@ -166,15 +169,18 @@ class Trader:
         for position in positions:
             try:
                 # Get current market data
-                market_data = await self.market_data_provider.get_market_data(
+                result = await self.market_data_provider.get_market_data(
                     position.ticker
                 )
-
-                if not market_data or not market_data.last_price:
+                if result is None or isinstance(result, dict):
                     logger.warning(f"{position.ticker}: No valid market data")
                     continue
 
-                current_price = market_data.last_price
+                if not result or not result.last_price:
+                    logger.warning(f"{position.ticker}: No valid market data")
+                    continue
+
+                current_price = result.last_price
 
                 # Check if stop loss is hit
                 if current_price >= position.stop_loss:

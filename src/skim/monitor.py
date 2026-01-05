@@ -33,18 +33,14 @@ class Monitor:
             Current last price or None if unavailable
         """
         try:
-            market_data = await self.market_data_provider.get_market_data(
-                ticker
-            )
-
-            if (
-                not market_data
-                or not market_data.last_price
-                or market_data.last_price <= 0
-            ):
+            result = await self.market_data_provider.get_market_data(ticker)
+            if result is None or isinstance(result, dict):
                 return None
 
-            return market_data.last_price
+            if not result or not result.last_price or result.last_price <= 0:
+                return None
+
+            return result.last_price
 
         except Exception as e:
             logger.warning(f"Error fetching price for {ticker}: {e}")
