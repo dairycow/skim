@@ -64,9 +64,10 @@ class ORHBreakoutStrategy(Strategy):
 
         # Import here to avoid circular imports
         from skim.monitor import Monitor
-        from skim.range_tracker import RangeTracker
         from skim.scanners import GapScanner, NewsScanner
         from skim.trader import Trader
+
+        from .range_tracker import RangeTracker
 
         # Business logic modules
         self.gap_scanner = GapScanner(

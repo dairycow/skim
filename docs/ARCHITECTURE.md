@@ -81,7 +81,7 @@ Strategy-specific business logic modules:
 ### ORH Strategy Modules (strategy-specific)
 - `src/skim/scanners/gap_scanner.py` – Find gap-only candidates
 - `src/skim/scanners/news_scanner.py` – Find news-only candidates
-- `src/skim/range_tracker.py` – Sample and store ORH/ORL values
+- `src/skim/strategies/orh_breakout/range_tracker.py` – Sample and store ORH/ORL values
 - `src/skim/trader.py` – Execute breakout entries and stops
 - `src/skim/monitor.py` – Check positions, trigger stops
 

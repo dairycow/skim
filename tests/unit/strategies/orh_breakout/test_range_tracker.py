@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from skim.range_tracker import RangeTracker
+from skim.strategies.orh_breakout import RangeTracker
 
 
 @pytest.fixture
