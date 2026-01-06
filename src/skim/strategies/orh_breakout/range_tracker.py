@@ -12,8 +12,8 @@ from datetime import UTC, datetime, time, timedelta
 
 from loguru import logger
 
-from .brokers.protocols import MarketDataProvider
-from .data.repositories.orh_repository import ORHCandidateRepository
+from skim.brokers.protocols import MarketDataProvider
+from skim.data.repositories.orh_repository import ORHCandidateRepository
 
 
 class RangeTracker:
