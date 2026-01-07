@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from skim.data.models import Position, TradeableCandidate
-from skim.trader import TradeEvent, Trader
+from skim.strategies.orh_breakout import TradeEvent, Trader
 
 
 @pytest.fixture
