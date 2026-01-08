@@ -98,7 +98,7 @@ strategy.scan()
 └── scan_news() → Find news-only candidates → Merge with gap candidates
 ```
 
-#### 2. Range Tracking (10:10 AM, UTC clock)
+#### 2. Range Tracking (10:05 AM, UTC clock)
 ```python
 strategy.scan() → track_ranges()
 └── Get gap+news candidates → Sample market data → Set ORH/ORL

@@ -22,7 +22,7 @@ class ScannerConfig:
     price_filter: float = 0.05
 
     # Opening Range duration in minutes
-    or_duration_minutes: int = 10
+    or_duration_minutes: int = 5
 
     # Polling interval for OR tracking (seconds)
     or_poll_interval_seconds: int = 30

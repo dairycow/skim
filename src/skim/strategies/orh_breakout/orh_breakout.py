@@ -28,7 +28,7 @@ class ORHBreakoutStrategy(Strategy):
     Strategy phases:
     1. Scan for gap candidates (pre-market)
     2. Scan for news candidates (pre-market)
-    3. Track opening ranges (first 10 minutes)
+    3. Track opening ranges (first 5 minutes)
     4. Execute breakouts when price > ORH
     5. Manage positions with stop losses at ORL
     """

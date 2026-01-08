@@ -60,7 +60,7 @@ def sample_opening_range() -> OpeningRange:
         ticker="BHP",
         or_high=47.80,
         or_low=45.90,
-        sample_date="2025-11-03T10:10:00",
+        sample_date="2025-11-03T10:05:00",
     )
 
 
@@ -160,7 +160,7 @@ def scanner_config():
         gap_threshold=3.0,
         volume_filter=10000,
         price_filter=0.05,
-        or_duration_minutes=10,
+        or_duration_minutes=5,
         or_poll_interval_seconds=30,
         gap_fill_tolerance=0.05,
         or_breakout_buffer=0.1,

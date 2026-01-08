@@ -129,7 +129,7 @@ class TestScannerParameters:
             ("gap_threshold", 9.0),
             ("volume_filter", 10000),
             ("price_filter", 0.05),
-            ("or_duration_minutes", 10),
+            ("or_duration_minutes", 5),
             ("or_poll_interval_seconds", 30),
             ("gap_fill_tolerance", 0.05),
             ("or_breakout_buffer", 0.1),
@@ -205,7 +205,7 @@ class TestConfigLogging:
         assert "Scanner Gap Threshold: 9.0%" in log_output
         assert "Scanner Volume Filter: 10,000 shares" in log_output
         assert "Scanner Price Filter: $0.05" in log_output
-        assert "OR Duration: 10 minutes" in log_output
+        assert "OR Duration: 5 minutes" in log_output
         assert "OR Poll Interval: 30 seconds" in log_output
         assert "Gap Fill Tolerance: $0.05" in log_output
         assert "OR Breakout Buffer: $0.1" in log_output
