@@ -46,7 +46,7 @@ def test_scanner_config_default_values():
     # These should match the ASX-optimized defaults from config.py
     assert config.volume_filter == 10000
     assert config.price_filter == 0.05
-    assert config.or_duration_minutes == 10
+    assert config.or_duration_minutes == 5
     assert config.or_poll_interval_seconds == 30
     assert config.gap_fill_tolerance == 0.05
     assert config.or_breakout_buffer == 0.1
@@ -102,7 +102,7 @@ def test_scanner_config_asx_optimized_defaults():
         config.volume_filter == 10000
     )  # Lower volume threshold for ASX small caps
     assert config.price_filter == 0.05  # 5c minimum for 4c+ stock opportunities
-    assert config.or_duration_minutes == 10
+    assert config.or_duration_minutes == 5
     assert config.or_poll_interval_seconds == 30
     assert config.gap_fill_tolerance == 0.05
     assert config.or_breakout_buffer == 0.1
@@ -123,7 +123,7 @@ def test_config_from_env_uses_scanner_defaults():
     # Should use class defaults, not environment variables
     assert config.scanner_config.volume_filter == 10000
     assert config.scanner_config.price_filter == 0.05
-    assert config.scanner_config.or_duration_minutes == 10
+    assert config.scanner_config.or_duration_minutes == 5
     assert config.scanner_config.or_poll_interval_seconds == 30
     assert config.scanner_config.gap_fill_tolerance == 0.05
     assert config.scanner_config.or_breakout_buffer == 0.1
@@ -155,7 +155,7 @@ def test_config_from_env_scanner_config_logging():
         # Check that scanner config values are logged
         assert "Scanner Volume Filter: 10,000 shares" in log_output
         assert "Scanner Price Filter: $0.05" in log_output
-        assert "OR Duration: 10 minutes" in log_output
+        assert "OR Duration: 5 minutes" in log_output
         assert "OR Poll Interval: 30 seconds" in log_output
         assert "Gap Fill Tolerance: $0.05" in log_output
         assert "OR Breakout Buffer: $0.1" in log_output

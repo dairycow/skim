@@ -39,9 +39,9 @@ uv run python -m skim.core.bot manage        # Monitor positions
 The bot operates in four distinct phases (all times AEDT):
 
 1. **Scan** (10:00 AM): Find candidates with gaps and announcements
-2. **Track Ranges** (10:10 AM): Sample and store ORH/ORL values
-3. **Trade** (10:15 AM - 4:00 PM, every 5 min): Execute breakout entries
-4. **Manage** (10:15 AM - 4:00 PM, every 5 min): Monitor positions and stops
+2. **Track Ranges** (10:05 AM): Sample and store ORH/ORL values
+3. **Trade** (10:05 AM - 4:00 PM, every 5 min): Execute breakout entries
+4. **Manage** (10:05 AM - 4:00 PM, every 5 min): Monitor positions and stops
 
 ### Module Responsibilities
 

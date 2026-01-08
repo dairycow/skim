@@ -186,7 +186,7 @@ Install webhook receiver, configure systemd service, and set up GitHub webhook. 
 Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
 - Volume filter: 50,000 shares
 - Price filter: $0.50
-- OR duration: 10 minutes
+- OR duration: 5 minutes
 - OR poll interval: 30 seconds
 - Gap fill tolerance: $1.0
 

@@ -47,13 +47,13 @@ def test_opening_range_creation():
         ticker="BHP",
         or_high=47.80,
         or_low=45.90,
-        sample_date="2025-11-03T10:10:00",
+        sample_date="2025-11-03T10:05:00",
     )
 
     assert opening_range.ticker == "BHP"
     assert opening_range.or_high == 47.80
     assert opening_range.or_low == 45.90
-    assert opening_range.sample_date == "2025-11-03T10:10:00"
+    assert opening_range.sample_date == "2025-11-03T10:05:00"
 
 
 def test_tradeable_candidate_creation():

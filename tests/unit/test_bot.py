@@ -18,7 +18,7 @@ def mock_bot_config():
             gap_threshold=3.0,
             volume_filter=50000,
             price_filter=0.50,
-            or_duration_minutes=10,
+            or_duration_minutes=5,
             or_poll_interval_seconds=30,
             gap_fill_tolerance=1.0,
             or_breakout_buffer=0.1,

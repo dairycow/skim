@@ -17,7 +17,7 @@ def tracker_with_utc_clock():
             market_data_service=AsyncMock(),
             orh_repo=Mock(),
             market_open_time=time(23, 0, tzinfo=UTC),
-            range_duration_minutes=10,
+            range_duration_minutes=5,
             now_provider=lambda: now,
         )
 
@@ -25,10 +25,10 @@ def tracker_with_utc_clock():
 
 
 def test_calculate_target_time_uses_utc_clock(tracker_with_utc_clock):
-    """RangeTracker should target 23:10 UTC when market opens at 23:00 UTC."""
+    """RangeTracker should target 23:05 UTC when market opens at 23:00 UTC."""
     now = datetime(2024, 1, 1, 23, 5, tzinfo=UTC)
     tracker = tracker_with_utc_clock(now)
 
     target = tracker._calculate_target_time()
 
-    assert target == datetime(2024, 1, 1, 23, 10, tzinfo=UTC)
+    assert target == datetime(2024, 1, 1, 23, 5, tzinfo=UTC)

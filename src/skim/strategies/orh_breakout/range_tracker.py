@@ -1,7 +1,7 @@
 """Range Tracker - Establishes opening range high/low for candidates
 
 Responsibility:
-- Sample market data at 10:10 AM (10 minutes after market open)
+- Sample market data at 10:05 AM (5 minutes after market open)
 - Extract high/low values as ORH/ORL
 - Save opening ranges to database
 """
@@ -26,7 +26,7 @@ class RangeTracker:
         market_open_time: time = time(
             23, 0, tzinfo=UTC
         ),  # 10:00 AM AEDT = 23:00 UTC
-        range_duration_minutes: int = 10,
+        range_duration_minutes: int = 5,
         now_provider: Callable[[], datetime] | None = None,
     ):
         """Initialize range tracker
@@ -35,7 +35,7 @@ class RangeTracker:
             market_data_service: Service for fetching market data
             orh_repo: ORH repository for candidate management
             market_open_time: Market opening time in UTC (default 23:00 UTC)
-            range_duration_minutes: Duration of opening range in minutes (default 10)
+            range_duration_minutes: Duration of opening range in minutes (default 5)
             now_provider: Callable returning current datetime (UTC). Defaults to datetime.now(timezone.utc).
         """
         self.market_data = market_data_service
@@ -76,7 +76,7 @@ class RangeTracker:
         """Track opening ranges for candidates without ORH/ORL values
 
         Workflow:
-        1. Wait until opening range window has elapsed (10:10 AM)
+        1. Wait until opening range window has elapsed (10:05 AM)
         2. Get candidates with NULL or_high/or_low
         3. Fetch market data for each candidate
         4. Extract high/low from snapshot
