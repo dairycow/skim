@@ -37,8 +37,10 @@ cp "$PROJECT_ROOT/.env" . 2>/dev/null || true
 cp -r "$PROJECT_ROOT/.vscode" . 2>/dev/null || true
 if [ -d "$PROJECT_ROOT/oauth_keys" ]; then
     cp -r "$PROJECT_ROOT/oauth_keys" .
-    # Ensure correct permissions on sensitive files
     chmod 600 oauth_keys/*.pem 2>/dev/null || true
+fi
+if [ -d "$PROJECT_ROOT/data" ]; then
+    cp -r "$PROJECT_ROOT/data" .
 fi
 
 # Initialize Python environment with uv (separate venv per worktree)
