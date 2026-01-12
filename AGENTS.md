@@ -1,30 +1,40 @@
 # AGENTS
 
 ## Project Overview
-Skim: Automated ASX trading bot using Strategy pattern with multiple trading strategies. Current strategy: ORH breakout. Phases driven by cron—see `crontab` for timings. Modern Python (pyproject, 3.13+), uv for all python/pytest/ruff/pre-commit. Use Australian English; no emojis; delegate to subagents when possible.
+Skim: Monorepo with ASX trading automation and historical analysis tools.
+
+- **trading/** - Production trading bot (strict standards, full coverage)
+- **analysis/** - Historical data analysis CLI (relaxed standards)
+- **shared/** - Shared utilities (strict standards, full coverage)
+
+Current strategy: ORH breakout. Phases driven by cron—see `crontab` for timings. Modern Python (pyproject, 3.13+), uv for all python/pytest/ruff/pre-commit. Use Australian English; no emojis; delegate to subagents when possible.
 
 ## Essential Commands
 
 ### Testing
 - Run all tests: `uv run pytest`
-- Run specific test file: `uv run pytest tests/unit/test_config.py`
-- Run specific test function: `uv run pytest tests/unit/test_config.py::TestTradingParameters::test_default_trading_parameters`
-- Run only unit tests (fast, mocked): `uv run pytest tests/unit/ -n auto --log-level=WARNING`
-- Run integration tests (real IBKR): `uv run pytest tests/integration/ -m integration`
-- Run with coverage: `uv run pytest tests/unit/ -n auto --cov=src --cov-report=term-missing`
+- Run trading unit tests: `uv run pytest tests/trading/ -n auto --log-level=WARNING`
+- Run with coverage: `uv run pytest tests/trading/ -n auto --cov=src/skim/trading --cov-report=term-missing`
 
 ### Code Quality
-- Lint: `uv run ruff check src tests`
-- Format: `uv run ruff format src tests`
+- Lint trading: `uv run ruff check src/skim/trading tests/trading`
+- Lint analysis: `uv run ruff check src/skim/analysis --fix`
+- Lint shared: `uv run ruff check src/skim/shared`
+- Format trading: `uv run ruff format src/skim/trading tests/trading`
+- Format analysis: `uv run ruff format src/skim/analysis`
 - Pre-commit all: `uv run pre-commit run --all-files`
-- Pre-commit specific: `uv run pre-commit run ruff-check --all-files`
 
-### Bot Execution
-- Purge candidates: `uv run python -m skim.core.bot purge_candidates`
-- Scan (full strategy scan): `uv run python -m skim.core.bot scan`
-- Trade breakouts: `uv run python -m skim.core.bot trade`
-- Manage positions: `uv run python -m skim.core.bot manage`
-- Health check: `uv run python -m skim.core.bot status`
+### Trading Bot Execution
+- Purge candidates: `uv run python -m skim.trading.core.bot purge_candidates`
+- Scan (full strategy scan): `uv run python -m skim.trading.core.bot scan`
+- Trade breakouts: `uv run python -m skim.trading.core.bot trade`
+- Manage positions: `uv run python -m skim.trading.core.bot manage`
+- Health check: `uv run python -m skim.trading.core.bot status`
+
+### Analysis CLI
+- Interactive mode: `uv run skim-analyze`
+- Top performers: `uv run skim-analyze top 2024 --json`
+- Find gaps: `uv run skim-analyze gaps 2024 --limit 10 --json`
 
 ## Code Style Guidelines
 
@@ -50,7 +60,7 @@ Skim: Automated ASX trading bot using Strategy pattern with multiple trading str
 ### Imports
 - Standard library first, third-party second, local imports last
 - Group related imports with blank lines between groups
-- Use absolute imports from project root: `from skim.core.config import Config`
+- Use absolute imports from project root: `from skim.trading.core.config import Config`
 - For type-only imports, use `from typing import TYPE_CHECKING` pattern
 
 ### Error Handling
@@ -91,18 +101,19 @@ Skim: Automated ASX trading bot using Strategy pattern with multiple trading str
 - Log configuration values on load at DEBUG level
 
 ### Architecture & State
+- Monorepo with trading (production), analysis (research), and shared (common) modules
 - Strategy pattern: TradingBot delegates to strategy implementations
-- Strategies: Independent, self-contained implementations in src/skim/strategies/
+- Strategies: Independent, self-contained implementations in src/skim/trading/strategies/
 - CandidateRepository protocol for strategy-specific candidate management
 - Each strategy owns its candidate data through dedicated repository
 - Database handles generic operations only (positions, candidate status updates)
 - States: Candidates (watching→entered→closed); Positions (open→closed)
 - Protocol-based abstractions in brokers/protocols.py for testability
-- Core orchestrator: src/skim/core/bot.py (multi-strategy dispatcher)
+- Core orchestrator: src/skim/trading/core/bot.py (multi-strategy dispatcher)
 - Shared services: IBKRClient, Database, Discord (injected into strategies)
 - Use async/await for IBKR client operations
 - Database and models in data/; persistence handled by Database class
-- New strategies create their own repository and table in src/skim/data/repositories/
+- New strategies create their own repository and table in src/skim/trading/data/repositories/
 
 ### Deployment & Logging
 - GitOps to prod via main branch

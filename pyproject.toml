@@ -22,8 +22,19 @@ dependencies = [
     "sqlmodel>=0.0.22,<1.0",
 ]
 
+[project.optional-dependencies]
+analysis = [
+    "polars>=1.0.0",
+    "pyarrow>=15.0.0",
+    "textual>=0.80.0",
+    "candlestick-chart>=3.0.0",
+    "yfinance>=0.2.44",
+    "tqdm>=4.66.0",
+]
+
 [project.scripts]
-skim = "skim.core.bot:main"
+skim = "skim.trading.core.bot:main"
+skim-analyze = "skim.analysis.cli.main:main"
 
 [tool.ruff]
 line-length = 80
@@ -66,7 +77,7 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/trading", "tests/shared"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -76,11 +87,12 @@ markers = [
     "manual: marks tests that require real IBKR credentials (not run in CI)",
     "integration: marks tests as integration tests (requires external services)",
     "unit: marks tests as unit tests (fast, everything mocked)",
+    "analysis: marks tests as analysis tests (historical data scanning)",
 ]
 
 [tool.coverage.run]
-source = ["src/skim"]
-omit = ["tests/*", "**/__pycache__/*"]
+source = ["src/skim/trading", "src/skim/shared"]
+omit = ["tests/*", "**/__pycache__/*", "src/skim/analysis/*"]
 
 [tool.coverage.report]
 exclude_lines = [

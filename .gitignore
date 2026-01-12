@@ -35,10 +35,14 @@ htmlcov/
 
 # Trading data (but not src/skim/data/ which is code)
 data/
-!src/skim/data/
+!src/**/data/
 *.db
 *.sqlite
 *.sqlite3
+
+# Analysis data (CSV files, large datasets)
+analysis_data/
+!analysis_data/.gitkeep
 
 # Logs
 logs/
