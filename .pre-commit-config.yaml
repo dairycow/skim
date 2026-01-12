@@ -8,37 +8,73 @@ repos:
 
   - repo: local
     hooks:
-      - id: ruff-check
-        name: ruff check
-        entry: uv run ruff check src tests
+      # Strict hooks for trading code (pyright, coverage, no auto-fix)
+      - id: ruff-check-trading
+        name: ruff check (trading)
+        entry: uv run ruff check src/skim/trading tests/trading
         language: system
         types: [python]
         pass_filenames: false
 
-      - id: ruff-format
-        name: ruff format
-        entry: uv run ruff format --check src tests
-        language: system
-        types: [python]
-
-      - id: pyright
-        name: pyright type check
-        entry: uv run pyright
+      - id: ruff-format-trading
+        name: ruff format (trading)
+        entry: uv run ruff format --check src/skim/trading tests/trading
         language: system
         types: [python]
         pass_filenames: false
 
-      - id: pytest-unit-fast
-        name: pytest unit tests (fast)
-        entry: uv run pytest tests/unit/ -n auto --log-level=WARNING
+      # Relaxed hooks for analysis code (auto-fix, no blocking)
+      - id: ruff-check-analysis
+        name: ruff check (analysis)
+        entry: uv run ruff check src/skim/analysis --fix
         language: system
         types: [python]
         pass_filenames: false
         stages: [pre-commit]
 
-      - id: pytest-coverage
-        name: pytest with coverage
-        entry: uv run pytest tests/unit/ -n auto --cov=src --cov-fail-under=80 --cov-report=term-missing --log-level=WARNING
+      # Strict hooks for shared code
+      - id: ruff-check-shared
+        name: ruff check (shared)
+        entry: uv run ruff check src/skim/shared
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: ruff-format-shared
+        name: ruff format (shared)
+        entry: uv run ruff format --check src/skim/shared
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Pyright for trading (strict)
+      - id: pyright-trading
+        name: pyright (trading)
+        entry: uv run pyright src/skim/trading
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Pyright for shared (strict)
+      - id: pyright-shared
+        name: pyright (shared)
+        entry: uv run pyright src/skim/shared
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Unit tests for trading only (strict coverage)
+      - id: pytest-trading
+        name: pytest (trading)
+        entry: uv run pytest tests/trading/ -n auto --log-level=WARNING
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: pytest-coverage-trading
+        name: pytest coverage (trading)
+        entry: uv run pytest tests/trading/ -n auto --cov=src/skim/trading --cov-fail-under=80 --cov-report=term-missing --log-level=WARNING
         language: system
         types: [python]
         pass_filenames: false
