@@ -1,0 +1,309 @@
+"""Historical data repository for price history queries"""
+
+from __future__ import annotations
+
+from datetime import date as datetime_date
+from datetime import timedelta
+
+from loguru import logger
+from sqlmodel import Session, asc, create_engine, desc, func, select
+
+from skim.shared.historical.models import DailyPrice, HistoricalPerformance
+
+
+class HistoricalDatabase:
+    """SQLite database manager for historical price data"""
+
+    def __init__(self, db_path: str):
+        """Initialise database connection and create schema
+
+        Args:
+            db_path: Path to SQLite database file or ":memory:" for in-memory DB
+        """
+        self.engine = create_engine(
+            f"sqlite:///{db_path}",
+            connect_args={"check_same_thread": False},
+        )
+        self._create_schema()
+        logger.info(f"Historical database initialised: {db_path}")
+
+    def _create_schema(self):
+        """Create database tables if they don't exist"""
+        DailyPrice.metadata.create_all(self.engine)
+
+    def get_session(self) -> Session:
+        """Get a new database session
+
+        Returns:
+            Session: SQLModel session
+        """
+        return Session(self.engine)
+
+    def close(self) -> None:
+        """Dispose of database engine"""
+        if self.engine:
+            self.engine.dispose()
+
+
+class HistoricalDataRepository:
+    """Repository for historical price data queries"""
+
+    def __init__(self, db: HistoricalDatabase):
+        """Initialise historical data repository
+
+        Args:
+            db: HistoricalDatabase instance for database operations
+        """
+        self.db = db
+
+    def get_latest_date(self) -> datetime_date | None:
+        """Get the most recent date in the database
+
+        Returns:
+            Latest date or None if database is empty
+        """
+        with self.db.get_session() as session:
+            result = session.exec(
+                select(DailyPrice.trade_date).order_by(
+                    desc(DailyPrice.trade_date)
+                )
+            ).first()
+            return result
+
+    def get_earliest_date(self) -> datetime_date | None:
+        """Get the earliest date in the database
+
+        Returns:
+            Earliest date or None if database is empty
+        """
+        with self.db.get_session() as session:
+            result = session.exec(
+                select(DailyPrice.trade_date).order_by(
+                    asc(DailyPrice.trade_date)
+                )
+            ).first()
+            return result
+
+    def get_tickers_with_data(self) -> list[str]:
+        """Get all tickers that have data in the database
+
+        Returns:
+            List of ticker symbols
+        """
+        with self.db.get_session() as session:
+            result = session.exec(
+                select(DailyPrice.ticker).distinct().order_by(DailyPrice.ticker)
+            ).all()
+            return list(result)
+
+    def get_price_on_date(
+        self, ticker: str, target_date: datetime_date
+    ) -> DailyPrice | None:
+        """Get price data for a specific ticker on a specific date
+
+        Args:
+            ticker: Stock ticker symbol
+            target_date: Date to query
+
+        Returns:
+            DailyPrice record or None if not found
+        """
+        with self.db.get_session() as session:
+            result = session.exec(
+                select(DailyPrice).where(
+                    DailyPrice.ticker == ticker.upper(),
+                    DailyPrice.trade_date == target_date,
+                )
+            ).first()
+            return result
+
+    def get_prices_in_range(
+        self, ticker: str, start_date: datetime_date, end_date: datetime_date
+    ) -> list[DailyPrice]:
+        """Get price data for a ticker within a date range
+
+        Args:
+            ticker: Stock ticker symbol
+            start_date: Start date (inclusive)
+            end_date: End date (inclusive)
+
+        Returns:
+            List of DailyPrice records sorted by date
+        """
+        with self.db.get_session() as session:
+            results = session.exec(
+                select(DailyPrice)
+                .where(
+                    DailyPrice.ticker == ticker.upper(),
+                    DailyPrice.trade_date >= start_date,
+                    DailyPrice.trade_date <= end_date,
+                )
+                .order_by(DailyPrice.trade_date)
+            ).all()
+            return list(results)
+
+    def get_performance(
+        self, ticker: str, days: int, end_date: datetime_date | None = None
+    ) -> HistoricalPerformance | None:
+        """Calculate historical performance over a period
+
+        Args:
+            ticker: Stock ticker symbol
+            days: Number of days to look back
+            end_date: End date for calculation (defaults to latest available)
+
+        Returns:
+            HistoricalPerformance object or None if insufficient data
+        """
+        if end_date is None:
+            end_date = self.get_latest_date()
+            if end_date is None:
+                return None
+
+        start_date = end_date - timedelta(days=days)
+
+        with self.db.get_session() as session:
+            prices = session.exec(
+                select(DailyPrice)
+                .where(
+                    DailyPrice.ticker == ticker.upper(),
+                    DailyPrice.trade_date >= start_date,
+                    DailyPrice.trade_date <= end_date,
+                )
+                .order_by(DailyPrice.trade_date)
+            ).all()
+
+            if len(prices) < 2:
+                logger.debug(
+                    f"Insufficient data for {ticker}: {len(prices)} days in range"
+                )
+                return None
+
+            first_price = prices[0]
+            last_price = prices[-1]
+
+            start_close = float(first_price.close)
+            end_close = float(last_price.close)
+
+            if start_close == 0:
+                return None
+
+            return_percent = ((end_close - start_close) / start_close) * 100
+
+            avg_volume = int(sum(p.volume for p in prices) / len(prices))
+
+            return HistoricalPerformance(
+                ticker=ticker.upper(),
+                period_days=days,
+                start_date=first_price.trade_date,
+                end_date=last_price.trade_date,
+                start_close=start_close,
+                end_close=end_close,
+                return_percent=return_percent,
+                avg_daily_volume=avg_volume,
+                trading_days=len(prices),
+            )
+
+    def get_3month_performance(
+        self, ticker: str, end_date: datetime_date | None = None
+    ) -> HistoricalPerformance | None:
+        """Get 3-month (approximately 90 days) performance
+
+        Args:
+            ticker: Stock ticker symbol
+            end_date: End date for calculation
+
+        Returns:
+            HistoricalPerformance for 3-month period
+        """
+        return self.get_performance(ticker, 90, end_date)
+
+    def get_6month_performance(
+        self, ticker: str, end_date: datetime_date | None = None
+    ) -> HistoricalPerformance | None:
+        """Get 6-month (approximately 180 days) performance
+
+        Args:
+            ticker: Stock ticker symbol
+            end_date: End date for calculation
+
+        Returns:
+            HistoricalPerformance for 6-month period
+        """
+        return self.get_performance(ticker, 180, end_date)
+
+    def bulk_insert_prices(self, prices: list[DailyPrice]) -> int:
+        """Bulk insert daily price records
+
+        Args:
+            prices: List of DailyPrice objects to insert
+
+        Returns:
+            Number of records inserted
+        """
+        if not prices:
+            return 0
+
+        with self.db.get_session() as session:
+            for price in prices:
+                existing = session.exec(
+                    select(DailyPrice).where(
+                        DailyPrice.ticker == price.ticker,
+                        DailyPrice.trade_date == price.trade_date,
+                    )
+                ).first()
+
+                if existing:
+                    existing.open = price.open
+                    existing.high = price.high
+                    existing.low = price.low
+                    existing.close = price.close
+                    existing.volume = price.volume
+                else:
+                    session.add(price)
+
+            session.commit()
+            return len(prices)
+
+    def delete_ticker_data(self, ticker: str) -> int:
+        """Delete all data for a specific ticker
+
+        Args:
+            ticker: Stock ticker symbol
+
+        Returns:
+            Number of records deleted
+        """
+        with self.db.get_session() as session:
+            result = session.exec(
+                select(DailyPrice).where(DailyPrice.ticker == ticker.upper())
+            ).all()
+            count = len(result)
+            for price in result:
+                session.delete(price)
+            session.commit()
+            return count
+
+    def get_tickers_count(self) -> int:
+        """Get total number of unique tickers
+
+        Returns:
+            Number of unique tickers
+        """
+        with self.db.get_session() as session:
+            result = session.exec(
+                select(DailyPrice.ticker).distinct().order_by(DailyPrice.ticker)
+            ).all()
+            return len(result)
+
+    def get_total_records(self) -> int:
+        """Get total number of price records
+
+        Returns:
+            Total number of records
+        """
+        with self.db.get_session() as session:
+            result = session.exec(
+                select(func.count()).select_from(DailyPrice)
+            ).first()
+            return result or 0
