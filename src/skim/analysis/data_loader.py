@@ -13,9 +13,7 @@ from skim.analysis.stock_data import StockData
 class DataLoader:
     """Loads and manages ASX stock data from CSV files."""
 
-    def __init__(
-        self, data_dir: str = "data/analysis/raw/10year_asx_csv_202509"
-    ):
+    def __init__(self, data_dir: str = "data/raw/10year_asx_csv_202509"):
         self.data_dir = Path(data_dir)
         self.stocks: dict[str, StockData] = {}
 
