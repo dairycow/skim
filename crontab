@@ -30,5 +30,14 @@
 */5 23,0,1,2,3,4,5,6 * * 0 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.trading.core.bot manage >> /opt/skim/logs/cron.log 2>&1
 */5 23,0,1,2,3,4,5,6 * * 1-4 skim cd /opt/skim && /opt/skim/.venv/bin/python -m skim.trading.core.bot manage >> /opt/skim/logs/cron.log 2>&1
 
+# Download daily CoolTrader data (4:05 AM UTC = 3:05 PM AEDT, after market close)
+05 04 * * 1-5 skim cd /opt/skim && /opt/skim/.venv/bin/python -c "
+from skim.analysis.data_downloader import CoolTraderDownloader
+d = CoolTraderDownloader()
+d.download_today()
+d.process_downloads()
+d.close()
+" >> /opt/skim/logs/download.log 2>&1
+
 # Blank line required at end of cron file
 
