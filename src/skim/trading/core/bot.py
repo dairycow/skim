@@ -10,6 +10,7 @@ from datetime import date
 
 from loguru import logger
 
+from skim.domain.strategies.context import StrategyContext
 from skim.trading.brokers.ibkr_client import IBKRClient
 from skim.trading.brokers.ibkr_gap_scanner import IBKRGapScanner
 from skim.trading.brokers.ibkr_market_data import IBKRMarketData
@@ -36,7 +37,6 @@ class TradingBot:
         self.config = config
         self.db = Database(config.db_path)
 
-        # --- Shared Service Instantiation ---
         self.ib_client = IBKRClient(paper_trading=config.paper_trading)
         self.market_data_service = IBKRMarketData(self.ib_client)
         self.order_service = IBKROrders(
@@ -47,28 +47,36 @@ class TradingBot:
         )
         self.discord = DiscordNotifier(config.discord_webhook_url)
 
-        # --- Strategy Registration ---
         self.strategies: dict[str, Strategy] = {}
         self._register_strategies()
 
         logger.info("Bot initialised successfully")
+
+    def _create_strategy_context(self) -> StrategyContext:
+        """Create a strategy context with all dependencies.
+
+        Returns:
+            StrategyContext with all required services
+        """
+        orh_repo = ORHCandidateRepository(self.db)
+        return StrategyContext(
+            database=self.db,
+            repository=orh_repo,
+            notifier=self.discord,
+            config=self.config,
+            market_data=self.market_data_service,
+            order_service=self.order_service,
+            scanner_service=self.scanner_service,
+            connection_manager=self.ib_client,
+        )
 
     def _register_strategies(self) -> None:
         """Register available strategies
 
         Add new strategies here when implemented
         """
-        orh_repo = ORHCandidateRepository(self.db)
-        self.strategies["orh_breakout"] = ORHBreakoutStrategy(
-            ib_client=self.ib_client,
-            scanner_service=self.scanner_service,
-            market_data_service=self.market_data_service,
-            order_service=self.order_service,
-            db=self.db,
-            orh_repo=orh_repo,
-            discord=self.discord,
-            config=self.config,
-        )
+        context = self._create_strategy_context()
+        self.strategies["orh_breakout"] = ORHBreakoutStrategy(context)
 
         logger.info(f"Registered {len(self.strategies)} strategies")
 
