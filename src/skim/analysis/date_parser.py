@@ -5,7 +5,9 @@ Date parsing utilities for specifying time periods.
 from datetime import datetime, timedelta
 
 
-def parse_date_range(period: str, reference_date: datetime | None = None) -> tuple[datetime, datetime]:
+def parse_date_range(
+    period: str, reference_date: datetime | None = None
+) -> tuple[datetime, datetime]:
     """
     Parse period string into date range.
 
@@ -35,14 +37,14 @@ def parse_date_range(period: str, reference_date: datetime | None = None) -> tup
         end_date = datetime(int(period), 12, 31)
         return start_date, end_date
 
-    if ' to ' in period.lower():
-        parts = period.lower().split(' to ')
-        start_date = datetime.strptime(parts[0].strip(), '%Y-%m-%d')
-        end_date = datetime.strptime(parts[1].strip(), '%Y-%m-%d')
+    if " to " in period.lower():
+        parts = period.lower().split(" to ")
+        start_date = datetime.strptime(parts[0].strip(), "%Y-%m-%d")
+        end_date = datetime.strptime(parts[1].strip(), "%Y-%m-%d")
         return start_date, end_date
 
-    if '-' in period and len(period) == 7:
-        year, month = map(int, period.split('-'))
+    if "-" in period and len(period) == 7:
+        year, month = map(int, period.split("-"))
         if month == 12:
             end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
         else:
@@ -50,16 +52,16 @@ def parse_date_range(period: str, reference_date: datetime | None = None) -> tup
         start_date = datetime(year, month, 1)
         return start_date, end_date
 
-    if period.upper() == '1M':
+    if period.upper() == "1M":
         end_date = reference_date
         start_date = reference_date - timedelta(days=30)
-    elif period.upper() == '3M':
+    elif period.upper() == "3M":
         end_date = reference_date
         start_date = reference_date - timedelta(days=90)
-    elif period.upper() == '6M':
+    elif period.upper() == "6M":
         end_date = reference_date
         start_date = reference_date - timedelta(days=180)
-    elif period.upper() == '1Y':
+    elif period.upper() == "1Y":
         end_date = reference_date
         start_date = reference_date - timedelta(days=365)
     else:
