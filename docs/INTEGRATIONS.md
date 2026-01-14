@@ -1,14 +1,14 @@
 # Integrations
 
-External service integrations: Discord webhooks and IBKR API.
+External service integrations: Discord webhooks, IBKR API, and ASX announcements.
 
 ## Discord Webhook Integration
 
 ### Overview
 Discord notifications provide real-time alerts for:
-- Market scan results (candidates found)
-- Trade executions (entries/exits)
-- Position status updates
+- Tradeable candidates (gap + news + opening range)
+- Trade executions (entries and exits)
+- P&L updates
 - Error notifications
 
 ### Setup
@@ -21,14 +21,18 @@ Webhook URL: `https://discord.com/api/webhooks/{ID}/{TOKEN}`
 
 ### Notification Types
 
-**Scan Results** (Green):
-- Title: "ASX Market Scan Complete"
-- Description: "X new candidates found"
-- Fields: Ticker, gap %, price
+**Tradeable Candidates** (Green):
+- Title: "Tradeable Candidates Ready"
+- Fields: Ticker, gap %, ORH, ORL, headline
+- Sent during alert phase (10:10 AM AEDT)
+
+**Trade Executed** (Green/Red):
+- Title: "Trade Executed"
+- Fields: Ticker, action (BUY/SELL), quantity, price, P&L (if available)
 
 **No Candidates** (Yellow):
-- Title: "ASX Market Scan Complete"
-- Description: "No new candidates found"
+- Title: "Tradeable Candidates Ready"
+- Description: "No tradeable candidates found"
 
 **Errors** (Red):
 - Title: "ASX Market Scan Error"
@@ -43,7 +47,7 @@ curl -X POST -d '{"content":"Test"}' "YOUR_URL"       # Test webhook
 
 **Security**: Treat URL as password, never commit, rotate regularly. Rate limit: 30/min.
 
-## IBKR Web API Integration
+## IBKR API Integration
 
 ### Overview
 Direct integration with IBKR Client Portal API using OAuth 1.0a authentication.
@@ -61,7 +65,7 @@ Direct integration with IBKR Client Portal API using OAuth 1.0a authentication.
 2. Create RSA keys for signatures and encryption
 3. Configure environment variables
 4. Bot authenticates on startup using OAuth 1.0a
-5. Maintains session for API calls
+5. Maintains session for API calls (LST token management)
 ```
 
 ### Setup
@@ -73,6 +77,7 @@ Direct integration with IBKR Client Portal API using OAuth 1.0a authentication.
 
 #### 2. Generate RSA Keys
 ```bash
+mkdir -p oauth_keys
 openssl genrsa -out oauth_keys/private_signature.pem 2048
 openssl genrsa -out oauth_keys/private_encryption.pem 2048
 chmod 600 oauth_keys/*.pem
@@ -84,6 +89,8 @@ OAUTH_CONSUMER_KEY=your_key
 OAUTH_ACCESS_TOKEN=your_token
 OAUTH_ACCESS_TOKEN_SECRET=your_secret
 OAUTH_DH_PRIME=your_dh_prime_hex
+OAUTH_SIGNATURE_KEY_PATH=oauth_keys/private_signature.pem
+OAUTH_ENCRYPTION_KEY_PATH=oauth_keys/private_encryption.pem
 ```
 
 #### 4. Deploy to Production
@@ -92,28 +99,35 @@ scp -r oauth_keys root@server:/opt/skim/
 ssh root@server "chmod 600 /opt/skim/oauth_keys/*.pem"
 ```
 
-### Key API Endpoints
+### Key Components
 
-**Trading**: Place/cancel orders, get status
-**Market Data**: Scanner, quotes, historical bars
-**Account**: Positions, balance, summary
+**Implementation**: `src/skim/infrastructure/brokers/ibkr/auth.py`
+
+**Core Classes**:
+- `IBKRAuthManager` - Manages OAuth LST generation and token lifecycle
+- `generate_lst()` - Generates Live Session Token for API access
+
+**IBKR Services** (`src/skim/trading/brokers/`):
+- `ibkr_client.py` - IBKR connection and session management
+- `ibkr_market_data.py` - Real-time market data (quotes, bars)
+- `ibkr_orders.py` - Order placement and management
+- `ibkr_gap_scanner.py` - IBKR scanner API integration
 
 **Servers**: Production (`api.ibkr.com`), Sandbox (`qa.interactivebrokers.com`)
-
-**OAuth Components**: Consumer Key, Access Token, RSA Signatures, DH Prime
-**Implementation**: `src/skim/brokers/ibkr_oauth.py` and `ibkr_client.py`
 
 ### Troubleshooting
 ```bash
 cat .env | grep OAUTH                         # Check credentials
 ls -la oauth_keys/                            # Verify keys (600 perms)
 tail -100 logs/skim_*.log | grep oauth        # Check logs
+tail -100 logs/skim_*.log | grep ibkr         # Check IBKR logs
 ```
 
 **Common Issues**:
 - Invalid consumer key: Verify no extra spaces
 - Missing keys: Ensure private_signature.pem and private_encryption.pem exist
 - Permission errors: Keys must be 600 (`-rw-------`)
+- LST expired: Auth manager auto-regenerates on expiration
 
 **Rate Limits**: Implement backoff for HTTP 429 errors.
 
@@ -132,10 +146,35 @@ tail -100 logs/skim_*.log | grep oauth        # Check logs
 
 **Alternative**: The bot's `connect()` method calls `/logout` before creating a new session with `compete: True`, but some sessions (like TradingView) may use a different session type that isn't cleared by this mechanism.
 
-## ASX Announcements
+## ASX Announcements Integration
 
-Uses ASX public API to filter price-sensitive announcements.
-**Implementation**: `src/skim/scanners/asx_announcements.py`
+### Overview
+Fetches price-sensitive announcements from ASX website to identify news-driven trading candidates.
+
+**Implementation**: `src/skim/trading/scanners/asx_announcements.py`
+
+**Scanner Class**: `ASXAnnouncementScanner`
+
+**ASX Endpoint**: `https://www.asx.com.au/asx/v2/statistics/todayAnns.do`
+
+### Filtering Options
+
+**PriceSensitiveFilter** (`src/skim/trading/validation/scanners.py`):
+- `min_ticker_length` - Minimum ticker symbol length
+- `max_ticker_length` - Maximum ticker symbol length
+- `min_headline_length` - Minimum headline length
+- `max_headline_length` - Maximum headline length
+- `include_only_tickers` - Whitelist of specific tickers
+- `exclude_tickers` - Blacklist of tickers to skip
+
+### Output
+
+**ASXAnnouncement** model:
+- `ticker` - ASX ticker symbol
+- `headline` - Announcement headline
+- `announcement_type` - Type (e.g., "pricesens")
+- `timestamp` - Announcement timestamp
+- `pdf_url` - Link to full announcement PDF (if available)
 
 ## Security Best Practices
 

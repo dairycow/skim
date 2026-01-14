@@ -30,31 +30,16 @@ cp .env.example .env
 
 # Essential variables
 PAPER_TRADING=true
-OAUTH_CONSUMER_KEY=your_key
-OAUTH_ACCESS_TOKEN=your_token
-OAUTH_ACCESS_TOKEN_SECRET=your_secret
-OAUTH_DH_PRIME=your_dh_prime_hex
-
+IBKR_SOCKET_PORT=7497  # 7497 = paper, 7496 = live
+IBKR_CLIENT_ID=1
 
 # Optional notifications
 DISCORD_WEBHOOK_URL=your_webhook_url
 ```
 
-### OAuth Key Setup
-```bash
-# Generate RSA keys
-openssl genrsa -out oauth_keys/private_signature.pem 2048
-openssl genrsa -out oauth_keys/private_encryption.pem 2048
-chmod 600 oauth_keys/*.pem
-
-# For production: upload to server
-scp -r oauth_keys root@your-server:/opt/skim/
-```
-
 ## Development Workflow
 
 ### Quality Checks
-The project uses UV-based pre-commit hooks:
 ```bash
 # Run all checks
 uv run pre-commit run --all-files
@@ -62,7 +47,7 @@ uv run pre-commit run --all-files
 # Individual checks
 uv run ruff check src tests        # Linting
 uv run ruff format src tests       # Formatting
-uv run pytest                       # Testing
+uv run pytest                      # Testing
 ```
 
 ### Making Changes
@@ -74,42 +59,57 @@ uv run pytest                       # Testing
 
 ### Running Bot Locally
 ```bash
-# Run bot commands (Strategy pattern)
-uv run python -m skim.core.bot purge_candidates  # Clear previous-day candidates
-uv run python -m skim.core.bot scan              # Full strategy scan (gaps + news + ranges)
-uv run python -m skim.core.bot trade             # Execute breakouts
-uv run python -m skim.core.bot manage            # Monitor and manage positions
-uv run python -m skim.core.bot status            # Health check
-uv run python -m skim.core.bot fetch_market_data <TICKER>  # Get market data
+# Bot commands
+uv run python -m skim.trading.core.bot purge_candidates  # Clear previous-day candidates
+uv run python -m skim.trading.core.bot scan              # Full strategy scan (gaps + news)
+uv run python -m skim.trading.core.bot trade             # Execute breakouts
+uv run python -m skim.trading.core.bot manage            # Monitor and manage positions
+uv run python -m skim.trading.core.bot status            # Health check
+
+# Shortcuts via entry points
+uv run skim purge-candidates
+uv run skim scan
+uv run skim trade
+uv run skim manage
+
+# Analysis commands
+uv run skim-analyze top 2024 --json
+uv run skim-analyze gaps 2024 --limit 10 --json
 ```
 
 ## Testing
 
 ### Test Structure
-- `tests/unit/` - Fast unit tests, everything mocked
-- `tests/integration/` - Integration tests, real IBKR credentials required
-- `tests/fixtures/` - Test data and mock responses
+```
+tests/
+├── domain/           # Domain model tests
+├── trading/          # Trading bot tests
+├── shared/           # Shared service tests
+└── analysis/         # Analysis CLI tests
+```
 
 ### Running Tests
 ```bash
 # All tests
 uv run pytest
 
-# By category
-uv run pytest tests/unit/
-uv run pytest tests/integration/
+# By module
+uv run pytest tests/domain/
+uv run pytest tests/trading/
+uv run pytest tests/shared/
 
 # With coverage
 uv run pytest --cov=src/skim --cov-report=html
 
 # Specific test
-uv run pytest tests/unit/test_database.py::test_create_candidate
+uv run pytest tests/domain/test_candidate.py
 ```
 
 ### Test Markers
 ```python
 @pytest.mark.unit         # Fast, everything mocked
 @pytest.mark.integration  # Real credentials required
+@pytest.mark.manual       # Not run in CI
 ```
 
 ### Writing Tests
@@ -131,17 +131,12 @@ sudo -u skim git clone https://github.com/your-repo/skim.git /opt/skim
 cd /opt/skim
 
 # Set up directories
-sudo mkdir -p /opt/skim/{logs,data,oauth_keys}
+sudo mkdir -p /opt/skim/{logs,data}
 sudo chown -R skim:skim /opt/skim
 
 # Create .env file
 sudo -u skim cp .env.example .env
 # Edit with production values
-
-# Upload OAuth keys
-scp -r oauth_keys root@server:/opt/skim/
-sudo chown skim:skim /opt/skim/oauth_keys/*.pem
-sudo chmod 600 /opt/skim/oauth_keys/*.pem
 
 # Install Python dependencies
 sudo -u skim /home/skim/.local/bin/uv sync --frozen
@@ -174,7 +169,6 @@ Automated deployments trigger on push to main via webhook:
 **Persistent Data** (survives deployments):
 - `/opt/skim/data/` - SQLite database
 - `/opt/skim/logs/` - Log files
-- `/opt/skim/oauth_keys/` - RSA keys
 - `/opt/skim/.env` - Configuration
 
 ### GitOps Setup
@@ -183,21 +177,20 @@ Install webhook receiver, configure systemd service, and set up GitHub webhook. 
 ## Configuration Management
 
 ### Scanner Settings
-Configure in `src/skim/core/config.py` via `ScannerConfig` dataclass:
+Configure in `src/skim/trading/core/config.py` via `ScannerConfig` dataclass:
 - Volume filter: 50,000 shares
 - Price filter: $0.50
 - OR duration: 5 minutes
 - OR poll interval: 30 seconds
 - Gap fill tolerance: $1.0
 
-### Range Tracker Timing
-- Defaults to a UTC clock with `market_open_time=23:00` (10:00 AM AEDT) so cron timing and in-code delays stay in lockstep. If market hours shift, update both `crontab` and the range tracker configuration together.
-
 ### Cron Schedule (UTC, AEDT = UTC+11)
-- **22:55 UTC (09:55 AEDT)** - purge_candidates (clear prior candidates before morning scans)
-- **23:00 UTC (10:00 AEDT)** - scan (full strategy scan: gaps + news + range tracking)
-- **23:15-06:00 UTC (*/5)** - trade (execute breakouts for candidates with gap+news+ORH/ORL)
-- **23:15-06:00 UTC (*/5)** - manage (monitor stops for open positions)
+- **22:55 UTC (09:55 AEDT)** - purge_candidates
+- **23:00 UTC (10:00 AEDT)** - scan
+- **23:05 UTC (10:05 AEDT)** - track_ranges
+- **23:10 UTC (10:10 AEDT)** - alert
+- **23:15-06:00 UTC (*/5)** - trade
+- **23:15-06:00 UTC (*/5)** - manage
 
 Production uses the repository `crontab` (copied to `/etc/cron.d/skim-trading-bot`) which includes the `skim` user field and redirects to `/opt/skim/logs/cron.log`.
 
@@ -208,33 +201,41 @@ Production uses the repository `crontab` (copied to `/etc/cron.d/skim-trading-bo
 | PAPER_TRADING | true | false | true |
 | LOG_LEVEL | DEBUG | INFO | DEBUG |
 | DB_PATH | ./data/skim.db | /opt/skim/data/skim.db | :memory: |
+| IBKR_SOCKET_PORT | 7497 | 7496 | 7497 |
 
 ## Troubleshooting
 
-### OAuth Authentication Failed
+### IBKR Connection Failed
 ```bash
-cat .env | grep OAUTH                    # Check credentials
-ls -la oauth_keys/                       # Verify keys exist
-grep oauth logs/*.log                    # Check logs (local)
-grep oauth /opt/skim/logs/*.log          # Check logs (production)
+cat .env | grep IBKR                    # Check config
+grep -i ibkr logs/*.log                 # Check logs (local)
+grep -i ibkr /opt/skim/logs/*.log       # Check logs (production)
 ```
 
 ### Database or Cron Issues
 ```bash
-ls -la data/skim.db                      # Check database (local)
-ls -la /opt/skim/data/skim.db            # Check database (production)
-cat /etc/cron.d/skim-trading-bot         # Verify cron schedule
-tail -100 /opt/skim/logs/cron.log        # Inspect cron logs
-tail -100 /opt/skim/logs/skim_*.log      # Inspect application logs
+ls -la data/skim.db                     # Check database (local)
+ls -la /opt/skim/data/skim.db           # Check database (production)
+cat /etc/cron.d/skim-trading-bot        # Verify cron schedule
+tail -100 /opt/skim/logs/cron.log       # Inspect cron logs
+tail -100 /opt/skim/logs/skim_*.log     # Inspect application logs
 ```
 
 ## Code Quality
 
-- **Ruff**: Line length 80, Python 3.13
+- **Ruff**: Line length 80, Python 3.13, double quotes
 - **Pre-commit**: Linting, formatting, testing
-- **VS Code**: Use Python, Ruff extensions
+- **Type hints**: `str | None`, not `Optional[str]`
+
+### Style Guidelines
+- 80 chars max per line
+- Double quotes for strings
+- 4 spaces for indentation
+- Classes: PascalCase
+- Functions: snake_case
+- Constants: UPPER_SNAKE_CASE
+- Google-style docstrings
 
 ## Resource Requirements
 
 **Production**: 1 GB RAM, 25 GB SSD, 1 vCPU (~$6/month)
-**Savings**: OAuth 1.0a reduces costs 50-75% vs Gateway (2-4 GB RAM)
