@@ -1,3 +1,6 @@
-from skim.application.services.command_dispatcher import CommandDispatcher
+"""Services module for application layer"""
 
-__all__ = ["CommandDispatcher"]
+from skim.application.services.command_dispatcher import CommandDispatcher
+from skim.application.services.trading_service import TradingService
+
+__all__ = ["CommandDispatcher", "TradingService"]
