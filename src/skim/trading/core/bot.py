@@ -1,11 +1,8 @@
-#!/usr/bin/env python3
 """Skim - ASX Trading Bot
 
 Orchestrator that manages multiple trading strategies
 """
 
-import asyncio
-import sys
 from datetime import date
 
 from loguru import logger
@@ -36,7 +33,6 @@ class TradingBot:
         self.config = config
         self.db = Database(config.db_path)
 
-        # --- Shared Service Instantiation ---
         self.ib_client = IBKRClient(paper_trading=config.paper_trading)
         self.market_data_service = IBKRMarketData(self.ib_client)
         self.order_service = IBKROrders(
@@ -47,7 +43,6 @@ class TradingBot:
         )
         self.discord = DiscordNotifier(config.discord_webhook_url)
 
-        # --- Strategy Registration ---
         self.strategies: dict[str, Strategy] = {}
         self._register_strategies()
 
@@ -212,89 +207,3 @@ class TradingBot:
         except Exception as e:
             logger.error(f"Candidate purge failed: {e}", exc_info=True)
             return 0
-
-
-def main():
-    """CLI entry point"""
-    logger.add(
-        "logs/skim_{time}.log",
-        rotation="1 day",
-        retention="30 days",
-        compression="gz",
-        level="INFO",
-    )
-    logger.info("=" * 60)
-    logger.info("SKIM TRADING BOT - MULTI-STRATEGY")
-    logger.info("=" * 60)
-
-    try:
-        config = Config.from_env()
-    except ValueError as e:
-        logger.error(f"Configuration error: {e}")
-        sys.exit(1)
-
-    bot = TradingBot(config)
-
-    if len(sys.argv) < 2:
-        logger.error(
-            "No method specified. Available: scan, track_ranges, alert, trade, manage, status, purge_candidates, fetch_market_data"
-        )
-        sys.exit(1)
-
-    method = sys.argv[1]
-
-    async def run():
-        try:
-            if method == "scan":
-                await bot.scan()
-            elif method == "track_ranges":
-                await bot.track_ranges()
-            elif method == "alert":
-                await bot.alert()
-            elif method in ("fetch_market_data", "market_data"):
-                if len(sys.argv) < 3:
-                    logger.error(
-                        "Ticker required. Usage: python -m skim.core.bot fetch_market_data <TICKER>"
-                    )
-                    sys.exit(1)
-                ticker = sys.argv[2]
-                await bot.fetch_market_data(ticker)
-            elif method == "trade":
-                await bot.trade()
-            elif method == "manage":
-                await bot.manage()
-            elif method == "status":
-                await bot.status()
-            elif method == "purge_candidates":
-                cutoff = None
-                if len(sys.argv) >= 3:
-                    try:
-                        cutoff = date.fromisoformat(sys.argv[2])
-                    except ValueError:
-                        logger.error(
-                            "Invalid date format. Use YYYY-MM-DD for cutoff."
-                        )
-                        sys.exit(1)
-                await bot.purge_candidates(cutoff)
-            else:
-                logger.error(f"Unknown method: {method}")
-                sys.exit(1)
-        finally:
-            if bot.ib_client.is_connected():
-                logger.info("Shutting down IBKR connection...")
-                await bot.ib_client.disconnect()
-
-    try:
-        asyncio.run(run())
-    except KeyboardInterrupt:
-        logger.warning("Bot stopped manually.")
-    except Exception as e:
-        logger.critical(
-            f"Unhandled exception in bot execution: {e}", exc_info=True
-        )
-    finally:
-        logger.info("Bot shutdown complete.")
-
-
-if __name__ == "__main__":
-    main()
