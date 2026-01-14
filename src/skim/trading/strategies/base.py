@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
 
 
 class Strategy(ABC):
@@ -75,3 +79,38 @@ class Strategy(ABC):
             Number of candidates updated with opening ranges
         """
         return 0
+
+    async def scan_gaps(self) -> int:
+        """Scan for gap candidates
+
+        Returns:
+            Number of gap candidates found
+        """
+        return 0
+
+    async def scan_news(self) -> int:
+        """Scan for news candidates
+
+        Returns:
+            Number of news candidates found
+        """
+        return 0
+
+    async def on_event(self, event) -> list:
+        """Process event and return signals (event-driven interface)
+
+        Args:
+            event: Event to process
+
+        Returns:
+            List of signals generated
+        """
+        return []
+
+    async def get_pending_signals(self) -> list:
+        """Get pending signals for execution
+
+        Returns:
+            List of pending signals
+        """
+        return []
