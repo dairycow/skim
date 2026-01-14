@@ -527,6 +527,121 @@ class CoolTraderDownloader:
 
         return downloaded
 
+    def _check_remote_availability_single(self, target_date: date) -> bool:
+        """Check if a CSV file is available remotely without downloading.
+
+        Args:
+            target_date: The date to check.
+
+        Returns:
+            True if file is available, False otherwise.
+        """
+        client = self.auth._get_client()
+        download_url = self._get_download_url(target_date)
+
+        try:
+            response = client.head(download_url, follow_redirects=True)
+            if response.status_code == 200:
+                content_length = response.headers.get("content-length", "0")
+                try:
+                    if int(content_length) > 100:
+                        return True
+                except ValueError:
+                    return True
+            elif response.status_code == 404:
+                return False
+        except Exception:
+            pass
+
+        try:
+            response = client.get(download_url, follow_redirects=True)
+            if response.status_code == 200:
+                content = response.content
+                if len(content) > 100 and b"not found" not in content.lower():
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def check_remote_availability(
+        self, start_date: date, end_date: date
+    ) -> dict[date, bool]:
+        """Check availability of CSV files for a date range.
+
+        Makes lightweight HEAD requests to check which dates have data
+        available without downloading full files.
+
+        Args:
+            start_date: First date to check.
+            end_date: Last date to check.
+
+        Returns:
+            Dictionary mapping dates to availability status.
+        """
+        self.auth.login()
+
+        availability: dict[date, bool] = {}
+        current = start_date
+
+        while current <= end_date:
+            available = self._check_remote_availability_single(current)
+            availability[current] = available
+            current += timedelta(days=1)
+
+        return availability
+
+    def backfill_check(
+        self, start_date: date, end_date: date
+    ) -> dict[str, list[date]]:
+        """Check for missing data and generate backfill report.
+
+        Compares remote availability with local files to identify gaps.
+
+        Args:
+            start_date: First date to check.
+            end_date: Last date to check.
+
+        Returns:
+            Dictionary with:
+            - 'available_remote': dates with data on server
+            - 'missing_remote': dates not available on server (data gaps)
+            - 'not_downloaded': available but not in local storage
+            - 'already_downloaded': available and already downloaded
+        """
+        availability = self.check_remote_availability(start_date, end_date)
+
+        available_remote: list[date] = []
+        missing_remote: list[date] = []
+        not_downloaded: list[date] = []
+        already_downloaded: list[date] = []
+
+        local_files = set()
+        for f in self.config.download_dir.glob("*.csv"):
+            if f.name.endswith(".csv") and f.name[:8].isdigit():
+                try:
+                    file_date = datetime.strptime(f.name[:8], "%Y%m%d").date()
+                    if start_date <= file_date <= end_date:
+                        local_files.add(file_date)
+                except ValueError:
+                    pass
+
+        for check_date, is_available in availability.items():
+            if is_available:
+                available_remote.append(check_date)
+                if check_date in local_files:
+                    already_downloaded.append(check_date)
+                else:
+                    not_downloaded.append(check_date)
+            else:
+                missing_remote.append(check_date)
+
+        return {
+            "available_remote": sorted(available_remote),
+            "missing_remote": sorted(missing_remote),
+            "not_downloaded": sorted(not_downloaded),
+            "already_downloaded": sorted(already_downloaded),
+        }
+
     def _find_unprocessed_files(self) -> list[Path]:
         """Find CSV files that haven't been processed yet.
 
@@ -654,6 +769,20 @@ def download_today_and_process() -> int:
         return 0
 
 
+def backfill_check(start_date: date, end_date: date) -> dict[str, list[date]]:
+    """Check for missing data and generate backfill report.
+
+    Args:
+        start_date: First date to check.
+        end_date: Last date to check.
+
+    Returns:
+        Dictionary with backfill information.
+    """
+    with CoolTraderDownloader() as downloader:
+        return downloader.backfill_check(start_date, end_date)
+
+
 def download_main():
     """CLI entry point for data download command."""
     import argparse
@@ -682,6 +811,30 @@ def download_main():
 
     subparsers.add_parser("run", help="Download today and process")
 
+    backfill_parser = subparsers.add_parser(
+        "backfill", help="Check for missing data and generate backfill report"
+    )
+    backfill_parser.add_argument(
+        "--start",
+        required=True,
+        help="Start date (YYYYMMDD)",
+    )
+    backfill_parser.add_argument(
+        "--end",
+        required=True,
+        help="End date (YYYYMMDD)",
+    )
+    backfill_parser.add_argument(
+        "--missing-only",
+        action="store_true",
+        help="Only show dates that need downloading",
+    )
+    backfill_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON for programmatic use",
+    )
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -709,6 +862,60 @@ def download_main():
                 print(f"Downloaded and processed {count} file(s)")
             else:
                 print("No data available")
+    elif args.command == "backfill":
+        with CoolTraderDownloader() as downloader:
+            start = downloader._parse_date_arg(args.start)
+            end = downloader._parse_date_arg(args.end)
+            report = backfill_check(start_date=start, end_date=end)
+
+            if args.json:
+                import json
+
+                json_output = {
+                    "range": f"{start.isoformat()} to {end.isoformat()}",
+                    "available_remote": [
+                        d.isoformat() for d in report["available_remote"]
+                    ],
+                    "missing_remote": [
+                        d.isoformat() for d in report["missing_remote"]
+                    ],
+                    "not_downloaded": [
+                        d.isoformat() for d in report["not_downloaded"]
+                    ],
+                    "already_downloaded": [
+                        d.isoformat() for d in report["already_downloaded"]
+                    ],
+                }
+                print(json.dumps(json_output, indent=2))
+            else:
+                print(
+                    f"Backfill Report: {start.isoformat()} to {end.isoformat()}"
+                )
+                print()
+
+                if report["missing_remote"]:
+                    print(
+                        f"Missing from server (data gaps): {len(report['missing_remote'])}"
+                    )
+                    for d in report["missing_remote"]:
+                        print(f"  {d.isoformat()}")
+                    print()
+
+                if not args.missing_only:
+                    if report["not_downloaded"]:
+                        print(
+                            f"Available but not downloaded: {len(report['not_downloaded'])}"
+                        )
+                        for d in report["not_downloaded"]:
+                            print(f"  {d.isoformat()}")
+                        print()
+
+                    if report["already_downloaded"]:
+                        print(
+                            f"Already downloaded: {len(report['already_downloaded'])}"
+                        )
+                        for d in report["already_downloaded"]:
+                            print(f"  {d.isoformat()}")
 
 
 if __name__ == "__main__":
