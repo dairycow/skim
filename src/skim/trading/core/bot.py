@@ -7,7 +7,9 @@ from datetime import date
 
 from loguru import logger
 
+from skim.domain.strategies.base import Strategy as DomainStrategy
 from skim.domain.strategies.context import StrategyContext
+from skim.domain.strategies.registry import registry
 from skim.infrastructure.brokers.ibkr import IBKRClient
 from skim.trading.brokers.ibkr_gap_scanner import IBKRGapScanner
 from skim.trading.brokers.ibkr_market_data import IBKRMarketData
@@ -18,8 +20,6 @@ from skim.trading.data.repositories.orh_repository import (
     ORHCandidateRepository,
 )
 from skim.trading.notifications.discord import DiscordNotifier
-from skim.trading.strategies import ORHBreakoutStrategy
-from skim.trading.strategies.base import Strategy
 
 
 class TradingBot:
@@ -44,7 +44,7 @@ class TradingBot:
         )
         self.discord = DiscordNotifier(config.discord_webhook_url)
 
-        self.strategies: dict[str, Strategy] = {}
+        self.strategies: dict[str, DomainStrategy] = {}
         self._register_strategies()
 
         logger.info("Bot initialised successfully")
@@ -68,16 +68,21 @@ class TradingBot:
         )
 
     def _register_strategies(self) -> None:
-        """Register available strategies
+        """Register available strategies using the StrategyRegistry.
 
-        Add new strategies here when implemented
+        Strategies are auto-registered via the @register_strategy decorator.
+        We use the global registry to instantiate strategies.
         """
+        available = registry.list_available()
         context = self._create_strategy_context()
-        self.strategies["orh_breakout"] = ORHBreakoutStrategy(context)
+
+        for name in available:
+            self.strategies[name] = registry.get(name, context)
+            logger.info(f"Registered strategy: {name}")
 
         logger.info(f"Registered {len(self.strategies)} strategies")
 
-    def _get_strategy(self, strategy_name: str) -> Strategy:
+    def _get_strategy(self, strategy_name: str) -> DomainStrategy:
         """Get strategy by name
 
         Args:

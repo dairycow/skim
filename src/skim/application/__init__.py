@@ -12,7 +12,7 @@ from skim.application.events import (
     handle_stop_hit,
     handle_trade_executed,
 )
-from skim.application.services import Signal, TradingService
+from skim.application.services import TradingService
 
 __all__ = [
     "Event",
@@ -26,5 +26,4 @@ __all__ = [
     "handle_candidate_created",
     "handle_opening_range_tracked",
     "TradingService",
-    "Signal",
 ]
