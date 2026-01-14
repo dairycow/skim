@@ -70,7 +70,7 @@ class HistoricalDataRepository:
                     desc(DailyPrice.trade_date)  # type: ignore[arg-type]
                 )
             ).first()
-            return cast(datetime_date | None, result)
+            return cast(datetime_date | None, result[0]) if result else None
 
     def get_earliest_date(self) -> datetime_date | None:
         """Get the earliest date in the database
@@ -84,7 +84,7 @@ class HistoricalDataRepository:
                     asc(DailyPrice.trade_date)  # type: ignore[arg-type]
                 )
             ).first()
-            return cast(datetime_date | None, result)
+            return cast(datetime_date | None, result[0]) if result else None
 
     def get_tickers_with_data(self) -> list[str]:
         """Get all tickers that have data in the database
@@ -308,4 +308,4 @@ class HistoricalDataRepository:
             result = session.exec(  # type: ignore[arg-type]
                 select(func.count()).select_from(DailyPrice)  # type: ignore[arg-type]
             ).first()
-            return result or 0
+            return int(result[0]) if result and result[0] is not None else 0
