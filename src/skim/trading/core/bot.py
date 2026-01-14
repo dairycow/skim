@@ -11,7 +11,7 @@ from datetime import date
 from loguru import logger
 
 from skim.domain.strategies.context import StrategyContext
-from skim.trading.brokers.ibkr_client import IBKRClient
+from skim.infrastructure.brokers.ibkr import IBKRClient
 from skim.trading.brokers.ibkr_gap_scanner import IBKRGapScanner
 from skim.trading.brokers.ibkr_market_data import IBKRMarketData
 from skim.trading.brokers.ibkr_orders import IBKROrders

@@ -6,7 +6,7 @@ import httpx
 import pytest
 from loguru import logger
 
-from skim.trading.brokers.ibkr_client import IBKRAuthenticationError, IBKRClient
+from skim.infrastructure.brokers.ibkr import IBKRAuthenticationError, IBKRClient
 
 
 # Fixture to create a client instance without calling __init__

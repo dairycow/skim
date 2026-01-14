@@ -4,9 +4,9 @@ from typing import Any
 
 from loguru import logger
 
+from skim.infrastructure.brokers.ibkr import IBKRClient
 from skim.trading.data.models import OrderResult, Position
 
-from .ibkr_client import IBKRClient
 from .protocols import MarketDataProvider, OrderManager
 
 

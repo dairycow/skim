@@ -4,9 +4,10 @@ from typing import Any
 
 from loguru import logger
 
+from skim.infrastructure.brokers.ibkr import IBKRClient
+
 from ..core.config import ScannerConfig
 from ..validation.scanners import GapStock, ScannerValidationError
-from .ibkr_client import IBKRClient
 from .protocols import GapScannerService
 
 
