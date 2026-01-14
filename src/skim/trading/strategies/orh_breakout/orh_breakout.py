@@ -11,8 +11,8 @@ from skim.shared.historical import PerformanceFilter
 from skim.trading.strategies.base import Strategy
 
 if TYPE_CHECKING:
+    from skim.infrastructure.brokers.ibkr import IBKRClient
     from skim.shared.historical import HistoricalDataService
-    from skim.trading.brokers.ibkr_client import IBKRClient
     from skim.trading.brokers.ibkr_gap_scanner import IBKRGapScanner
     from skim.trading.brokers.ibkr_market_data import IBKRMarketData
     from skim.trading.brokers.ibkr_orders import IBKROrders
