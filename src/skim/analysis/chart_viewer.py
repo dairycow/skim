@@ -29,13 +29,17 @@ class ChartViewer:
         ticker_upper = ticker.upper()
 
         if ticker_upper not in self.stocks:
-            self.console.print(f"[red]Ticker {ticker_upper} not found in loaded data[/red]")
+            self.console.print(
+                f"[red]Ticker {ticker_upper} not found in loaded data[/red]"
+            )
             return
 
         stock = self.stocks[ticker_upper]
 
         if stock.df is None:
-            self.console.print(f"[red]No data available for {ticker_upper}[/red]")
+            self.console.print(
+                f"[red]No data available for {ticker_upper}[/red]"
+            )
             return
 
         df = stock.df
@@ -43,27 +47,36 @@ class ChartViewer:
         if period:
             try:
                 start_date, end_date = parse_date_range(period)
-                self.console.print(f"[cyan]Loading chart for {ticker_upper}: {start_date.date()} to {end_date.date()}[/cyan]")
-                df = df.filter((pl.col('date') >= start_date) & (pl.col('date') <= end_date))
+                self.console.print(
+                    f"[cyan]Loading chart for {ticker_upper}: {start_date.date()} to {end_date.date()}[/cyan]"
+                )
+                df = df.filter(
+                    (pl.col("date") >= start_date)
+                    & (pl.col("date") <= end_date)
+                )
             except ValueError as e:
                 self.console.print(f"[red]Error parsing period: {e}[/red]")
                 return
         else:
-            self.console.print(f"[cyan]Loading chart for {ticker_upper} (last 100 candles)...[/cyan]")
+            self.console.print(
+                f"[cyan]Loading chart for {ticker_upper} (last 100 candles)...[/cyan]"
+            )
             df = df.tail(100)
 
         if len(df) == 0:
-            self.console.print(f"[yellow]No data found for {ticker_upper} in specified period[/yellow]")
+            self.console.print(
+                f"[yellow]No data found for {ticker_upper} in specified period[/yellow]"
+            )
             return
 
         try:
             candles = [
                 Candle(
-                    open=float(row['open']),
-                    close=float(row['close']),
-                    high=float(row['high']),
-                    low=float(row['low']),
-                    volume=float(row['volume'])
+                    open=float(row["open"]),
+                    close=float(row["close"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                    volume=float(row["volume"]),
                 )
                 for row in df.iter_rows(named=True)
             ]

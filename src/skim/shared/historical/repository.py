@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import date as datetime_date
 from datetime import timedelta
+from typing import cast
 
 from loguru import logger
-from sqlmodel import Session, asc, create_engine, desc, func, select
+from sqlalchemy import asc, desc, select
+from sqlmodel import Session, create_engine, func
 
 from skim.shared.historical.models import DailyPrice, HistoricalPerformance
 
@@ -64,11 +66,11 @@ class HistoricalDataRepository:
         """
         with self.db.get_session() as session:
             result = session.exec(
-                select(DailyPrice.trade_date).order_by(
-                    desc(DailyPrice.trade_date)
+                select(DailyPrice.trade_date).order_by(  # type: ignore[arg-type]
+                    desc(DailyPrice.trade_date)  # type: ignore[arg-type]
                 )
             ).first()
-            return result
+            return cast(datetime_date | None, result)
 
     def get_earliest_date(self) -> datetime_date | None:
         """Get the earliest date in the database
@@ -78,11 +80,11 @@ class HistoricalDataRepository:
         """
         with self.db.get_session() as session:
             result = session.exec(
-                select(DailyPrice.trade_date).order_by(
-                    asc(DailyPrice.trade_date)
+                select(DailyPrice.trade_date).order_by(  # type: ignore[arg-type]
+                    asc(DailyPrice.trade_date)  # type: ignore[arg-type]
                 )
             ).first()
-            return result
+            return cast(datetime_date | None, result)
 
     def get_tickers_with_data(self) -> list[str]:
         """Get all tickers that have data in the database
@@ -92,7 +94,7 @@ class HistoricalDataRepository:
         """
         with self.db.get_session() as session:
             result = session.exec(
-                select(DailyPrice.ticker).distinct().order_by(DailyPrice.ticker)
+                select(DailyPrice.ticker).distinct().order_by(DailyPrice.ticker)  # type: ignore[arg-type]
             ).all()
             return list(result)
 
@@ -110,9 +112,9 @@ class HistoricalDataRepository:
         """
         with self.db.get_session() as session:
             result = session.exec(
-                select(DailyPrice).where(
-                    DailyPrice.ticker == ticker.upper(),
-                    DailyPrice.trade_date == target_date,
+                select(DailyPrice).where(  # type: ignore[arg-type]
+                    DailyPrice.ticker == ticker.upper(),  # type: ignore[arg-type]
+                    DailyPrice.trade_date == target_date,  # type: ignore[arg-type]
                 )
             ).first()
             return result
@@ -133,12 +135,12 @@ class HistoricalDataRepository:
         with self.db.get_session() as session:
             results = session.exec(
                 select(DailyPrice)
-                .where(
-                    DailyPrice.ticker == ticker.upper(),
-                    DailyPrice.trade_date >= start_date,
-                    DailyPrice.trade_date <= end_date,
+                .where(  # type: ignore[arg-type]
+                    DailyPrice.ticker == ticker.upper(),  # type: ignore[arg-type]
+                    DailyPrice.trade_date >= start_date,  # type: ignore[arg-type]
+                    DailyPrice.trade_date <= end_date,  # type: ignore[arg-type]
                 )
-                .order_by(DailyPrice.trade_date)
+                .order_by(asc(DailyPrice.trade_date))  # type: ignore[arg-type]
             ).all()
             return list(results)
 
@@ -165,12 +167,12 @@ class HistoricalDataRepository:
         with self.db.get_session() as session:
             prices = session.exec(
                 select(DailyPrice)
-                .where(
-                    DailyPrice.ticker == ticker.upper(),
-                    DailyPrice.trade_date >= start_date,
-                    DailyPrice.trade_date <= end_date,
+                .where(  # type: ignore[arg-type]
+                    DailyPrice.ticker == ticker.upper(),  # type: ignore[arg-type]
+                    DailyPrice.trade_date >= start_date,  # type: ignore[arg-type]
+                    DailyPrice.trade_date <= end_date,  # type: ignore[arg-type]
                 )
-                .order_by(DailyPrice.trade_date)
+                .order_by(asc(DailyPrice.trade_date))  # type: ignore[arg-type]
             ).all()
 
             if len(prices) < 2:
@@ -247,9 +249,9 @@ class HistoricalDataRepository:
         with self.db.get_session() as session:
             for price in prices:
                 existing = session.exec(
-                    select(DailyPrice).where(
-                        DailyPrice.ticker == price.ticker,
-                        DailyPrice.trade_date == price.trade_date,
+                    select(DailyPrice).where(  # type: ignore[arg-type]
+                        DailyPrice.ticker == price.ticker,  # type: ignore[arg-type]
+                        DailyPrice.trade_date == price.trade_date,  # type: ignore[arg-type]
                     )
                 ).first()
 
@@ -276,7 +278,7 @@ class HistoricalDataRepository:
         """
         with self.db.get_session() as session:
             result = session.exec(
-                select(DailyPrice).where(DailyPrice.ticker == ticker.upper())
+                select(DailyPrice).where(DailyPrice.ticker == ticker.upper())  # type: ignore[arg-type]
             ).all()
             count = len(result)
             for price in result:
@@ -292,7 +294,7 @@ class HistoricalDataRepository:
         """
         with self.db.get_session() as session:
             result = session.exec(
-                select(DailyPrice.ticker).distinct().order_by(DailyPrice.ticker)
+                select(DailyPrice.ticker).distinct().order_by(DailyPrice.ticker)  # type: ignore[arg-type]
             ).all()
             return len(result)
 
@@ -303,7 +305,7 @@ class HistoricalDataRepository:
             Total number of records
         """
         with self.db.get_session() as session:
-            result = session.exec(
-                select(func.count()).select_from(DailyPrice)
+            result = session.exec(  # type: ignore[arg-type]
+                select(func.count()).select_from(DailyPrice)  # type: ignore[arg-type]
             ).first()
             return result or 0

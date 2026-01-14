@@ -8,6 +8,7 @@ into a unified data/ directory for DataLoader.
 import shutil
 import tempfile
 import zipfile
+from contextlib import suppress
 from pathlib import Path
 
 import polars as pl
@@ -73,10 +74,8 @@ class DataPreprocessor:
         csv_files = list(self.source_dir.glob("*.csv"))
 
         for filepath in tqdm(csv_files, desc="Copying base data"):
-            try:
+            with suppress(Exception):
                 shutil.copy2(filepath, self.output_dir / filepath.name)
-            except Exception:
-                pass
 
         self.console.print(
             f"[green]✓ Copied {len(csv_files)} tickers from {self.source_dir.name}[/green]"

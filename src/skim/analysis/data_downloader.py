@@ -8,7 +8,6 @@ Download URL: https://www.data.cooltrader.com.au/amember/eodfiles/nextday/csv/{Y
 """
 
 import json
-import sys
 import time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -655,41 +654,62 @@ def download_today_and_process() -> int:
         return 0
 
 
-if __name__ == "__main__":
+def download_main():
+    """CLI entry point for data download command."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Download CoolTrader data")
-    parser.add_argument(
+    parser = argparse.ArgumentParser(description="CoolTrader data downloader")
+    subparsers = parser.add_subparsers(
+        dest="command", help="Available commands"
+    )
+
+    download_parser = subparsers.add_parser(
+        "download", help="Download data for a date"
+    )
+    download_parser.add_argument(
         "date",
         nargs="?",
         default="today",
         help="Date to download (YYYYMMDD, today, yesterday)",
     )
-    parser.add_argument(
+    download_parser.add_argument(
         "--process",
         action="store_true",
         help="Process downloaded files after download",
     )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable verbose logging",
-    )
+
+    subparsers.add_parser("process", help="Process downloaded files")
+
+    subparsers.add_parser("run", help="Download today and process")
 
     args = parser.parse_args()
 
-    if args.verbose:
-        logger.remove()
-        logger.add(sys.stderr, level="DEBUG")
+    if args.command is None:
+        parser.print_help()
+        return
 
-    with CoolTraderDownloader() as downloader:
-        path = downloader.download_for_date_str(args.date)
-
-        if path:
-            print(f"Downloaded: {path}")
-
-            if args.process:
+    if args.command == "download":
+        with CoolTraderDownloader() as downloader:
+            path = downloader.download_for_date_str(args.date)
+            if path:
+                print(f"Downloaded: {path}")
+                if args.process:
+                    count = downloader.process_downloads()
+                    print(f"Processed {count} file(s)")
+            else:
+                print("No data available")
+    elif args.command == "process":
+        with CoolTraderDownloader() as downloader:
+            count = downloader.process_downloads()
+            print(f"Processed {count} file(s)")
+    elif args.command == "run":
+        with CoolTraderDownloader() as downloader:
+            if downloader.download_today():
                 count = downloader.process_downloads()
-                print(f"Processed {count} file(s)")
-        else:
-            print("No data available for specified date")
+                print(f"Downloaded and processed {count} file(s)")
+            else:
+                print("No data available")
+
+
+if __name__ == "__main__":
+    download_main()
