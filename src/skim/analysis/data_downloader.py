@@ -173,17 +173,23 @@ class CoolTraderAuth:
         """Get the login page URL to extract CSRF token."""
         return f"{self.config.base_url}{self.LOGIN_URL}"
 
-    def _get_download_url(self, target_date: date) -> str:
-        """Get the download URL for a specific date.
-
-        Args:
-            target_date: The date to download CSV for.
+    def is_authenticated(self) -> bool:
+        """Check if currently authenticated.
 
         Returns:
-            Full URL to download the CSV file.
+            True if session appears valid.
         """
-        date_str = target_date.strftime("%Y%m%d")
-        return f"{self.config.base_url}/amember/eodfiles/nextday/csv/{date_str}.csv"
+        client = self._get_client()
+        check_url = f"{self.config.base_url}/amember"
+
+        try:
+            response = client.get(check_url, follow_redirects=False)
+            return (
+                response.status_code == 200
+                and "logout" in response.text.lower()
+            )
+        except Exception:
+            return False
 
     def login(self) -> bool:
         """Authenticate to CoolTrader using username/password form.
@@ -250,23 +256,56 @@ class CoolTraderAuth:
         except Exception as e:
             raise CoolTraderAuthError(f"Unexpected login error: {e}") from e
 
-    def is_authenticated(self) -> bool:
-        """Check if currently authenticated.
+    def logout(self) -> None:
+        """Log out from CoolTrader."""
+        client = self._get_client()
+        logout_url = f"{self.config.base_url}{self.LOGOUT_URL}"
+        try:
+            client.get(logout_url)
+            logger.info("Logged out from CoolTrader")
+        except Exception:
+            pass
+
+    def close(self) -> None:
+        """Close HTTP client and cleanup."""
+        if self._client:
+            self._client.close()
+            self._client = None
+
+    def __enter__(self) -> "CoolTraderAuth":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
+
+class CoolTraderDownloader:
+    """Downloads and processes daily CSV files from CoolTrader."""
+
+    def __init__(self, config: CoolTraderConfig | None = None):
+        """Initialise downloader.
+
+        Args:
+            config: Optional config, will load from env if not provided.
+        """
+        if config is None:
+            config = CoolTraderConfig.from_env()
+        self.config = config
+        self.config.download_dir.mkdir(parents=True, exist_ok=True)
+        self.auth = CoolTraderAuth(self.config)
+        self._processed_count = 0
+
+    def _get_download_url(self, target_date: date) -> str:
+        """Get the download URL for a specific date.
+
+        Args:
+            target_date: The date to download CSV for.
 
         Returns:
-            True if session appears valid.
+            Full URL to download the CSV file.
         """
-        client = self._get_client()
-        check_url = f"{self.config.base_url}/amember"
-
-        try:
-            response = client.get(check_url, follow_redirects=False)
-            return (
-                response.status_code == 200
-                and "logout" in response.text.lower()
-            )
-        except Exception:
-            return False
+        date_str = target_date.strftime("%Y%m%d")
+        return f"{self.config.base_url}/amember/eodfiles/nextday/csv/{date_str}.csv"
 
     def download_csv(self, target_date: date) -> bytes | None:
         """Download CSV file for a specific date.
@@ -280,7 +319,7 @@ class CoolTraderAuth:
         Raises:
             CoolTraderDownloadError: If download fails after retries.
         """
-        client = self._get_client()
+        client = self.auth._get_client()
         download_url = self._get_download_url(target_date)
 
         logger.info(f"Downloading CSV for {target_date.isoformat()}...")
@@ -330,35 +369,6 @@ class CoolTraderAuth:
         raise CoolTraderDownloadError(
             f"Failed to download after {self.config.max_retries} attempts: {last_error}"
         )
-
-    def close(self) -> None:
-        """Close HTTP client and cleanup."""
-        if self._client:
-            self._client.close()
-            self._client = None
-
-    def __enter__(self) -> "CoolTraderAuth":
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
-
-
-class CoolTraderDownloader:
-    """Downloads and processes daily CSV files from CoolTrader."""
-
-    def __init__(self, config: CoolTraderConfig | None = None):
-        """Initialise downloader.
-
-        Args:
-            config: Optional config, will load from env if not provided.
-        """
-        if config is None:
-            config = CoolTraderConfig.from_env()
-        self.config = config
-        self.config.download_dir.mkdir(parents=True, exist_ok=True)
-        self.auth = CoolTraderAuth(self.config)
-        self._processed_count = 0
 
     def _validate_csv(self, content: bytes, target_date: date) -> None:
         """Validate downloaded CSV content.
@@ -445,7 +455,7 @@ class CoolTraderDownloader:
         """
         try:
             self.auth.login()
-            content = self.auth.download_csv(target_date)
+            content = self.download_csv(target_date)
 
             if content is None:
                 logger.warning(
