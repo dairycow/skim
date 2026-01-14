@@ -5,9 +5,11 @@ from typing import Any
 from loguru import logger
 
 from skim.infrastructure.brokers.ibkr import IBKRClient
+from skim.infrastructure.brokers.protocols import (
+    MarketDataProvider,
+    OrderManager,
+)
 from skim.trading.data.models import OrderResult, Position
-
-from .protocols import MarketDataProvider, OrderManager
 
 
 class IBKROrdersError(Exception):

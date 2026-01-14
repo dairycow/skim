@@ -22,6 +22,8 @@ class IBKRClientFacade:
 
     This is a connection manager. Market data, orders, and scanning are handled
     by specialized classes that use this client internally.
+
+    Satisfies the BrokerConnectionManager protocol at the type level.
     """
 
     BASE_URL = "https://api.ibkr.com/v1/api"
@@ -500,3 +502,24 @@ IBKRClient = IBKRClientFacade
 def install_logging_bridge() -> None:
     """Bridge stdlib logging used by httpx/ibkr modules into loguru once."""
     IBKRRequestClient.install_logging_bridge()
+
+
+def is_connection_manager(obj: object) -> bool:
+    """Check if object satisfies BrokerConnectionManager protocol.
+
+    Args:
+        obj: Object to check
+
+    Returns:
+        True if object has all required connection manager methods
+    """
+    required_methods = [
+        "connect",
+        "disconnect",
+        "is_connected",
+        "get_account",
+    ]
+    return all(
+        hasattr(obj, method) and callable(getattr(obj, method))
+        for method in required_methods
+    )
