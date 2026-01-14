@@ -93,9 +93,15 @@ class HistoricalDataRepository:
             List of ticker symbols
         """
         with self.db.get_session() as session:
-            result = session.exec(
-                select(DailyPrice.ticker).distinct().order_by(DailyPrice.ticker)  # type: ignore[arg-type]
-            ).all()
+            result = (
+                session.execute(
+                    select(DailyPrice.ticker)
+                    .distinct()
+                    .order_by(DailyPrice.ticker)
+                )
+                .scalars()
+                .all()
+            )
             return list(result)
 
     def get_price_on_date(
@@ -111,12 +117,12 @@ class HistoricalDataRepository:
             DailyPrice record or None if not found
         """
         with self.db.get_session() as session:
-            result = session.exec(
-                select(DailyPrice).where(  # type: ignore[arg-type]
-                    DailyPrice.ticker == ticker.upper(),  # type: ignore[arg-type]
-                    DailyPrice.trade_date == target_date,  # type: ignore[arg-type]
+            result = session.execute(
+                select(DailyPrice).where(
+                    DailyPrice.ticker == ticker.upper(),
+                    DailyPrice.trade_date == target_date,
                 )
-            ).first()
+            ).scalar_one_or_none()
             return result
 
     def get_prices_in_range(
@@ -133,15 +139,19 @@ class HistoricalDataRepository:
             List of DailyPrice records sorted by date
         """
         with self.db.get_session() as session:
-            results = session.exec(
-                select(DailyPrice)
-                .where(  # type: ignore[arg-type]
-                    DailyPrice.ticker == ticker.upper(),  # type: ignore[arg-type]
-                    DailyPrice.trade_date >= start_date,  # type: ignore[arg-type]
-                    DailyPrice.trade_date <= end_date,  # type: ignore[arg-type]
+            results = (
+                session.execute(
+                    select(DailyPrice)
+                    .where(
+                        DailyPrice.ticker == ticker.upper(),
+                        DailyPrice.trade_date >= start_date,
+                        DailyPrice.trade_date <= end_date,
+                    )
+                    .order_by(asc(DailyPrice.trade_date))
                 )
-                .order_by(asc(DailyPrice.trade_date))  # type: ignore[arg-type]
-            ).all()
+                .scalars()
+                .all()
+            )
             return list(results)
 
     def get_performance(
@@ -165,15 +175,19 @@ class HistoricalDataRepository:
         start_date = end_date - timedelta(days=days)
 
         with self.db.get_session() as session:
-            prices = session.exec(
-                select(DailyPrice)
-                .where(  # type: ignore[arg-type]
-                    DailyPrice.ticker == ticker.upper(),  # type: ignore[arg-type]
-                    DailyPrice.trade_date >= start_date,  # type: ignore[arg-type]
-                    DailyPrice.trade_date <= end_date,  # type: ignore[arg-type]
+            prices = (
+                session.execute(
+                    select(DailyPrice)
+                    .where(
+                        DailyPrice.ticker == ticker.upper(),
+                        DailyPrice.trade_date >= start_date,
+                        DailyPrice.trade_date <= end_date,
+                    )
+                    .order_by(asc(DailyPrice.trade_date))
                 )
-                .order_by(asc(DailyPrice.trade_date))  # type: ignore[arg-type]
-            ).all()
+                .scalars()
+                .all()
+            )
 
             if len(prices) < 2:
                 logger.debug(
@@ -248,12 +262,12 @@ class HistoricalDataRepository:
 
         with self.db.get_session() as session:
             for price in prices:
-                existing = session.exec(
-                    select(DailyPrice).where(  # type: ignore[arg-type]
-                        DailyPrice.ticker == price.ticker,  # type: ignore[arg-type]
-                        DailyPrice.trade_date == price.trade_date,  # type: ignore[arg-type]
+                existing = session.execute(
+                    select(DailyPrice).where(
+                        DailyPrice.ticker == price.ticker,
+                        DailyPrice.trade_date == price.trade_date,
                     )
-                ).first()
+                ).scalar_one_or_none()
 
                 if existing:
                     existing.open = price.open
@@ -277,9 +291,15 @@ class HistoricalDataRepository:
             Number of records deleted
         """
         with self.db.get_session() as session:
-            result = session.exec(
-                select(DailyPrice).where(DailyPrice.ticker == ticker.upper())  # type: ignore[arg-type]
-            ).all()
+            result = (
+                session.execute(
+                    select(DailyPrice).where(
+                        DailyPrice.ticker == ticker.upper()
+                    )
+                )
+                .scalars()
+                .all()
+            )
             count = len(result)
             for price in result:
                 session.delete(price)
