@@ -1101,6 +1101,7 @@ dependencies = [
     { name = "rich" },
     { name = "sqlmodel" },
     { name = "tqdm" },
+    { name = "yfinance" },
 ]
 
 [package.optional-dependencies]
@@ -1110,7 +1111,6 @@ analysis = [
     { name = "pyarrow" },
     { name = "textual" },
     { name = "tqdm" },
-    { name = "yfinance" },
 ]
 
 [package.dev-dependencies]
@@ -1149,7 +1149,7 @@ requires-dist = [
     { name = "textual", marker = "extra == 'analysis'", specifier = ">=0.80.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "tqdm", marker = "extra == 'analysis'", specifier = ">=4.66.0" },
-    { name = "yfinance", marker = "extra == 'analysis'", specifier = ">=0.2.44" },
+    { name = "yfinance", specifier = ">=0.2.44" },
 ]
 provides-extras = ["analysis"]
 

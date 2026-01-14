@@ -23,6 +23,7 @@ dependencies = [
     "polars>=1.37.0",
     "rich>=14.2.0",
     "tqdm>=4.67.1",
+    "yfinance>=0.2.44",
 ]
 
 [project.optional-dependencies]
@@ -31,7 +32,6 @@ analysis = [
     "pyarrow>=15.0.0",
     "textual>=0.80.0",
     "candlestick-chart>=3.0.0",
-    "yfinance>=0.2.44",
     "tqdm>=4.66.0",
 ]
 
