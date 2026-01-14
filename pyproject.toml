@@ -34,7 +34,7 @@ analysis = [
 ]
 
 [project.scripts]
-skim = "skim.trading.core.bot:main"
+skim = "skim.trading.cli:main"
 skim-analyze = "skim.analysis.cli.main:main"
 
 [tool.ruff]
