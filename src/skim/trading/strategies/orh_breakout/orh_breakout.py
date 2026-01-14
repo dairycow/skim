@@ -7,21 +7,12 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from skim.domain.strategies.context import StrategyContext
 from skim.shared.historical import PerformanceFilter
 from skim.trading.strategies.base import Strategy
 
 if TYPE_CHECKING:
-    from skim.shared.historical import HistoricalDataService
-    from skim.trading.brokers.ibkr_client import IBKRClient
-    from skim.trading.brokers.ibkr_gap_scanner import IBKRGapScanner
-    from skim.trading.brokers.ibkr_market_data import IBKRMarketData
-    from skim.trading.brokers.ibkr_orders import IBKROrders
-    from skim.trading.core.config import Config
-    from skim.trading.data.database import Database
-    from skim.trading.data.repositories.orh_repository import (
-        ORHCandidateRepository,
-    )
-    from skim.trading.notifications.discord import DiscordNotifier
+    pass
 
 
 class ORHBreakoutStrategy(Strategy):
@@ -35,56 +26,33 @@ class ORHBreakoutStrategy(Strategy):
     5. Manage positions with stop losses at ORL
     """
 
-    def __init__(
-        self,
-        ib_client: IBKRClient,
-        scanner_service: IBKRGapScanner,
-        market_data_service: IBKRMarketData,
-        order_service: IBKROrders,
-        db: Database,
-        orh_repo: ORHCandidateRepository,
-        discord: DiscordNotifier,
-        config: Config,
-        historical_service: HistoricalDataService | None = None,
-    ):
+    def __init__(self, context: StrategyContext):
         """Initialise ORH breakout strategy
 
         Args:
-            ib_client: IBKR API client
-            scanner_service: Gap scanner service
-            market_data_service: Market data service
-            order_service: Order placement service
-            db: Database for position persistence
-            orh_repo: ORH repository for candidate management
-            discord: Discord notification service
-            config: Strategy configuration
-            historical_service: Historical data service for performance filtering
+            context: Strategy context with all dependencies
         """
-        self.ib_client = ib_client
-        self.db = db
-        self.orh_repo = orh_repo
-        self.discord = discord
-        self.config = config
-        self.historical_service = historical_service
+        self.ctx = context
 
-        # Import here to avoid circular imports
         from skim.trading.monitor import Monitor
         from skim.trading.scanners import GapScanner, NewsScanner
 
         from .range_tracker import RangeTracker
         from .trader import Trader
 
-        # Business logic modules
         self.gap_scanner = GapScanner(
-            scanner_service=scanner_service,
-            gap_threshold=config.scanner_config.gap_threshold,
+            scanner_service=self.ctx.scanner_service,
+            gap_threshold=self.ctx.config.scanner_config.gap_threshold,
         )
         self.news_scanner = NewsScanner()
         self.range_tracker = RangeTracker(
-            market_data_service=market_data_service, orh_repo=orh_repo
+            market_data_service=self.ctx.market_data,
+            orh_repo=self.ctx.repository,
         )
-        self.trader = Trader(market_data_service, order_service, self.db)
-        self.monitor = Monitor(market_data_service)
+        self.trader = Trader(
+            self.ctx.market_data, self.ctx.order_service, self.ctx.database
+        )
+        self.monitor = Monitor(self.ctx.market_data)
 
         logger.info("ORH Breakout Strategy initialised")
 
@@ -95,9 +63,9 @@ class ORHBreakoutStrategy(Strategy):
 
     async def _ensure_connection(self) -> None:
         """Ensure IB connection is active"""
-        if not self.ib_client.is_connected():
+        if not self.ctx.connection_manager.is_connected():
             logger.info("Connecting to IBKR...")
-            await self.ib_client.connect(timeout=20)
+            await self.ctx.connection_manager.connect(timeout=20)
 
     async def setup(self) -> None:
         """Purge candidates before scanning"""
@@ -116,8 +84,9 @@ class ORHBreakoutStrategy(Strategy):
         """
         logger.info("Purging candidates...")
         try:
-            deleted = self.db.purge_candidates(
-                only_before_utc_date, strategy_name=self.orh_repo.STRATEGY_NAME
+            deleted = self.ctx.database.purge_candidates(
+                only_before_utc_date,
+                strategy_name=self.ctx.repository.STRATEGY_NAME,
             )
             logger.info(f"Deleted {deleted} candidate rows")
             return deleted
@@ -141,7 +110,7 @@ class ORHBreakoutStrategy(Strategy):
                 logger.warning("No gap candidates found")
             else:
                 for candidate in candidates:
-                    self.orh_repo.save_gap_candidate(candidate)
+                    self.ctx.repository.save_gap_candidate(candidate)
 
             logger.info(f"Gap scan complete. Found {count} candidates")
             return count
@@ -164,7 +133,7 @@ class ORHBreakoutStrategy(Strategy):
                 logger.warning("No news candidates found")
             else:
                 for candidate in candidates:
-                    self.orh_repo.save_news_candidate(candidate)
+                    self.ctx.repository.save_news_candidate(candidate)
 
             logger.info(f"News scan complete. Found {count} candidates")
             return count
@@ -209,13 +178,13 @@ class ORHBreakoutStrategy(Strategy):
         Returns:
             List of tickers that meet historical performance criteria
         """
-        if not self.historical_service:
+        if not self.ctx.historical_service:
             logger.debug(
                 "Historical data service not available, skipping filter"
             )
             return tickers
 
-        hist_config = self.config.historical_config
+        hist_config = self.ctx.config.historical_config
         if not hist_config.enable_filtering:
             logger.debug("Historical filtering disabled in config")
             return tickers
@@ -229,7 +198,7 @@ class ORHBreakoutStrategy(Strategy):
             require_6month_data=False,
         )
 
-        qualified = self.historical_service.filter_by_performance(
+        qualified = self.ctx.historical_service.filter_by_performance(
             tickers, filter_criteria
         )
 
@@ -247,7 +216,7 @@ class ORHBreakoutStrategy(Strategy):
         logger.info("Executing breakouts...")
         try:
             await self._ensure_connection()
-            candidates = self.orh_repo.get_tradeable_candidates()
+            candidates = self.ctx.repository.get_tradeable_candidates()
             if not candidates:
                 logger.info("No tradeable candidates found.")
                 return 0
@@ -273,7 +242,7 @@ class ORHBreakoutStrategy(Strategy):
             events = await self.trader.execute_breakouts(tradeable)
 
             for event in events:
-                self.discord.send_trade_notification(
+                self.ctx.notifier.send_trade_notification(
                     action=event.action,
                     ticker=event.ticker,
                     quantity=event.quantity,
@@ -295,7 +264,7 @@ class ORHBreakoutStrategy(Strategy):
         logger.info("Managing positions...")
         try:
             await self._ensure_connection()
-            positions = self.db.get_open_positions()
+            positions = self.ctx.database.get_open_positions()
             if not positions:
                 logger.info("No open positions to manage.")
                 return 0
@@ -308,7 +277,7 @@ class ORHBreakoutStrategy(Strategy):
             events = await self.trader.execute_stops(stops_hit)
 
             for event in events:
-                self.discord.send_trade_notification(
+                self.ctx.notifier.send_trade_notification(
                     action=event.action,
                     ticker=event.ticker,
                     quantity=event.quantity,
@@ -329,7 +298,7 @@ class ORHBreakoutStrategy(Strategy):
         """
         logger.info("Sending alert for alertable candidates...")
         try:
-            candidates = self.orh_repo.get_alertable_candidates()
+            candidates = self.ctx.repository.get_alertable_candidates()
             count = len(candidates)
 
             if not candidates:
@@ -345,7 +314,7 @@ class ORHBreakoutStrategy(Strategy):
                 for c in candidates
             ]
 
-            self.discord.send_tradeable_candidates(count, payload)
+            self.ctx.notifier.send_tradeable_candidates(count, payload)
             logger.info(f"Alert sent for {count} alertable candidates")
             return count
         except Exception as e:
@@ -361,7 +330,7 @@ class ORHBreakoutStrategy(Strategy):
         logger.info("Performing health check...")
         try:
             await self._ensure_connection()
-            account = self.ib_client.get_account()
+            account = self.ctx.connection_manager.get_account()
             logger.info(f"Health check OK. Connected account: {account}")
             return True
         except Exception as e:
