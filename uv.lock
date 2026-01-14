@@ -1092,16 +1092,12 @@ dependencies = [
     { name = "httpx" },
     { name = "loguru" },
     { name = "lxml" },
-    { name = "polars" },
     { name = "pycryptodome" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pytz" },
     { name = "requests" },
-    { name = "rich" },
     { name = "sqlmodel" },
-    { name = "tqdm" },
-    { name = "yfinance" },
 ]
 
 [package.optional-dependencies]
@@ -1109,8 +1105,10 @@ analysis = [
     { name = "candlestick-chart" },
     { name = "polars" },
     { name = "pyarrow" },
+    { name = "rich" },
     { name = "textual" },
     { name = "tqdm" },
+    { name = "yfinance" },
 ]
 
 [package.dev-dependencies]
@@ -1136,20 +1134,18 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "lxml", specifier = "==6.0.2" },
-    { name = "polars", specifier = ">=1.37.0" },
-    { name = "polars", marker = "extra == 'analysis'", specifier = ">=1.0.0" },
+    { name = "polars", marker = "extra == 'analysis'", specifier = ">=1.37.0" },
     { name = "pyarrow", marker = "extra == 'analysis'", specifier = ">=15.0.0" },
     { name = "pycryptodome", specifier = "==3.23.0" },
     { name = "pydantic", specifier = "==2.12.4" },
     { name = "python-dotenv", specifier = "==1.2.1" },
     { name = "pytz", specifier = "==2025.2" },
     { name = "requests", specifier = "==2.32.5" },
-    { name = "rich", specifier = ">=14.2.0" },
+    { name = "rich", marker = "extra == 'analysis'", specifier = ">=14.2.0" },
     { name = "sqlmodel", specifier = ">=0.0.22,<1.0" },
     { name = "textual", marker = "extra == 'analysis'", specifier = ">=0.80.0" },
-    { name = "tqdm", specifier = ">=4.67.1" },
-    { name = "tqdm", marker = "extra == 'analysis'", specifier = ">=4.66.0" },
-    { name = "yfinance", specifier = ">=0.2.44" },
+    { name = "tqdm", marker = "extra == 'analysis'", specifier = ">=4.67.1" },
+    { name = "yfinance", marker = "extra == 'analysis'", specifier = ">=0.2.44" },
 ]
 provides-extras = ["analysis"]
 
