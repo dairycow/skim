@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 from skim.domain.strategies.context import StrategyContext
+from skim.domain.strategies.registry import register_strategy
 from skim.shared.historical import PerformanceFilter
 from skim.trading.strategies.base import Strategy
 
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     pass
 
 
+@register_strategy("orh_breakout")
 class ORHBreakoutStrategy(Strategy):
     """Opening Range High breakout strategy using gap and news scanning
 

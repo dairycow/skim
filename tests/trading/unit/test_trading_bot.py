@@ -38,9 +38,7 @@ def mock_trading_bot(mock_bot_config):
         patch(
             "skim.trading.core.bot.IBKRGapScanner"
         ) as mock_scanner_service_class,
-        patch(
-            "skim.trading.core.bot.ORHBreakoutStrategy"
-        ) as mock_strategy_class,
+        patch("skim.trading.core.bot.registry") as mock_registry,
         patch(
             "skim.trading.core.bot.DiscordNotifier"
         ) as mock_discord_notifier_class,
@@ -57,7 +55,6 @@ def mock_trading_bot(mock_bot_config):
         mock_ibkr_client.connect = AsyncMock()
         mock_ibkr_client.disconnect = AsyncMock()
         mock_ibkr_client.get_account = Mock(return_value="DU123")
-
         mock_market_data_service.get_market_data = AsyncMock()
 
         mock_strategy.scan = AsyncMock(return_value=0)
@@ -66,7 +63,8 @@ def mock_trading_bot(mock_bot_config):
         mock_strategy.trade = AsyncMock(return_value=0)
         mock_strategy.manage = AsyncMock(return_value=0)
         mock_strategy.health_check = AsyncMock(return_value=True)
-        mock_strategy_class.return_value = mock_strategy
+        mock_registry.list_available.return_value = ["orh_breakout"]
+        mock_registry.get.return_value = mock_strategy
 
         bot = TradingBot(mock_bot_config)
 
@@ -88,6 +86,7 @@ class TestTradingBot:
         self, mock_bot_config
     ):
         """TradingBot should wire all services and register strategies."""
+        mock_strategy = Mock()
         with (
             patch("skim.trading.core.bot.Database") as mock_db_class,
             patch("skim.trading.core.bot.IBKRClient") as mock_ibkr_client_class,
@@ -98,13 +97,14 @@ class TestTradingBot:
             patch(
                 "skim.trading.core.bot.IBKRGapScanner"
             ) as mock_scanner_service_class,
-            patch(
-                "skim.trading.core.bot.ORHBreakoutStrategy"
-            ) as mock_strategy_class,
+            patch("skim.trading.core.bot.registry") as mock_registry,
             patch(
                 "skim.trading.core.bot.DiscordNotifier"
             ) as mock_discord_notifier_class,
         ):
+            mock_registry.list_available.return_value = ["orh_breakout"]
+            mock_registry.get.return_value = mock_strategy
+
             bot = TradingBot(mock_bot_config)
 
             mock_db_class.assert_called_once_with(mock_bot_config.db_path)
@@ -125,7 +125,8 @@ class TestTradingBot:
             mock_discord_notifier_class.assert_called_once_with(
                 mock_bot_config.discord_webhook_url
             )
-            mock_strategy_class.assert_called_once()
+            mock_registry.list_available.assert_called_once()
+            mock_registry.get.assert_called()
             assert bot.db == mock_db_class.return_value
             assert "orh_breakout" in bot.strategies
 
