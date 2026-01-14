@@ -10,16 +10,18 @@ from skim.trading.strategies.orh_breakout import ORHBreakoutStrategy
 @pytest.fixture
 def mock_strategy():
     """Create a mock ORHBreakoutStrategy for testing."""
-    strategy = ORHBreakoutStrategy(
-        ib_client=Mock(),
-        scanner_service=Mock(),
-        market_data_service=Mock(),
-        order_service=Mock(),
-        db=Mock(),
-        orh_repo=Mock(),
-        discord=Mock(),
-        config=Mock(),
-    )
+    mock_config = Mock()
+    mock_config.scanner_config.gap_threshold = 9.0
+    mock_config.historical_config.enable_filtering = False
+
+    mock_repo = Mock()
+    mock_repo.STRATEGY_NAME = "orh_breakout"
+
+    context = Mock()
+    context.config = mock_config
+    context.repository = mock_repo
+
+    strategy = ORHBreakoutStrategy(context)
     yield strategy
 
 
@@ -41,16 +43,16 @@ class TestORHBreakoutStrategyAlert:
                 headline="Halt",
             ),
         ]
-        mock_strategy.orh_repo.get_alertable_candidates = Mock(
+        mock_strategy.ctx.repository.get_alertable_candidates = Mock(
             return_value=mock_alertable
         )
-        mock_strategy.discord.send_tradeable_candidates = Mock()
+        mock_strategy.ctx.notifier.send_tradeable_candidates = Mock()
 
         count = await mock_strategy.alert()
 
         assert count == 2
-        mock_strategy.orh_repo.get_alertable_candidates.assert_called_once()
-        mock_strategy.discord.send_tradeable_candidates.assert_called_once_with(
+        mock_strategy.ctx.repository.get_alertable_candidates.assert_called_once()
+        mock_strategy.ctx.notifier.send_tradeable_candidates.assert_called_once_with(
             2,
             [
                 {
@@ -68,24 +70,26 @@ class TestORHBreakoutStrategyAlert:
 
     async def test_alert_returns_zero_when_no_candidates(self, mock_strategy):
         """alert() should return 0 when no alertable candidates exist."""
-        mock_strategy.orh_repo.get_alertable_candidates = Mock(return_value=[])
+        mock_strategy.ctx.repository.get_alertable_candidates = Mock(
+            return_value=[]
+        )
 
         count = await mock_strategy.alert()
 
         assert count == 0
-        mock_strategy.orh_repo.get_alertable_candidates.assert_called_once()
-        mock_strategy.discord.send_tradeable_candidates.assert_not_called()
+        mock_strategy.ctx.repository.get_alertable_candidates.assert_called_once()
+        mock_strategy.ctx.notifier.send_tradeable_candidates.assert_not_called()
 
     async def test_alert_handles_database_error(self, mock_strategy):
         """alert() should return 0 and log error when DB query fails."""
-        mock_strategy.orh_repo.get_alertable_candidates = Mock(
+        mock_strategy.ctx.repository.get_alertable_candidates = Mock(
             side_effect=Exception("DB error")
         )
 
         count = await mock_strategy.alert()
 
         assert count == 0
-        mock_strategy.discord.send_tradeable_candidates.assert_not_called()
+        mock_strategy.ctx.notifier.send_tradeable_candidates.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -101,7 +105,7 @@ class TestORHBreakoutStrategyScanNoDiscord:
 
         await mock_strategy.scan_gaps()
 
-        mock_strategy.discord.send_tradeable_candidates.assert_not_called()
+        mock_strategy.ctx.notifier.send_tradeable_candidates.assert_not_called()
 
     async def test_scan_news_no_discord_calls(self, mock_strategy):
         """scan_news() should NOT send Discord notifications."""
@@ -112,4 +116,4 @@ class TestORHBreakoutStrategyScanNoDiscord:
 
         await mock_strategy.scan_news()
 
-        mock_strategy.discord.send_tradeable_candidates.assert_not_called()
+        mock_strategy.ctx.notifier.send_tradeable_candidates.assert_not_called()

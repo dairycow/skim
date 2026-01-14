@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+
+from skim.domain.strategies.base import (
+    Strategy as BaseStrategy,
+)
 
 
-class Strategy(ABC):
+class Strategy(BaseStrategy):
     """Base trading strategy interface
 
     All trading strategies must implement this interface.
@@ -14,6 +18,8 @@ class Strategy(ABC):
     - Candidate identification and scanning
     - Position management
     - Strategy-specific lifecycle management
+
+    Inherits from domain Strategy to provide event-driven interface.
     """
 
     @property
