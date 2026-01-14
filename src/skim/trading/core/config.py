@@ -1,7 +1,7 @@
 """Configuration management for Skim trading bot"""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -32,6 +32,29 @@ class ScannerConfig:
 
     # Breakout buffer above ORH (dollars)
     or_breakout_buffer: float = 0.1
+
+
+@dataclass
+class HistoricalConfig:
+    """Configuration for historical data filtering"""
+
+    # Enable historical performance filtering
+    enable_filtering: bool = False
+
+    # Minimum 3-month return percentage to qualify
+    min_3month_return: float | None = None
+
+    # Maximum 3-month return percentage to qualify
+    max_3month_return: float | None = None
+
+    # Minimum 6-month return percentage to qualify
+    min_6month_return: float | None = None
+
+    # Minimum average daily volume
+    min_avg_volume: int | None = None
+
+    # Require historical data to exist for filtering
+    require_data: bool = True
 
 
 def get_db_path() -> Path:
@@ -129,6 +152,11 @@ class Config:
     oauth_signature_key_path: str = ""
     oauth_encryption_key_path: str = ""
 
+    # Historical data configuration
+    historical_config: HistoricalConfig = field(
+        default_factory=HistoricalConfig
+    )
+
     @classmethod
     def from_env(cls) -> "Config":
         """Load configuration from environment variables
@@ -178,6 +206,7 @@ class Config:
             oauth_signature_key_path=str(oauth_paths["signature"]),
             oauth_encryption_key_path=str(oauth_paths["encryption"]),
             scanner_config=ScannerConfig(),
+            historical_config=HistoricalConfig(),
         )
 
         logger.info("Configuration loaded:")
@@ -214,5 +243,18 @@ class Config:
         logger.info(
             f"  OR Breakout Buffer: ${config.scanner_config.or_breakout_buffer}"
         )
+        logger.info(
+            f"  Historical Filtering: {'Enabled' if config.historical_config.enable_filtering else 'Disabled'}"
+        )
+        if config.historical_config.enable_filtering:
+            logger.info(
+                f"    Min 3M Return: {config.historical_config.min_3month_return}%"
+            )
+            logger.info(
+                f"    Min 6M Return: {config.historical_config.min_6month_return}%"
+            )
+            logger.info(
+                f"    Min Volume: {config.historical_config.min_avg_volume or 'N/A'}"
+            )
 
         return config

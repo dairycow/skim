@@ -5,14 +5,14 @@ Copies 10-year historical data and merges new zip file updates
 into a unified data/ directory for DataLoader.
 """
 
-import zipfile
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
-from typing import Dict, List
+
 import polars as pl
-from tqdm import tqdm
 from rich.console import Console
+from tqdm import tqdm
 
 
 class DataPreprocessor:
@@ -82,15 +82,15 @@ class DataPreprocessor:
             f"[green]✓ Copied {len(csv_files)} tickers from {self.source_dir.name}[/green]"
         )
 
-    def _get_sorted_zip_files(self) -> List[Path]:
+    def _get_sorted_zip_files(self) -> list[Path]:
         """Discover and sort zip files alphabetically (YYYYMM order)."""
         return sorted(Path(".").glob(self.zip_pattern))
 
     def _collect_zip_data(
-        self, zip_files: List[Path]
-    ) -> Dict[str, List[pl.DataFrame]]:
+        self, zip_files: list[Path]
+    ) -> dict[str, list[pl.DataFrame]]:
         """Collect all new data from zip files into memory."""
-        new_data: Dict[str, List[pl.DataFrame]] = {}
+        new_data: dict[str, list[pl.DataFrame]] = {}
 
         for zip_path in zip_files:
             self.console.print(f"[cyan]→ Reading {zip_path.name}...[/cyan]")
@@ -142,7 +142,7 @@ class DataPreprocessor:
 
         return new_data
 
-    def _merge_new_data(self, new_data: Dict[str, List[pl.DataFrame]]) -> None:
+    def _merge_new_data(self, new_data: dict[str, list[pl.DataFrame]]) -> None:
         """Merge collected new data into ticker CSV files."""
         self.console.print(
             f"[cyan]→ Merging data for {len(new_data)} tickers...[/cyan]"
@@ -349,7 +349,7 @@ class DataPreprocessor:
         else:
             date_range_str = "N/A"
 
-        self.console.print(f"[green]✓ Aggregation complete![/green]")
+        self.console.print("[green]✓ Aggregation complete![/green]")
         self.console.print(f"  - Output directory: {self.output_dir}/")
         self.console.print(f"  - Total tickers: {len(csv_files)}")
         self.console.print(f"  - Data range: {date_range_str}")

@@ -7,9 +7,11 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from skim.shared.historical import PerformanceFilter
 from skim.trading.strategies.base import Strategy
 
 if TYPE_CHECKING:
+    from skim.shared.historical import HistoricalDataService
     from skim.trading.brokers.ibkr_client import IBKRClient
     from skim.trading.brokers.ibkr_gap_scanner import IBKRGapScanner
     from skim.trading.brokers.ibkr_market_data import IBKRMarketData
@@ -43,6 +45,7 @@ class ORHBreakoutStrategy(Strategy):
         orh_repo: ORHCandidateRepository,
         discord: DiscordNotifier,
         config: Config,
+        historical_service: HistoricalDataService | None = None,
     ):
         """Initialise ORH breakout strategy
 
@@ -55,12 +58,14 @@ class ORHBreakoutStrategy(Strategy):
             orh_repo: ORH repository for candidate management
             discord: Discord notification service
             config: Strategy configuration
+            historical_service: Historical data service for performance filtering
         """
         self.ib_client = ib_client
         self.db = db
         self.orh_repo = orh_repo
         self.discord = discord
         self.config = config
+        self.historical_service = historical_service
 
         # Import here to avoid circular imports
         from skim.trading.monitor import Monitor
@@ -195,6 +200,44 @@ class ORHBreakoutStrategy(Strategy):
             logger.error(f"Opening range tracking failed: {e}", exc_info=True)
             return 0
 
+    def filter_by_historical_performance(self, tickers: list[str]) -> list[str]:
+        """Filter tickers by historical performance criteria.
+
+        Args:
+            tickers: List of ticker symbols to filter
+
+        Returns:
+            List of tickers that meet historical performance criteria
+        """
+        if not self.historical_service:
+            logger.debug(
+                "Historical data service not available, skipping filter"
+            )
+            return tickers
+
+        hist_config = self.config.historical_config
+        if not hist_config.enable_filtering:
+            logger.debug("Historical filtering disabled in config")
+            return tickers
+
+        filter_criteria = PerformanceFilter(
+            min_3month_return=hist_config.min_3month_return,
+            max_3month_return=hist_config.max_3month_return,
+            min_6month_return=hist_config.min_6month_return,
+            min_avg_volume=hist_config.min_avg_volume,
+            require_3month_data=hist_config.require_data,
+            require_6month_data=False,
+        )
+
+        qualified = self.historical_service.filter_by_performance(
+            tickers, filter_criteria
+        )
+
+        logger.info(
+            f"Historical filter: {len(tickers)} -> {len(qualified)} candidates"
+        )
+        return qualified
+
     async def trade(self) -> int:
         """Execute breakout entries for tradeable candidates
 
@@ -210,7 +253,24 @@ class ORHBreakoutStrategy(Strategy):
                 return 0
 
             logger.info(f"Found {len(candidates)} tradeable candidates")
-            events = await self.trader.execute_breakouts(candidates)
+
+            tickers = [c.ticker for c in candidates]
+            qualified_tickers = self.filter_by_historical_performance(tickers)
+
+            if len(qualified_tickers) < len(tickers):
+                filtered = set(tickers) - set(qualified_tickers)
+                logger.info(
+                    f"Filtered out {len(filtered)} candidates: {filtered}"
+                )
+
+            tradeable = [c for c in candidates if c.ticker in qualified_tickers]
+
+            if not tradeable:
+                logger.info("No candidates passed historical filter")
+                return 0
+
+            logger.info(f"Trading {len(tradeable)} candidates")
+            events = await self.trader.execute_breakouts(tradeable)
 
             for event in events:
                 self.discord.send_trade_notification(
