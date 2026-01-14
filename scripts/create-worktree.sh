@@ -45,7 +45,7 @@ fi
 
 # Initialize Python environment with uv (separate venv per worktree)
 uv venv
-uv sync
+uv sync --extra analysis
 
 echo "Worktree ready at: $WORKTREE_PATH"
 echo ""
