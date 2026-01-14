@@ -203,7 +203,7 @@ class CoolTraderAuth:
             response = client.get(login_url)
             response.raise_for_status()
         except httpx.HTTPError as e:
-            raise CoolTraderAuthError(f"Failed to load login page: {e}")
+            raise CoolTraderAuthError(f"Failed to load login page: {e}") from e
 
         try:
             html = response.text
@@ -244,11 +244,11 @@ class CoolTraderAuth:
             return True
 
         except httpx.HTTPError as e:
-            raise CoolTraderAuthError(f"Login request failed: {e}")
+            raise CoolTraderAuthError(f"Login request failed: {e}") from e
         except CoolTraderAuthError:
             raise
         except Exception as e:
-            raise CoolTraderAuthError(f"Unexpected login error: {e}")
+            raise CoolTraderAuthError(f"Unexpected login error: {e}") from e
 
     def is_authenticated(self) -> bool:
         """Check if currently authenticated.
@@ -432,7 +432,7 @@ class CoolTraderDownloader:
                 except ValueError:
                     raise ValueError(
                         f"Invalid date format: {date_arg}. Use YYYYMMDD, today, or yesterday"
-                    )
+                    ) from None
 
     def download_date(self, target_date: date) -> Path | None:
         """Download CSV for a specific date.

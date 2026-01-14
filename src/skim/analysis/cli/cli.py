@@ -535,10 +535,7 @@ class CLI:
                         self.load_data()
 
                     elif cmd == "download":
-                        if len(parts) > 1:
-                            date_arg = parts[1]
-                        else:
-                            date_arg = None
+                        date_arg = parts[1] if len(parts) > 1 else None
                         self.download_data(date_arg)
 
                     elif cmd == "top":

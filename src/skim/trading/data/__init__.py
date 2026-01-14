@@ -1,5 +1,11 @@
 """Data layer for Skim trading bot"""
 
+from skim.shared.historical import (
+    DailyPrice,
+    HistoricalDataRepository,
+    HistoricalPerformance,
+)
+
 from .database import Database
 from .models import (
     Candidate,
@@ -19,8 +25,11 @@ from .repositories.orh_repository import ORHCandidateRepository
 __all__ = [
     "Candidate",
     "CandidateRepository",
+    "DailyPrice",
     "Database",
     "GapStockInPlay",
+    "HistoricalDataRepository",
+    "HistoricalPerformance",
     "MarketData",
     "NewsStockInPlay",
     "OpeningRange",
