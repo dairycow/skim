@@ -3,6 +3,9 @@
 from .event_bus import Event, EventBus, EventType
 from .handlers import (
     DEFAULT_HANDLERS,
+    EventHandlers,
+    create_handler_factory,
+    get_default_handlers,
     handle_candidate_created,
     handle_gap_scan_result,
     handle_news_scan_result,
@@ -16,6 +19,9 @@ __all__ = [
     "EventBus",
     "EventType",
     "DEFAULT_HANDLERS",
+    "EventHandlers",
+    "create_handler_factory",
+    "get_default_handlers",
     "handle_gap_scan_result",
     "handle_news_scan_result",
     "handle_stop_hit",

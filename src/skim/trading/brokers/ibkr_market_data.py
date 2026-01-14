@@ -12,6 +12,7 @@ import asyncio
 from loguru import logger
 
 from skim.infrastructure.brokers.ibkr import IBKRClient
+from skim.infrastructure.brokers.protocols import MarketDataProvider
 from skim.trading.data.models import MarketData
 
 from ..validation.price_parsing import (
@@ -19,7 +20,6 @@ from ..validation.price_parsing import (
     safe_parse_price,
     validate_minimum_price,
 )
-from .protocols import MarketDataProvider
 
 
 class IBKRMarketDataError(Exception):

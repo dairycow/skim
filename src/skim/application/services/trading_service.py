@@ -5,12 +5,20 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 from skim.application.events import Event, EventBus, EventType
+from skim.application.events.handlers import (
+    create_handler_factory,
+    get_default_handlers,
+)
 
 if TYPE_CHECKING:
     from skim.trading.brokers.ibkr_market_data import IBKRMarketData
     from skim.trading.brokers.ibkr_orders import IBKROrders
     from skim.trading.core.config import Config
     from skim.trading.data.database import Database
+    from skim.trading.data.repositories.orh_repository import (
+        ORHCandidateRepository,
+    )
+    from skim.trading.notifications.discord import DiscordNotifier
     from skim.trading.strategies.base import Strategy
 
 
@@ -29,6 +37,8 @@ class TradingService:
         market_data: "IBKRMarketData",
         orders: "IBKROrders",
         config: "Config",
+        repository: "ORHCandidateRepository",
+        notifier: "DiscordNotifier",
     ) -> None:
         """Initialise trading service
 
@@ -39,6 +49,8 @@ class TradingService:
             market_data: Market data service
             orders: Order management service
             config: Application configuration
+            repository: Candidate repository for ORM operations
+            notifier: Discord webhook for notifications
         """
         self.strategy = strategy
         self.events = event_bus
@@ -46,10 +58,39 @@ class TradingService:
         self.market_data = market_data
         self.orders = orders
         self.config = config
+        self._repository = repository
+        self._notifier = notifier
 
-        if hasattr(strategy, "on_event"):
-            self.events.add_handler(strategy.on_event)
+        self._register_strategy_handler()
+        self._register_event_handlers()
+
         logger.info(f"TradingService initialised for strategy: {strategy.name}")
+
+    def _register_strategy_handler(self) -> None:
+        """Register strategy as a global event handler if it supports on_event."""
+        if hasattr(self.strategy, "on_event"):
+            self.events.add_handler(self.strategy.on_event)
+            logger.debug("Registered strategy as global event handler")
+
+    def _register_event_handlers(self) -> None:
+        """Register domain event handlers with the event bus.
+
+        Creates an EventHandlers instance with all required dependencies
+        and registers handlers for each event type.
+        """
+        handlers = create_handler_factory(
+            db=self.db,
+            repository=self._repository,
+            notifier=self._notifier,
+        )
+
+        handler_mapping = get_default_handlers(handlers)
+
+        for event_type, handler in handler_mapping.items():
+            self.events.subscribe(event_type, handler)
+            logger.debug(f"Registered handler for event: {event_type.value}")
+
+        logger.info(f"Registered {len(handler_mapping)} event handlers")
 
     async def scan(self) -> int:
         """Run scan phase - publish events

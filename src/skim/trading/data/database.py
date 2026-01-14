@@ -1,44 +1,22 @@
-"""Database layer using SQLModel for Skim trading bot"""
+"""Database layer using SQLModel for Skim trading bot.
+
+Inherits from BaseDatabase for common connection logic.
+"""
 
 from datetime import date
-from typing import TYPE_CHECKING
 
 from loguru import logger
-from sqlmodel import Session, SQLModel, col, create_engine, delete, select
+from sqlmodel import col, delete, select
 
-from .models import Position
-
-if TYPE_CHECKING:
-    from sqlmodel import Session
+from skim.infrastructure.database.base import BaseDatabase
+from skim.trading.data.models import Candidate, Position
 
 
-class Database:
-    """SQLite database manager using SQLModel"""
+class Database(BaseDatabase):
+    """SQLite database manager using SQLModel for trading data.
 
-    def __init__(self, db_path: str):
-        """Initialise database connection and create schema
-
-        Args:
-            db_path: Path to SQLite database file or ":memory:" for in-memory DB
-        """
-        self.engine = create_engine(
-            f"sqlite:///{db_path}",
-            connect_args={"check_same_thread": False},
-        )
-        self._create_schema()
-        logger.info(f"Database initialised: {db_path}")
-
-    def _create_schema(self):
-        """Create database tables if they don't exist"""
-        SQLModel.metadata.create_all(self.engine)
-
-    def get_session(self) -> Session:
-        """Get a new database session
-
-        Returns:
-            Session: SQLModel session
-        """
-        return Session(self.engine)
+    Inherits connection management from BaseDatabase.
+    """
 
     def update_candidate_status(self, ticker: str, status: str) -> None:
         """Update candidate status
@@ -47,8 +25,6 @@ class Database:
             ticker: Stock ticker symbol
             status: New status ('watching' | 'entered' | 'closed')
         """
-        from .models import Candidate
-
         with self.get_session() as session:
             candidate = session.exec(
                 select(Candidate).where(Candidate.ticker == ticker)
@@ -73,8 +49,6 @@ class Database:
         Returns:
             Number of rows deleted.
         """
-        from .models import Candidate
-
         with self.get_session() as session:
             conditions = []
             if strategy_name:
@@ -189,8 +163,3 @@ class Database:
                 position.exit_price = exit_price
                 position.exit_date = exit_date
                 session.commit()
-
-    def close(self) -> None:
-        """Dispose of database engine"""
-        if self.engine:
-            self.engine.dispose()
