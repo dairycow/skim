@@ -1,31 +1,40 @@
 # Architecture
 
-Skim is a minimal, cron-driven ASX trading bot using a multi-strategy architecture with Strategy pattern. Current implementation includes an Opening Range High (ORH) breakout strategy.
+Skim is a cron-driven ASX trading bot using hexagonal architecture with domain-driven design. Implements an Opening Range High (ORH) breakout strategy.
 
-## Strategy Pattern
-
-The bot uses a Strategy pattern to enable clean management of multiple trading strategies:
+## Architecture Overview
 
 ```
-TradingBot (Orchestrator)
-├── Shared Services
-│   ├── IBKRClient
-│   ├── Database
-│   ├── DiscordNotifier
-│   ├── IBKRMarketData
-│   ├── IBKROrders
-│   └── IBKRGapScanner
-└── Strategies (dict[str, Strategy])
-    └── ORHBreakoutStrategy
-        ├── scan() - gap + news + range tracking
-        ├── trade() - breakout entry execution
-        ├── manage() - position management
-        └── health_check() - IBKR connection check
+src/skim/
+├── domain/           # Business logic (models, strategies, protocols)
+├── application/      # Use cases (commands, events, services)
+├── infrastructure/   # External integrations (IBKR, database)
+├── trading/          # Bot orchestrator, brokers, scanners
+├── analysis/         # Research CLI
+└── shared/           # Historical data service
 ```
 
-### Base Strategy Interface
+### Hexagonal Ports & Adapters
 
-All strategies must implement the `Strategy` interface from `src/skim/strategies/base.py`:
+```
+TradingBot (Application)
+    │
+    ├── Domain Layer
+    │   ├── Strategies (ORHBreakoutStrategy)
+    │   ├── Models (Candidate, Position, Signal)
+    │   └── Repositories (Protocols)
+    │
+    └── Infrastructure Layer (Adapters)
+        ├── IBKR Broker (orders, market data, gap scanner)
+        ├── SQLite Database
+        └── Discord Notifications
+```
+
+## Domain Layer
+
+### Strategy Pattern
+
+All strategies implement the `Strategy` interface from `src/skim/domain/strategies/base.py`:
 
 ```python
 class Strategy(ABC):
@@ -45,217 +54,350 @@ class Strategy(ABC):
     @abstractmethod
     async def manage(self) -> int:
         """Manage open positions"""
+
+    async def on_event(self, event: Event) -> list[Signal]:
+        """Handle events and return signals"""
 ```
 
-### ORH Breakout Strategy
+### Event Types
 
-Located in `src/skim/strategies/orh_breakout.py`, this strategy:
+Strategies support these event types:
+- `SCAN` - Scan for candidates
+- `TRADE` - Execute entries
+- `MANAGE` - Monitor positions
+- `TRACK_RANGES` - Track opening ranges (ORH/ORL)
+- `ALERT` - Send notifications
+- `HEALTH_CHECK` - Verify IBKR connection
 
-1. **Scans** for gap and news candidates
-2. **Tracks** opening ranges (ORH/ORL) for tradeable stocks
-3. **Executes** breakout entries when price > ORH
-4. **Manages** positions with stop losses at ORL
+### Domain Models
 
-Strategy-specific business logic modules:
-- `GapScanner` – Find gap-only candidates
-- `NewsScanner` – Find news-only candidates
-- `RangeTracker` – Sample and store ORH/ORL values
-- `Trader` – Execute breakout entries and stops
-- `Monitor` – Check positions, trigger stops
-
-## Core Modules
-
-### Orchestrator
-- `src/skim/core/bot.py` – Multi-strategy dispatcher, registers and delegates to strategies
-
-### Strategies
-- `src/skim/strategies/base.py` – Abstract Strategy interface
-- `src/skim/strategies/orh_breakout.py` – ORH breakout implementation
-
-### Shared Services
-- `src/skim/data/database.py` – SQLite persistence
-- `src/skim/brokers/ibkr_client.py` – IBKR OAuth integration
-- `src/skim/core/config.py` – Environment configuration
-- `src/skim/notifications/discord.py` – Alert webhooks
-
-### ORH Strategy Modules (strategy-specific)
-- `src/skim/scanners/gap_scanner.py` – Find gap-only candidates
-- `src/skim/scanners/news_scanner.py` – Find news-only candidates
-- `src/skim/strategies/orh_breakout/range_tracker.py` – Sample and store ORH/ORL values
-- `src/skim/strategies/orh_breakout/trader.py` – Execute breakout entries and stops
-- `src/skim/monitor.py` – Check positions, trigger stops
-
-## Trading Workflow
-
-### Strategy Phases (ORH Breakout)
-
-The ORHBreakoutStrategy implements the following phases:
-
-#### 1. Scan Phase (10:00 AM)
+**Candidate** (`src/skim/domain/models/candidate.py`)
 ```python
-strategy.scan()
-├── scan_gaps() → Find gap-only candidates → Save to database
-└── scan_news() → Find news-only candidates → Merge with gap candidates
+@dataclass
+class Candidate:
+    ticker: Ticker
+    scan_date: datetime
+    status: str = "watching"      # watching | entered | closed
+    strategy_name: str = ""
 ```
 
-#### 2. Range Tracking (10:05 AM, UTC clock)
+**Position** (`src/skim/domain/models/position.py`)
 ```python
-strategy.scan() → track_ranges()
-└── Get gap+news candidates → Sample market data → Set ORH/ORL
+@dataclass
+class Position:
+    ticker: Ticker
+    quantity: int
+    entry_price: Price
+    stop_loss: Price
+    entry_date: datetime
+    status: str = "open"          # open | closed
 ```
 
-> Range tracking uses a UTC clock with a default market open of **23:00 UTC** (10:00 AM AEDT) so cron and in-code timing stay aligned. Only tracks candidates with both gap and news.
+### Repository Protocols
 
-#### 3. Execution (10:15 AM, then every 5 min)
 ```python
-strategy.trade()
-└── Get tradeable candidates (gap+news+ORH/ORL) → Check if price > ORH → Buy with stop = ORL
+class Repository(Protocol[T]):
+    def add(self, entity: T) -> None: ...
+    def get(self, id: int) -> T | None: ...
+    def update(self, entity: T) -> None: ...
+    def delete(self, id: int) -> None: ...
 ```
 
-#### 4. Monitoring (every 5 min during market)
+## Application Layer
+
+### Commands (`src/skim/application/commands/`)
+
+Command classes for CLI and dispatch:
+
 ```python
-strategy.manage()
-└── Get open positions → Check if price < stop_loss → Sell
+@dataclass
+class ScanCommand(Command):
+    strategy: str | None = None
+
+@dataclass
+class TradeCommand(Command):
+    strategy: str | None = None
+
+@dataclass
+class ManageCommand(Command):
+    strategy: str | None = None
+
+@dataclass
+class PurgeCommand(Command):
+    cutoff_date: str | None = None
+
+@dataclass
+class StatusCommand(Command):
+    strategy: str | None = None
 ```
 
-## Adding a New Strategy
+### Services
 
-To add a new trading strategy:
+- `CommandDispatcher` - Routes commands to strategies
+- `TradingService` - Orchestrates trading operations
 
-1. Create strategy class in `src/skim/strategies/my_strategy.py`
-2. Extend `Strategy` base class
-3. Implement required abstract methods
-4. Register in `src/skim/core/bot.py:_register_strategies()`
+### Events
 
-Example:
+- `EventBus` - Publish/subscribe event system
+- `EventHandlers` - Handle domain events
+
+## Infrastructure Layer
+
+### IBKR Broker (`src/skim/infrastructure/brokers/ibkr/`)
+
+- `auth.py` - OAuth 1.0a authentication
+- `connection.py` - Client socket connection
+- `facade.py` - Unified broker interface
+- `requests.py` - Request builders
+- `exceptions.py` - Custom exceptions
+
+### Database (`src/skim/infrastructure/database/`)
+
+- `base.py` - SQLAlchemy/SQLite base classes
+
+## Trading Module
+
+### Orchestrator (`src/skim/trading/core/bot.py`)
+
+`TradingBot` class manages:
+
 ```python
-# src/skim/strategies/momentum.py
-from skim.strategies.base import Strategy
+class TradingBot:
+    strategies: dict[str, DomainStrategy]
+    ib_client: IBKRClient
+    market_data_service: IBKRMarketData
+    order_service: IBKROrders
+    scanner_service: IBKRGapScanner
+    discord: DiscordNotifier
+```
 
-class MomentumStrategy(Strategy):
+### Brokers (`src/skim/trading/brokers/`)
+
+- `ibkr_client.py` - IBKR connection and OAuth
+- `ibkr_market_data.py` - Real-time market data
+- `ibkr_orders.py` - Order execution
+- `ibkr_gap_scanner.py` - Gap scanning via IBKR scanner
+
+### Scanners (`src/skim/trading/scanners/`)
+
+- `gap_scanner.py` - Find gap-up candidates
+- `news_scanner.py` - ASX announcement scanning
+- `asx_announcements.py` - ASX website scraping
+
+### Data Layer (`src/skim/trading/data/`)
+
+- `database.py` - SQLite database operations
+- `models.py` - ORM models
+- `repositories/` - Database repositories
+    - `base.py` - Base repository
+    - `orh_repository.py` - ORH candidate repository
+
+### Notifications (`src/skim/trading/notifications/`)
+
+- `discord.py` - Discord webhook alerts
+
+### ORH Breakout Strategy (`src/skim/trading/strategies/orh_breakout/`)
+
+```
+orh_breakout.py
+├── scan() - gap + news scanning
+├── track_ranges() - sample ORH/ORL
+├── trade() - breakout entry execution
+├── manage() - stop-loss monitoring
+└── alert() - Discord notifications
+```
+
+Modules:
+- `trader.py` - Execute breakout entries and stops
+- `range_tracker.py` - Sample and store ORH/ORL values
+
+## Analysis Module
+
+Research CLI tools for historical analysis:
+
+```
+src/skim/analysis/
+├── cli/
+│   ├── cli.py - Main CLI entry point
+│   └── main.py - Typer CLI app
+├── gap_scanner.py - Historical gap analysis
+├── momentum_scanner.py - Momentum screening
+├── performance.py - Performance metrics
+├── data_loader.py - Load historical data
+├── data_downloader.py - Download market data
+└── announcement_scraper.py - Scrape announcements
+```
+
+## Shared Module
+
+Historical data service:
+
+```
+src/skim/shared/
+├── historical/
+│   ├── service.py - Historical data operations
+│   ├── repository.py - Data repository
+│   └── models.py - Data models
+├── database.py - Shared database
+├── container.py - Dependency container
+└── constants.py - Shared constants
+```
+
+## Strategy Registry
+
+Strategies are auto-registered via `@register_strategy` decorator:
+
+```python
+from skim.domain.strategies.registry import registry, register_strategy
+
+@register_strategy("orh_breakout")
+class ORHBreakoutStrategy(Strategy):
     @property
     def name(self) -> str:
-        return "momentum"
-
-    async def scan(self) -> int:
-        # Find momentum candidates
-        return candidate_count
-
-    async def trade(self) -> int:
-        # Execute momentum trades
-        return trade_count
-
-    async def manage(self) -> int:
-        # Manage momentum positions
-        return managed_count
-```
-
-Register in bot.py:
-```python
-def _register_strategies(self) -> None:
-    from skim.strategies.momentum import MomentumStrategy
-
-    self.strategies["orh_breakout"] = ORHBreakoutStrategy(...)
-    self.strategies["momentum"] = MomentumStrategy(...)
+        return "orh_breakout"
+    # ... implement abstract methods
 ```
 
 ## Data Model
 
-Three tables (shared across all strategies):
+### candidates table
 
-**candidates**
 ```sql
-ticker TEXT PRIMARY KEY
-scan_date TEXT           -- When added
+id INTEGER PRIMARY KEY
+ticker TEXT
+scan_date TEXT
 status TEXT              -- 'watching' | 'entered' | 'closed'
-gap_percent REAL         -- Gap percentage (from gap scan)
-conid INTEGER            -- IBKR contract ID
-headline TEXT            -- News headline (from news scan)
-announcement_type TEXT   -- Announcement type (default 'pricesens')
-announcement_timestamp TEXT -- Announcement timestamp
+gap_percent REAL
+conid INTEGER
+headline TEXT
+announcement_type TEXT
+announcement_timestamp TEXT
+strategy_name TEXT
 created_at TEXT
 ```
 
-**opening_ranges**
-```sql
-ticker TEXT PRIMARY KEY
-or_high REAL             -- Opening range high
-or_low REAL              -- Opening range low
-sample_date TEXT         -- When sampled
-created_at TEXT
-FOREIGN KEY (ticker) REFERENCES candidates(ticker)
-```
+### positions table
 
-**positions**
 ```sql
 id INTEGER PRIMARY KEY
 ticker TEXT
 quantity INTEGER
 entry_price REAL
-stop_loss REAL           -- Set at entry = ORL
+stop_loss REAL
 entry_date TEXT
 exit_price REAL
 exit_date TEXT
 status TEXT              -- 'open' | 'closed'
 ```
 
-## Status Transitions
+### opening_ranges table
 
-**Candidates:**
-- `watching` → candidate identified, waiting for ORH breakout
-- `entered` → price broke ORH, position opened
-- `closed` → position closed (exit via manage)
+```sql
+ticker TEXT PRIMARY KEY
+or_high REAL
+or_low REAL
+sample_date TEXT
+created_at TEXT
+```
 
-**Positions:**
-- `open` → entry executed
-- `closed` → stop hit or manual exit
+## Trading Workflow (ORH Breakout)
+
+### 1. Scan Phase (10:00 AM AEDT)
+
+```python
+strategy.scan()
+├── scan_gaps() → IBKR scanner → gap candidates
+└── scan_news() → ASX announcements → news candidates
+```
+
+### 2. Range Tracking (10:05 AM AEDT)
+
+```python
+strategy.track_ranges()
+├── Get candidates (gap + news)
+├── Sample market data at 10:05
+└── Store ORH/ORL values
+```
+
+### 3. Alert Phase (10:10 AM AEDT)
+
+```python
+strategy.alert()
+├── Get tradeable candidates (gap + news + ORH/ORL)
+└── Send Discord notifications
+```
+
+### 4. Trade Phase (10:15 AM - 5:00 PM AEDT, every 5 min)
+
+```python
+strategy.trade()
+├── Get tradeable candidates
+├── Check price > ORH
+└── Execute buy order with stop = ORL
+```
+
+### 5. Manage Phase (10:15 AM - 5:00 PM AEDT, every 5 min)
+
+```python
+strategy.manage()
+├── Get open positions
+├── Check if price < stop_loss
+└── Execute sell order
+```
 
 ## CLI Interface
 
 ```bash
-# Strategy operations
-python -m skim.core.bot scan              # Run strategy scan phase
-python -m skim.core.bot trade             # Execute strategy trades
-python -m skim.core.bot manage            # Manage strategy positions
-python -m skim.core.bot status            # Strategy health check
+# Bot commands
+uv run python -m skim.trading.core.bot purge_candidates
+uv run python -m skim.trading.core.bot scan
+uv run python -m skim.trading.core.bot trade
+uv run python -m skim.trading.core.bot manage
+uv run python -m skim.trading.core.bot status
 
-# Utilities
-python -m skim.core.bot purge_candidates   # Clear previous candidates
-python -m skim.core.bot fetch_market_data <TICKER>  # Get market data
+# Analysis commands
+uv run skim-analyze top 2024 --json
+uv run skim-analyze gaps 2024 --limit 10 --json
 ```
 
-## Cron Schedule (UTC; 10:00 AM AEDT = 23:00 UTC)
-
-Canonical schedule lives in `crontab`:
+## Cron Schedule (UTC)
 
 ```cron
 # 22:55 UTC (09:55 AEDT) - Purge previous candidates
 55 22 * * 0-4 bot purge_candidates
 
-# 23:00 UTC (10:00 AEDT) - Full scan (gaps + news + ranges)
-1 23 * * 0-4 bot scan
+# 23:00 UTC (10:00 AEDT) - Full scan (gaps + news)
+0 23 * * 0-4 bot scan
 
-# 23:15-06:00 UTC, every 5 min (10:15 AM - 5:00 PM AEDT) - Execute breakouts
+# 23:05 UTC (10:05 AEDT) - Track opening ranges
+5 23 * * 0-4 bot scan --track-ranges
+
+# 23:10 UTC (10:10 AEDT) - Send alerts
+10 23 * * 0-4 bot alert
+
+# 23:15-06:00 UTC, every 5 min (10:15 AM - 5:00 PM AEDT) - Trade
 */5 23-6 * * 0-4 bot trade
 
-# 23:15-06:00 UTC, every 5 min (10:15 AM - 5:00 PM AEDT) - Monitor and exit stops
+# 23:15-06:00 UTC, every 5 min (10:15 AM - 5:00 PM AEDT) - Manage
 */5 23-6 * * 0-4 bot manage
 ```
 
-## Technology
+## Technology Stack
 
-- Python 3.13
+- Python 3.13+
 - SQLite
-- OAuth 1.0a (IBKR)
-- Strategy Pattern (design pattern)
-- Async/await
+- SQLAlchemy (infrastructure)
+- IBKR API (OAuth 1.0a)
+- loguru (logging)
+- typer (CLI)
 - Cron scheduling
 
 ## Why This Design
 
+- **Hexagonal architecture**: Clean separation between core domain and external adapters
+- **Domain-driven design**: Rich domain models with business logic
 - **Strategy pattern**: Clean separation between orchestrator and strategy implementations
-- **Easy to extend**: Add new strategies without modifying core orchestrator
-- **Reduce complexity**: Single status flow per table
-- **Clear responsibilities**: Orchestrator delegates, strategies implement
-- **Phase separation**: Each workflow step is independent and testable
-- **Testability**: Strategy interface enables easy mocking for tests
+- **Auto-registration**: Strategies discoverable via decorator, no manual registration
+- **Dependency injection**: `StrategyContext` provides all required services
+- **Event-driven**: Strategies support event handling for extensibility
+- **Testability**: Domain models and strategies are easy to test in isolation
