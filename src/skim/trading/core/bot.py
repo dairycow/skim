@@ -7,6 +7,7 @@ from datetime import date
 
 from loguru import logger
 
+from skim.application.events.event_bus import EventBus
 from skim.domain.strategies.base import Strategy as DomainStrategy
 from skim.domain.strategies.context import StrategyContext
 from skim.domain.strategies.registry import registry
@@ -33,6 +34,7 @@ class TradingBot:
         logger.info("Initialising Skim Trading Bot...")
         self.config = config
         self.db = Database(config.db_path)
+        self.event_bus = EventBus()
 
         self.ib_client = IBKRClient(paper_trading=config.paper_trading)
         self.market_data_service = IBKRMarketData(self.ib_client)
@@ -48,6 +50,18 @@ class TradingBot:
         self._register_strategies()
 
         logger.info("Bot initialised successfully")
+
+    async def start(self) -> None:
+        """Start bot and event bus"""
+        logger.info("Starting Skim Trading Bot...")
+        await self.event_bus.start()
+        logger.info("Bot started successfully")
+
+    async def stop(self) -> None:
+        """Stop bot and event bus"""
+        logger.info("Stopping Skim Trading Bot...")
+        await self.event_bus.stop()
+        logger.info("Bot stopped successfully")
 
     def _create_strategy_context(self) -> StrategyContext:
         """Create a strategy context with all dependencies.
@@ -66,6 +80,8 @@ class TradingBot:
             order_service=self.order_service,
             scanner_service=self.scanner_service,
             connection_manager=self.ib_client,
+            event_bus=self.event_bus,
+            historical_service=None,
         )
 
     def _register_strategies(self) -> None:

@@ -18,7 +18,17 @@ class NewsScanner:
         """Initialise news scanner"""
         self.asx_scanner = ASXAnnouncementScanner()
 
-    async def find_news_candidates(self) -> list[NewsCandidate]:
+    @property
+    def name(self) -> str:
+        """Scanner identifier"""
+        return "news"
+
+    @property
+    def priority(self) -> int:
+        """Priority for execution order"""
+        return 20
+
+    async def scan(self) -> list[NewsCandidate]:
         """Find stocks with price-sensitive announcements
 
         Returns:

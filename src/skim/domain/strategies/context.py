@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    pass
+    from skim.application.events.event_bus import EventBus
 
 from skim.domain.repositories import CandidateRepository
 from skim.domain.repositories.position import PositionRepository
@@ -56,4 +56,5 @@ class StrategyContext:
     order_service: OrderManager
     scanner_service: GapScannerService
     connection_manager: BrokerConnectionManager
+    event_bus: "EventBus"
     historical_service: HistoricalDataService | None = None
