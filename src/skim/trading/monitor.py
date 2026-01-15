@@ -9,7 +9,7 @@ from loguru import logger
 from skim.trading.data.models import Position
 
 if TYPE_CHECKING:
-    from skim.trading.brokers.protocols import MarketDataProvider
+    from skim.infrastructure.brokers.protocols import MarketDataProvider
 
 
 class Monitor:

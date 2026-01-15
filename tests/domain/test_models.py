@@ -8,7 +8,7 @@ from skim.domain.models.price import Price
 from skim.domain.models.position import Position
 from skim.domain.models.candidate import Candidate, GapCandidate, NewsCandidate
 from skim.domain.models.signal import Signal
-from skim.domain.strategies.base import Event, EventType
+from skim.domain.models.event import Event, EventType
 
 
 class TestTicker:
@@ -157,22 +157,22 @@ class TestEvent:
         """Test creating an event"""
         event = Event(
             type=EventType.SCAN,
-            payload={"candidates_found": 5},
+            data={"candidates_found": 5},
         )
 
         assert event.type == EventType.SCAN
-        assert event.payload["candidates_found"] == 5
+        assert event.data["candidates_found"] == 5
 
     def test_event_with_payload(self):
         """Test creating an event with payload field"""
         event = Event(
             type=EventType.TRADE,
-            payload={"ticker": "BHP", "action": "BUY"},
+            data={"ticker": "BHP", "action": "BUY"},
         )
 
         assert event.type == EventType.TRADE
-        assert event.payload["ticker"] == "BHP"
-        assert event.payload["action"] == "BUY"
+        assert event.data["ticker"] == "BHP"
+        assert event.data["action"] == "BUY"
 
     def test_event_timestamp(self):
         """Test event has automatic timestamp"""
