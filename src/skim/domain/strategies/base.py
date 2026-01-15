@@ -156,26 +156,6 @@ class Strategy(ABC):
         """
         pass
 
-    async def scan_gaps(self) -> int:
-        """Scan for gap candidates
-
-        Trading-specific method for gap scanning.
-
-        Returns:
-            Number of gap candidates found
-        """
-        return 0
-
-    async def scan_news(self) -> int:
-        """Scan for news candidates
-
-        Trading-specific method for news scanning.
-
-        Returns:
-            Number of news candidates found
-        """
-        return 0
-
     async def get_pending_signals(self) -> list[dict[str, Any]]:
         """Get pending signals for execution
 

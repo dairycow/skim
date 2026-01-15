@@ -1,32 +1,41 @@
-"""ORH Breakout Strategy - Gap and News scanning with Opening Range breakout"""
-
-from __future__ import annotations
+"""ORH Breakout Strategy - Event-driven architecture"""
 
 from datetime import date
-from typing import TYPE_CHECKING
+from typing import cast
 
 from loguru import logger
 
+from skim.application.notifications import NotificationHandler
+from skim.application.persistence import StrategyPersistenceHandler
+from skim.domain.models.event import EventType
 from skim.domain.strategies.base import Strategy
 from skim.domain.strategies.context import StrategyContext
 from skim.domain.strategies.registry import register_strategy
 from skim.infrastructure.database.historical import PerformanceFilter
-
-if TYPE_CHECKING:
-    pass
+from skim.trading.alerts import CandidateAlerter
+from skim.trading.core.config import Config
+from skim.trading.data.database import Database
+from skim.trading.data.repositories.orh_repository import ORHCandidateRepository
+from skim.trading.filters import FilterChain, HistoricalPerformanceFilter
+from skim.trading.monitor import Monitor
+from skim.trading.scanners import GapScanner, NewsScanner, ScannerOrchestrator
+from skim.trading.strategies.orh_breakout.range_tracker import RangeTracker
+from skim.trading.strategies.orh_breakout.trader import Trader
 
 
 @register_strategy("orh_breakout")
 class ORHBreakoutStrategy(Strategy):
-    """Opening Range High breakout strategy using gap and news scanning
+    """Opening Range High breakout strategy using event-driven architecture
 
     Strategy phases:
-    1. Scan for gap candidates (pre-market)
-    2. Scan for news candidates (pre-market)
-    3. Track opening ranges (first 5 minutes)
-    4. Execute breakouts when price > ORH
-    5. Manage positions with stop losses at ORL
+        1. Scan for gap and news candidates (via ScannerOrchestrator)
+        2. Track opening ranges (via RangeTracker)
+        3. Execute breakouts when price > ORH (via Trader)
+        4. Manage positions with stop losses (via Trader + Monitor)
     """
+
+    db: Database
+    repo: ORHCandidateRepository
 
     def __init__(self, context: StrategyContext):
         """Initialise ORH breakout strategy
@@ -36,27 +45,94 @@ class ORHBreakoutStrategy(Strategy):
         """
         self.ctx = context
 
-        from skim.trading.monitor import Monitor
-        from skim.trading.scanners import GapScanner, NewsScanner
+        self.event_bus = context.event_bus
 
-        from .range_tracker import RangeTracker
-        from .trader import Trader
+        self.db = cast(Database, context.database)
+        self.repo = cast(ORHCandidateRepository, context.repository)
+        config = cast(Config, context.config)
 
-        self.gap_scanner = GapScanner(
-            scanner_service=self.ctx.scanner_service,
-            gap_threshold=self.ctx.config.scanner_config.gap_threshold,
+        self.scanner_orchestrator = ScannerOrchestrator(
+            self.event_bus, self.repo
         )
-        self.news_scanner = NewsScanner()
+        self.scanner_orchestrator.register_scanner(
+            GapScanner(
+                scanner_service=context.scanner_service,
+                gap_threshold=config.scanner_config.gap_threshold,
+            )
+        )
+        self.scanner_orchestrator.register_scanner(NewsScanner())
+
         self.range_tracker = RangeTracker(
-            market_data_service=self.ctx.market_data,
-            orh_repo=self.ctx.repository,
+            market_data_service=context.market_data,
+            orh_repo=self.repo,
         )
-        self.trader = Trader(
-            self.ctx.market_data, self.ctx.order_service, self.ctx.database
-        )
-        self.monitor = Monitor(self.ctx.market_data)
 
-        logger.info("ORH Breakout Strategy initialised")
+        self.trader = Trader(
+            market_data_provider=context.market_data,
+            order_manager=context.order_service,
+            event_bus=self.event_bus,
+        )
+
+        self.monitor = Monitor(context.market_data)
+
+        self.alerter = CandidateAlerter(
+            repository=self.repo,
+            event_bus=self.event_bus,
+        )
+
+        hist_config = config.historical_config
+        historical_filter = HistoricalPerformanceFilter(
+            context.historical_service
+        )
+        historical_filter.configure(
+            enable_filtering=hist_config.enable_filtering,
+            filter_criteria=PerformanceFilter(
+                min_3month_return=hist_config.min_3month_return,
+                max_3month_return=hist_config.max_3month_return,
+                min_6month_return=hist_config.min_6month_return,
+                min_avg_volume=hist_config.min_avg_volume,
+                require_3month_data=hist_config.require_data,
+                require_6month_data=False,
+            ),
+        )
+        self.filter_chain = FilterChain([historical_filter])
+
+        self.notification_handler = NotificationHandler(context.notifier)
+
+        self.persistence_handler = StrategyPersistenceHandler(
+            self.db, self.repo
+        )
+
+        self._setup_event_handlers()
+
+        logger.info("ORH Breakout Strategy initialised (event-driven)")
+
+    def _setup_event_handlers(self) -> None:
+        """Subscribe to relevant events"""
+        self.event_bus.subscribe(
+            EventType.TRADE_EXECUTED,
+            self.notification_handler.handle_trade_executed,
+        )
+        self.event_bus.subscribe(
+            EventType.STOP_HIT,
+            self.notification_handler.handle_stop_hit,
+        )
+        self.event_bus.subscribe(
+            EventType.CANDIDATES_ALERTED,
+            self.notification_handler.handle_candidates_alerted,
+        )
+        self.event_bus.subscribe(
+            EventType.CANDIDATES_SCANNED,
+            self.persistence_handler.handle_candidates_scanned,
+        )
+        self.event_bus.subscribe(
+            EventType.TRADE_EXECUTED,
+            self.persistence_handler.handle_trade_executed,
+        )
+        self.event_bus.subscribe(
+            EventType.STOP_HIT,
+            self.persistence_handler.handle_stop_hit,
+        )
 
     @property
     def name(self) -> str:
@@ -86,61 +162,14 @@ class ORHBreakoutStrategy(Strategy):
         """
         logger.info("Purging candidates...")
         try:
-            deleted = self.ctx.database.purge_candidates(
+            deleted = self.db.purge_candidates(
                 only_before_utc_date,
-                strategy_name=self.ctx.repository.STRATEGY_NAME,
+                strategy_name=self.repo.STRATEGY_NAME,
             )
             logger.info(f"Deleted {deleted} candidate rows")
             return deleted
         except Exception as e:
             logger.error(f"Candidate purge failed: {e}", exc_info=True)
-            return 0
-
-    async def scan_gaps(self) -> int:
-        """Scan for gap-only candidates
-
-        Returns:
-            Number of gap candidates found
-        """
-        logger.info("Scanning for gap-only candidates...")
-        try:
-            await self._ensure_connection()
-            candidates = await self.gap_scanner.find_gap_candidates()
-
-            count = len(candidates)
-            if not candidates:
-                logger.warning("No gap candidates found")
-            else:
-                for candidate in candidates:
-                    self.ctx.repository.save_gap_candidate(candidate)
-
-            logger.info(f"Gap scan complete. Found {count} candidates")
-            return count
-        except Exception as e:
-            logger.error(f"Gap scan failed: {e}", exc_info=True)
-            return 0
-
-    async def scan_news(self) -> int:
-        """Scan for news-only candidates
-
-        Returns:
-            Number of news candidates found
-        """
-        logger.info("Scanning for news-only candidates...")
-        try:
-            candidates = await self.news_scanner.find_news_candidates()
-
-            count = len(candidates)
-            if not candidates:
-                logger.warning("No news candidates found")
-            else:
-                for candidate in candidates:
-                    self.ctx.repository.save_news_candidate(candidate)
-
-            logger.info(f"News scan complete. Found {count} candidates")
-            return count
-        except Exception as e:
-            logger.error(f"News scan failed: {e}", exc_info=True)
             return 0
 
     async def scan(self) -> int:
@@ -149,9 +178,14 @@ class ORHBreakoutStrategy(Strategy):
         Returns:
             Total number of candidates found
         """
-        gap_count = await self.scan_gaps()
-        news_count = await self.scan_news()
-        return gap_count + news_count
+        logger.info("Running full scan...")
+        try:
+            await self._ensure_connection()
+            results = await self.scanner_orchestrator.run_all()
+            return sum(results.values())
+        except Exception as e:
+            logger.error(f"Scan failed: {e}", exc_info=True)
+            return 0
 
     async def track_ranges(self) -> int:
         """Track opening ranges for candidates without ORH/ORL values
@@ -171,44 +205,6 @@ class ORHBreakoutStrategy(Strategy):
             logger.error(f"Opening range tracking failed: {e}", exc_info=True)
             return 0
 
-    def filter_by_historical_performance(self, tickers: list[str]) -> list[str]:
-        """Filter tickers by historical performance criteria.
-
-        Args:
-            tickers: List of ticker symbols to filter
-
-        Returns:
-            List of tickers that meet historical performance criteria
-        """
-        if not self.ctx.historical_service:
-            logger.debug(
-                "Historical data service not available, skipping filter"
-            )
-            return tickers
-
-        hist_config = self.ctx.config.historical_config
-        if not hist_config.enable_filtering:
-            logger.debug("Historical filtering disabled in config")
-            return tickers
-
-        filter_criteria = PerformanceFilter(
-            min_3month_return=hist_config.min_3month_return,
-            max_3month_return=hist_config.max_3month_return,
-            min_6month_return=hist_config.min_6month_return,
-            min_avg_volume=hist_config.min_avg_volume,
-            require_3month_data=hist_config.require_data,
-            require_6month_data=False,
-        )
-
-        qualified = self.ctx.historical_service.filter_by_performance(
-            tickers, filter_criteria
-        )
-
-        logger.info(
-            f"Historical filter: {len(tickers)} -> {len(qualified)} candidates"
-        )
-        return qualified
-
     async def trade(self) -> int:
         """Execute breakout entries for tradeable candidates
 
@@ -218,39 +214,21 @@ class ORHBreakoutStrategy(Strategy):
         logger.info("Executing breakouts...")
         try:
             await self._ensure_connection()
-            candidates = self.ctx.repository.get_tradeable_candidates()
+            candidates = self.repo.get_tradeable_candidates()
             if not candidates:
                 logger.info("No tradeable candidates found.")
                 return 0
 
             logger.info(f"Found {len(candidates)} tradeable candidates")
 
-            tickers = [c.ticker for c in candidates]
-            qualified_tickers = self.filter_by_historical_performance(tickers)
+            filtered = self.filter_chain.apply(candidates)
 
-            if len(qualified_tickers) < len(tickers):
-                filtered = set(tickers) - set(qualified_tickers)
-                logger.info(
-                    f"Filtered out {len(filtered)} candidates: {filtered}"
-                )
-
-            tradeable = [c for c in candidates if c.ticker in qualified_tickers]
-
-            if not tradeable:
-                logger.info("No candidates passed historical filter")
+            if not filtered:
+                logger.info("No candidates passed filters")
                 return 0
 
-            logger.info(f"Trading {len(tradeable)} candidates")
-            events = await self.trader.execute_breakouts(tradeable)
-
-            for event in events:
-                self.ctx.notifier.send_trade_notification(
-                    action=event.action,
-                    ticker=event.ticker,
-                    quantity=event.quantity,
-                    price=event.price,
-                    pnl=event.pnl,
-                )
+            logger.info(f"Trading {len(filtered)} candidates")
+            events = await self.trader.execute_breakouts(filtered)
 
             return len(events)
         except Exception as e:
@@ -266,7 +244,7 @@ class ORHBreakoutStrategy(Strategy):
         logger.info("Managing positions...")
         try:
             await self._ensure_connection()
-            positions = self.ctx.database.get_open_positions()
+            positions = self.db.get_open_positions()
             if not positions:
                 logger.info("No open positions to manage.")
                 return 0
@@ -277,15 +255,6 @@ class ORHBreakoutStrategy(Strategy):
                 return 0
 
             events = await self.trader.execute_stops(stops_hit)
-
-            for event in events:
-                self.ctx.notifier.send_trade_notification(
-                    action=event.action,
-                    ticker=event.ticker,
-                    quantity=event.quantity,
-                    price=event.price,
-                    pnl=event.pnl,
-                )
 
             return len(events)
         except Exception as e:
@@ -298,30 +267,7 @@ class ORHBreakoutStrategy(Strategy):
         Returns:
             Number of candidates alerted
         """
-        logger.info("Sending alert for alertable candidates...")
-        try:
-            candidates = self.ctx.repository.get_alertable_candidates()
-            count = len(candidates)
-
-            if not candidates:
-                logger.info("No alertable candidates to alert")
-                return 0
-
-            payload = [
-                {
-                    "ticker": c.ticker,
-                    "gap_percent": c.gap_percent,
-                    "headline": c.headline,
-                }
-                for c in candidates
-            ]
-
-            self.ctx.notifier.send_tradeable_candidates(count, payload)
-            logger.info(f"Alert sent for {count} alertable candidates")
-            return count
-        except Exception as e:
-            logger.error(f"Alert failed: {e}", exc_info=True)
-            return 0
+        return await self.alerter.send_alerts()
 
     async def health_check(self) -> bool:
         """Check IBKR connection and strategy health

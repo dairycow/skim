@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from skim.domain.models import Candidate, Position
-from skim.trading.data.database import Database
+from skim.domain.models.event import Event, EventType
 
 if TYPE_CHECKING:
+    from skim.application.events.event_bus import EventBus
     from skim.infrastructure.brokers.protocols import (
         MarketDataProvider,
         OrderManager,
@@ -36,18 +36,18 @@ class Trader:
         self,
         market_data_provider: MarketDataProvider,
         order_manager: OrderManager,
-        db: Database,
+        event_bus: EventBus,
     ):
         """Initialise trader
 
         Args:
             market_data_provider: Provider for market data
             order_manager: Manager for placing orders
-            db: Database for recording positions
+            event_bus: EventBus for publishing trade events
         """
         self.market_data_provider = market_data_provider
         self.order_manager = order_manager
-        self.db = db
+        self.event_bus = event_bus
 
     async def execute_breakouts(
         self, candidates: list[Candidate]
@@ -75,7 +75,6 @@ class Trader:
                 or_high = candidate.orh_data.or_high
                 or_low = candidate.orh_data.or_low
 
-                # Get current market data
                 result = await self.market_data_provider.get_market_data(
                     candidate.ticker.symbol
                 )
@@ -93,7 +92,6 @@ class Trader:
 
                 current_price = result.last_price
 
-                # Check if price has broken above or_high
                 if current_price <= or_high:
                     logger.debug(
                         f"{candidate.ticker.symbol}: Price ${current_price:.2f} not above ORH ${or_high:.2f}"
@@ -104,7 +102,6 @@ class Trader:
                     f"{candidate.ticker.symbol}: ORH breakout detected! ${current_price:.2f} > ${or_high:.2f}"
                 )
 
-                # Calculate quantity based on position value
                 position_value = 5000.0
                 max_position_size = 1000
                 quantity = min(
@@ -118,7 +115,6 @@ class Trader:
                     )
                     continue
 
-                # Place buy order
                 order_result = await self.order_manager.place_order(
                     candidate.ticker.symbol, "BUY", quantity
                 )
@@ -129,7 +125,6 @@ class Trader:
                     )
                     continue
 
-                # Use filled price or current price
                 fill_price = (
                     order_result.filled_price
                     if order_result.filled_price
@@ -140,20 +135,6 @@ class Trader:
                     f"Entry order: BUY {quantity} {candidate.ticker.symbol} @ ${fill_price:.2f}"
                 )
 
-                # Create position with or_low as stop loss
-                self.db.create_position(
-                    ticker=candidate.ticker.symbol,
-                    quantity=quantity,
-                    entry_price=fill_price,
-                    stop_loss=or_low if or_low else fill_price * 0.95,
-                    entry_date=datetime.now(),
-                )
-
-                # Update candidate status
-                self.db.update_candidate_status(
-                    candidate.ticker.symbol, "entered"
-                )
-
                 events.append(
                     TradeEvent(
                         action="BUY",
@@ -161,6 +142,32 @@ class Trader:
                         quantity=quantity,
                         price=fill_price,
                         pnl=None,
+                    )
+                )
+
+                await self.event_bus.publish(
+                    Event(
+                        type=EventType.TRADE_EXECUTED,
+                        data={
+                            "trade": {
+                                "action": "BUY",
+                                "ticker": candidate.ticker.symbol,
+                                "quantity": quantity,
+                                "price": fill_price,
+                                "stop_loss": or_low
+                                if or_low
+                                else fill_price * 0.95,
+                            },
+                            "candidate": {
+                                "ticker": candidate.ticker.symbol,
+                                "gap_percent": getattr(
+                                    candidate, "gap_percent", None
+                                ),
+                                "headline": getattr(
+                                    candidate, "headline", None
+                                ),
+                            },
+                        },
                     )
                 )
 
@@ -188,7 +195,6 @@ class Trader:
 
         for position in positions:
             try:
-                # Get current market data
                 result = await self.market_data_provider.get_market_data(
                     position.ticker.symbol
                 )
@@ -207,7 +213,6 @@ class Trader:
                 current_price = result.last_price
                 stop_loss = position.stop_loss.value
 
-                # Check if stop loss is hit
                 if current_price >= stop_loss:
                     logger.debug(
                         f"{position.ticker.symbol}: Price ${current_price:.2f} above stop ${stop_loss:.2f}"
@@ -218,7 +223,6 @@ class Trader:
                     f"{position.ticker.symbol}: STOP HIT! ${current_price:.2f} < ${stop_loss:.2f}"
                 )
 
-                # Place sell order for entire position
                 order_result = await self.order_manager.place_order(
                     position.ticker.symbol, "SELL", position.quantity
                 )
@@ -229,14 +233,12 @@ class Trader:
                     )
                     continue
 
-                # Use filled price or current price
                 fill_price = (
                     order_result.filled_price
                     if order_result.filled_price
                     else current_price
                 )
 
-                # Calculate PnL
                 pnl = (
                     fill_price - position.entry_price.value
                 ) * position.quantity
@@ -245,14 +247,6 @@ class Trader:
                     f"Stop exit: SELL {position.quantity} {position.ticker.symbol} @ ${fill_price:.2f}, PnL: ${pnl:.2f}"
                 )
 
-                # Close position
-                if position.id:
-                    self.db.close_position(
-                        position_id=position.id,
-                        exit_price=fill_price,
-                        exit_date=datetime.now().isoformat(),
-                    )
-
                 events.append(
                     TradeEvent(
                         action="SELL",
@@ -260,6 +254,23 @@ class Trader:
                         quantity=position.quantity,
                         price=fill_price,
                         pnl=pnl,
+                    )
+                )
+
+                await self.event_bus.publish(
+                    Event(
+                        type=EventType.STOP_HIT,
+                        data={
+                            "position": {
+                                "ticker": position.ticker.symbol,
+                                "quantity": position.quantity,
+                                "entry_price": float(
+                                    position.entry_price.value
+                                ),
+                                "exit_price": fill_price,
+                                "pnl": pnl,
+                            }
+                        },
                     )
                 )
 
