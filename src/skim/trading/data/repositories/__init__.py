@@ -1,5 +1,5 @@
 """Repositories for strategy-specific candidate management"""
 
-from .base import CandidateRepository
+from .orh_repository import ORHCandidateRepository
 
-__all__ = ["CandidateRepository"]
+__all__ = ["ORHCandidateRepository"]

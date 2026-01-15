@@ -1,5 +1,13 @@
 """Data layer for Skim trading bot"""
 
+from skim.domain.models import (
+    Candidate,
+    GapCandidate,
+    MarketData,
+    NewsCandidate,
+    OrderResult,
+    Position,
+)
 from skim.infrastructure.database.historical import (
     DailyPrice,
     HistoricalDataRepository,
@@ -7,36 +15,18 @@ from skim.infrastructure.database.historical import (
 )
 
 from .database import Database
-from .models import (
-    Candidate,
-    GapStockInPlay,
-    MarketData,
-    NewsStockInPlay,
-    OpeningRange,
-    OrderResult,
-    ORHCandidate,
-    Position,
-    StockInPlay,
-    TradeableCandidate,
-)
-from .repositories.base import CandidateRepository
 from .repositories.orh_repository import ORHCandidateRepository
 
 __all__ = [
     "Candidate",
-    "CandidateRepository",
+    "GapCandidate",
+    "NewsCandidate",
     "DailyPrice",
     "Database",
-    "GapStockInPlay",
     "HistoricalDataRepository",
     "HistoricalPerformance",
     "MarketData",
-    "NewsStockInPlay",
-    "OpeningRange",
-    "ORHCandidate",
-    "ORHCandidateRepository",
     "OrderResult",
     "Position",
-    "StockInPlay",
-    "TradeableCandidate",
+    "ORHCandidateRepository",
 ]

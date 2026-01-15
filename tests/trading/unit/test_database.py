@@ -1,10 +1,11 @@
 """Unit tests for Database class with SQLModel"""
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 
 import pytest
 from sqlmodel import select
 
+from skim.domain.models import GapCandidate, Ticker
 from skim.trading.data.database import Database
 
 
@@ -18,31 +19,30 @@ def db():
 
 def test_update_candidate_status(db):
     """Status updates should persist"""
-    from skim.trading.data.models import Candidate, GapStockInPlay
+    from skim.trading.data.repositories.orh_repository import (
+        ORHCandidateRepository,
+    )
 
-    gap_candidate = GapStockInPlay(
-        ticker="BHP",
-        scan_date="2025-11-03",
+    orh_repo = ORHCandidateRepository(db)
+
+    gap_candidate = GapCandidate(
+        ticker=Ticker("BHP"),
+        scan_date=datetime.now(),
         status="watching",
         gap_percent=5.0,
         conid=8644,
     )
-    orh_repo = db.__class__.__dict__.get("orh_repo")
-    if orh_repo:
-        orh_repo.save_gap_candidate(gap_candidate)
-    else:
-        from skim.trading.data.repositories.orh_repository import (
-            ORHCandidateRepository,
-        )
+    orh_repo.save_gap_candidate(gap_candidate)
 
-        orh_repo = ORHCandidateRepository(db)
-        orh_repo.save_gap_candidate(gap_candidate)
+    db.update_candidate_status(gap_candidate.ticker.symbol, "entered")
 
-    db.update_candidate_status(gap_candidate.ticker, "entered")
+    from skim.infrastructure.database.trading.models import CandidateTable
 
     session = db.get_session()
     updated = session.exec(
-        select(Candidate).where(Candidate.ticker == gap_candidate.ticker)
+        select(CandidateTable).where(
+            CandidateTable.ticker == gap_candidate.ticker.symbol
+        )
     ).first()
     session.close()
 
@@ -52,26 +52,26 @@ def test_update_candidate_status(db):
 
 def test_purge_candidates_all(db):
     """purge_candidates should remove all candidates when no filter"""
-    from skim.trading.data.models import Candidate, GapStockInPlay
     from skim.trading.data.repositories.orh_repository import (
         ORHCandidateRepository,
     )
 
     orh_repo = ORHCandidateRepository(db)
 
+    # Use different tickers to ensure 2 separate candidates
     orh_repo.save_gap_candidate(
-        GapStockInPlay(
-            ticker="BHP",
-            scan_date="2025-11-03",
+        GapCandidate(
+            ticker=Ticker("BHP"),
+            scan_date=datetime(2024, 1, 1, 23),
             status="watching",
             gap_percent=5.0,
             conid=8644,
         )
     )
     orh_repo.save_gap_candidate(
-        GapStockInPlay(
-            ticker="RIO",
-            scan_date=datetime(2024, 1, 1, 23, tzinfo=UTC).isoformat(),
+        GapCandidate(
+            ticker=Ticker("RIO"),
+            scan_date=datetime(2024, 1, 1, 23),
             status="entered",
             gap_percent=4.0,
             conid=8645,
@@ -82,8 +82,10 @@ def test_purge_candidates_all(db):
 
     assert deleted >= 2
 
+    from skim.infrastructure.database.trading.models import CandidateTable
+
     session = db.get_session()
-    result = session.exec(select(Candidate)).all()
+    result = session.exec(select(CandidateTable)).all()
     session.close()
 
     assert len(result) == 0
@@ -91,19 +93,18 @@ def test_purge_candidates_all(db):
 
 def test_purge_candidates_filters_by_scan_date(db):
     """purge_candidates should only delete rows before the provided UTC date"""
-    from skim.trading.data.models import Candidate, GapStockInPlay
     from skim.trading.data.repositories.orh_repository import (
         ORHCandidateRepository,
     )
 
     orh_repo = ORHCandidateRepository(db)
 
-    january_first = datetime(2024, 1, 1, 23, tzinfo=UTC).isoformat()
-    january_second = datetime(2024, 1, 2, 23, tzinfo=UTC).isoformat()
+    january_first = datetime(2024, 1, 1, 23)
+    january_second = datetime(2024, 1, 2, 23)
 
     orh_repo.save_gap_candidate(
-        GapStockInPlay(
-            ticker="BHP",
+        GapCandidate(
+            ticker=Ticker("BHP"),
             scan_date=january_first,
             status="watching",
             gap_percent=5.0,
@@ -111,8 +112,8 @@ def test_purge_candidates_filters_by_scan_date(db):
         )
     )
     orh_repo.save_gap_candidate(
-        GapStockInPlay(
-            ticker="CBA",
+        GapCandidate(
+            ticker=Ticker("CBA"),
             scan_date=january_second,
             status="watching",
             gap_percent=3.5,
@@ -126,8 +127,10 @@ def test_purge_candidates_filters_by_scan_date(db):
 
     assert deleted == 1
 
+    from skim.infrastructure.database.trading.models import CandidateTable
+
     session = db.get_session()
-    result = session.exec(select(Candidate)).all()
+    result = session.exec(select(CandidateTable)).all()
     session.close()
 
     assert len(result) == 1
@@ -136,45 +139,48 @@ def test_purge_candidates_filters_by_scan_date(db):
 
 def test_create_and_close_position(db):
     """Positions can be created, retrieved, and closed"""
-    position_id = db.create_position(
+    position = db.create_position(
         ticker="BHP",
         quantity=50,
         entry_price=10.0,
         stop_loss=9.5,
-        entry_date=datetime.now().isoformat(),
+        entry_date=datetime.now(),
     )
 
     open_positions = db.get_open_positions()
     assert len(open_positions) == 1
-    assert open_positions[0].id == position_id
+    assert open_positions[0].id == position.id
+    assert open_positions[0].ticker.symbol == "BHP"
 
-    db.close_position(position_id, exit_price=10.5, exit_date="2024-01-01")
+    db.close_position(position.id, exit_price=10.5, exit_date="2024-01-01")
 
-    closed = db.get_position(position_id)
+    closed = db.get_position(position.id)
     assert closed is not None
     assert closed.status == "closed"
-    assert closed.exit_price == 10.5
+    assert closed.exit_price.value == 10.5
 
 
 def test_count_open_positions(db):
     """Open position count reflects closes"""
-    first_id = db.create_position(
+    first_position = db.create_position(
         ticker="BHP",
         quantity=50,
         entry_price=10.0,
         stop_loss=9.5,
-        entry_date="2024-01-01",
+        entry_date=datetime.now(),
     )
     db.create_position(
         ticker="FMG",
         quantity=20,
         entry_price=5.0,
         stop_loss=4.5,
-        entry_date="2024-01-01",
+        entry_date=datetime.now(),
     )
 
     assert db.count_open_positions() == 2
 
-    db.close_position(first_id, exit_price=10.2, exit_date="2024-01-02")
+    db.close_position(
+        first_position.id, exit_price=10.2, exit_date="2024-01-02"
+    )
 
     assert db.count_open_positions() == 1

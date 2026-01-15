@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from skim.domain.models import Candidate, Position
 from skim.trading.data.database import Database
-from skim.trading.data.models import Position, TradeableCandidate
 
 if TYPE_CHECKING:
     from skim.infrastructure.brokers.protocols import (
@@ -50,7 +50,7 @@ class Trader:
         self.db = db
 
     async def execute_breakouts(
-        self, candidates: list[TradeableCandidate]
+        self, candidates: list[Candidate]
     ) -> list[TradeEvent]:
         """Execute breakout entries when price > or_high
 
@@ -60,37 +60,52 @@ class Trader:
         Returns:
             List of trade events executed
         """
+
         events: list[TradeEvent] = []
 
         for candidate in candidates:
             try:
+                if (
+                    candidate.orh_data is None
+                    or candidate.orh_data.or_high is None
+                ):
+                    logger.debug(f"{candidate.ticker.symbol}: No ORH data")
+                    continue
+
+                or_high = candidate.orh_data.or_high
+                or_low = candidate.orh_data.or_low
+
                 # Get current market data
                 result = await self.market_data_provider.get_market_data(
-                    candidate.ticker
+                    candidate.ticker.symbol
                 )
                 if result is None or isinstance(result, dict):
-                    logger.warning(f"{candidate.ticker}: No valid market data")
+                    logger.warning(
+                        f"{candidate.ticker.symbol}: No valid market data"
+                    )
                     continue
 
                 if not result or not result.last_price:
-                    logger.warning(f"{candidate.ticker}: No valid market data")
+                    logger.warning(
+                        f"{candidate.ticker.symbol}: No valid market data"
+                    )
                     continue
 
                 current_price = result.last_price
 
                 # Check if price has broken above or_high
-                if current_price <= candidate.or_high:
+                if current_price <= or_high:
                     logger.debug(
-                        f"{candidate.ticker}: Price ${current_price:.2f} not above ORH ${candidate.or_high:.2f}"
+                        f"{candidate.ticker.symbol}: Price ${current_price:.2f} not above ORH ${or_high:.2f}"
                     )
                     continue
 
                 logger.info(
-                    f"{candidate.ticker}: ORH breakout detected! ${current_price:.2f} > ${candidate.or_high:.2f}"
+                    f"{candidate.ticker.symbol}: ORH breakout detected! ${current_price:.2f} > ${or_high:.2f}"
                 )
 
                 # Calculate quantity based on position value
-                position_value = 5000.0  # Fixed position size
+                position_value = 5000.0
                 max_position_size = 1000
                 quantity = min(
                     int(position_value / current_price),
@@ -99,18 +114,18 @@ class Trader:
 
                 if quantity < 1:
                     logger.warning(
-                        f"{candidate.ticker}: Calculated quantity too small"
+                        f"{candidate.ticker.symbol}: Calculated quantity too small"
                     )
                     continue
 
                 # Place buy order
                 order_result = await self.order_manager.place_order(
-                    candidate.ticker, "BUY", quantity
+                    candidate.ticker.symbol, "BUY", quantity
                 )
 
                 if not order_result:
                     logger.warning(
-                        f"{candidate.ticker}: Order placement failed"
+                        f"{candidate.ticker.symbol}: Order placement failed"
                     )
                     continue
 
@@ -122,25 +137,27 @@ class Trader:
                 )
 
                 logger.info(
-                    f"Entry order: BUY {quantity} {candidate.ticker} @ ${fill_price:.2f}"
+                    f"Entry order: BUY {quantity} {candidate.ticker.symbol} @ ${fill_price:.2f}"
                 )
 
                 # Create position with or_low as stop loss
                 self.db.create_position(
-                    ticker=candidate.ticker,
+                    ticker=candidate.ticker.symbol,
                     quantity=quantity,
                     entry_price=fill_price,
-                    stop_loss=candidate.or_low,
-                    entry_date=datetime.now().isoformat(),
+                    stop_loss=or_low if or_low else fill_price * 0.95,
+                    entry_date=datetime.now(),
                 )
 
                 # Update candidate status
-                self.db.update_candidate_status(candidate.ticker, "entered")
+                self.db.update_candidate_status(
+                    candidate.ticker.symbol, "entered"
+                )
 
                 events.append(
                     TradeEvent(
                         action="BUY",
-                        ticker=candidate.ticker,
+                        ticker=candidate.ticker.symbol,
                         quantity=quantity,
                         price=fill_price,
                         pnl=None,
@@ -149,7 +166,7 @@ class Trader:
 
             except Exception as e:
                 logger.error(
-                    f"Error executing breakout for {candidate.ticker}: {e}"
+                    f"Error executing breakout for {candidate.ticker.symbol}: {e}"
                 )
                 continue
 
@@ -173,37 +190,42 @@ class Trader:
             try:
                 # Get current market data
                 result = await self.market_data_provider.get_market_data(
-                    position.ticker
+                    position.ticker.symbol
                 )
                 if result is None or isinstance(result, dict):
-                    logger.warning(f"{position.ticker}: No valid market data")
+                    logger.warning(
+                        f"{position.ticker.symbol}: No valid market data"
+                    )
                     continue
 
                 if not result or not result.last_price:
-                    logger.warning(f"{position.ticker}: No valid market data")
+                    logger.warning(
+                        f"{position.ticker.symbol}: No valid market data"
+                    )
                     continue
 
                 current_price = result.last_price
+                stop_loss = position.stop_loss.value
 
                 # Check if stop loss is hit
-                if current_price >= position.stop_loss:
+                if current_price >= stop_loss:
                     logger.debug(
-                        f"{position.ticker}: Price ${current_price:.2f} above stop ${position.stop_loss:.2f}"
+                        f"{position.ticker.symbol}: Price ${current_price:.2f} above stop ${stop_loss:.2f}"
                     )
                     continue
 
                 logger.warning(
-                    f"{position.ticker}: STOP HIT! ${current_price:.2f} < ${position.stop_loss:.2f}"
+                    f"{position.ticker.symbol}: STOP HIT! ${current_price:.2f} < ${stop_loss:.2f}"
                 )
 
                 # Place sell order for entire position
                 order_result = await self.order_manager.place_order(
-                    position.ticker, "SELL", position.quantity
+                    position.ticker.symbol, "SELL", position.quantity
                 )
 
                 if not order_result:
                     logger.warning(
-                        f"{position.ticker}: Stop order placement failed"
+                        f"{position.ticker.symbol}: Stop order placement failed"
                     )
                     continue
 
@@ -215,10 +237,12 @@ class Trader:
                 )
 
                 # Calculate PnL
-                pnl = (fill_price - position.entry_price) * position.quantity
+                pnl = (
+                    fill_price - position.entry_price.value
+                ) * position.quantity
 
                 logger.info(
-                    f"Stop exit: SELL {position.quantity} {position.ticker} @ ${fill_price:.2f}, PnL: ${pnl:.2f}"
+                    f"Stop exit: SELL {position.quantity} {position.ticker.symbol} @ ${fill_price:.2f}, PnL: ${pnl:.2f}"
                 )
 
                 # Close position
@@ -232,7 +256,7 @@ class Trader:
                 events.append(
                     TradeEvent(
                         action="SELL",
-                        ticker=position.ticker,
+                        ticker=position.ticker.symbol,
                         quantity=position.quantity,
                         price=fill_price,
                         pnl=pnl,
@@ -240,7 +264,9 @@ class Trader:
                 )
 
             except Exception as e:
-                logger.error(f"Error executing stop for {position.ticker}: {e}")
+                logger.error(
+                    f"Error executing stop for {position.ticker.symbol}: {e}"
+                )
                 continue
 
         logger.info(f"Executed {len(events)} stop loss exits")

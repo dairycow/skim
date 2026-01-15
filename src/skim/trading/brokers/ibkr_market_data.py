@@ -13,7 +13,7 @@ from loguru import logger
 
 from skim.infrastructure.brokers.ibkr import IBKRClient
 from skim.infrastructure.brokers.protocols import MarketDataProvider
-from skim.trading.data.models import MarketData
+from skim.domain.models import MarketData
 
 from ..validation.price_parsing import (
     clean_ibkr_price,

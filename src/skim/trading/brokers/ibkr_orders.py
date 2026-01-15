@@ -1,15 +1,16 @@
 """IBKR order management operations with async support"""
 
+from datetime import datetime
 from typing import Any
 
 from loguru import logger
 
+from skim.domain.models import OrderResult, Position, Price
 from skim.infrastructure.brokers.ibkr import IBKRClient
 from skim.infrastructure.brokers.protocols import (
     MarketDataProvider,
     OrderManager,
 )
-from skim.trading.data.models import OrderResult, Position
 
 
 class IBKROrdersError(Exception):
@@ -209,17 +210,14 @@ class IBKROrders(OrderManager):
                 or ibkr_position.get("symbol")
             )
             quantity = int(ibkr_position.get("position", 0))
-            entry_price = float(ibkr_position.get("avgPrice", 0.0))
+            entry_price_value = float(ibkr_position.get("avgPrice", 0.0))
 
-            # IBKR does not provide stop loss directly in position data,
-            # so we'll use a placeholder or derive it if possible.
-            # For now, setting to entry_price for simplicity, but this needs
-            # to be managed by the trading strategy.
+            entry_price = Price(
+                value=entry_price_value, timestamp=datetime.now()
+            )
             stop_loss = entry_price
 
-            # IBKR does not provide entry_date directly in position data.
-            # This would typically be stored in a local database.
-            entry_date = ""  # Placeholder
+            entry_date = datetime.now()
 
             if ticker and quantity > 0:
                 return Position(
@@ -231,7 +229,7 @@ class IBKROrders(OrderManager):
                     status="open",
                     exit_price=None,
                     exit_date=None,
-                    id=None,  # ID is for local DB, not from IBKR
+                    id=None,
                 )
             return None
         except Exception as e:

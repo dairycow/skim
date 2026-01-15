@@ -4,8 +4,8 @@ from datetime import datetime
 
 from loguru import logger
 
+from skim.domain.models import GapCandidate, Ticker
 from skim.infrastructure.brokers.protocols import GapScannerService
-from skim.trading.data.models import GapStockInPlay
 
 
 class GapScanner:
@@ -25,11 +25,11 @@ class GapScanner:
         self.scanner = scanner_service
         self.gap_threshold = gap_threshold
 
-    async def find_gap_candidates(self) -> list[GapStockInPlay]:
+    async def find_gap_candidates(self) -> list[GapCandidate]:
         """Find stocks with gaps > threshold
 
         Returns:
-            List of GapStockInPlay objects
+            List of GapCandidate objects
         """
         logger.info("Scanning for gap-only candidates...")
 
@@ -44,9 +44,9 @@ class GapScanner:
         )
 
         candidates = [
-            GapStockInPlay(
-                ticker=stock.ticker,
-                scan_date=datetime.now().isoformat(),
+            GapCandidate(
+                ticker=Ticker(stock.ticker),
+                scan_date=datetime.now(),
                 status="watching",
                 gap_percent=stock.gap_percent,
                 conid=stock.conid,

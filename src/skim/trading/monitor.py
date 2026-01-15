@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from skim.trading.data.models import Position
+from skim.domain.models import Position
 
 if TYPE_CHECKING:
     from skim.infrastructure.brokers.protocols import MarketDataProvider
@@ -59,27 +59,32 @@ class Monitor:
 
         for position in positions:
             try:
-                current_price = await self.get_current_price(position.ticker)
+                current_price = await self.get_current_price(
+                    position.ticker.symbol
+                )
 
                 if current_price is None:
                     logger.debug(
-                        f"{position.ticker}: Could not fetch current price"
+                        f"{position.ticker.symbol}: Could not fetch current price"
                     )
                     continue
 
                 # Check if stop is hit (price < stop_loss)
-                if current_price < position.stop_loss:
+                stop_loss = position.stop_loss.value
+                if current_price < stop_loss:
                     logger.warning(
-                        f"{position.ticker}: STOP HIT! Price ${current_price:.2f} < Stop ${position.stop_loss:.2f}"
+                        f"{position.ticker.symbol}: STOP HIT! Price ${current_price:.2f} < Stop ${stop_loss:.2f}"
                     )
                     stops_hit.append(position)
                 else:
                     logger.debug(
-                        f"{position.ticker}: Price ${current_price:.2f} >= Stop ${position.stop_loss:.2f}"
+                        f"{position.ticker.symbol}: Price ${current_price:.2f} >= Stop ${stop_loss:.2f}"
                     )
 
             except Exception as e:
-                logger.error(f"Error checking stop for {position.ticker}: {e}")
+                logger.error(
+                    f"Error checking stop for {position.ticker.symbol}: {e}"
+                )
                 continue
 
         return stops_hit

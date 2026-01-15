@@ -8,12 +8,15 @@ from typing import TYPE_CHECKING
 from loguru import logger
 from sqlmodel import col, delete, select
 
-from skim.trading.data.models import (
-    Candidate,
-    GapStockInPlay,
-    NewsStockInPlay,
-    ORHCandidate,
-    TradeableCandidate,
+from skim.domain.models import Candidate, GapCandidate, NewsCandidate, Ticker
+from skim.infrastructure.database.trading.mappers import (
+    map_candidate_to_table,
+    map_orh_data_to_table,
+    map_table_to_candidate,
+)
+from skim.infrastructure.database.trading.models import (
+    CandidateTable,
+    ORHCandidateTable,
 )
 
 if TYPE_CHECKING:
@@ -33,249 +36,234 @@ class ORHCandidateRepository:
         """
         self.db = db
 
-    def save_candidate(
-        self, candidate: GapStockInPlay | NewsStockInPlay
-    ) -> None:
+    def save_candidate(self, candidate: GapCandidate | NewsCandidate) -> None:
         """Save or update a candidate (generic method for protocol compliance)
 
         Args:
             candidate: Candidate object to save
         """
-        if isinstance(candidate, GapStockInPlay):
+        if isinstance(candidate, GapCandidate):
             self.save_gap_candidate(candidate)
-        elif isinstance(candidate, NewsStockInPlay):
+        elif isinstance(candidate, NewsCandidate):
             self.save_news_candidate(candidate)
         else:
             raise ValueError(f"Unknown candidate type: {type(candidate)}")
 
-    def save_gap_candidate(self, candidate: GapStockInPlay) -> None:
+    def save_gap_candidate(self, candidate: GapCandidate) -> None:
         """Save or update a gap candidate
 
         Args:
-            candidate: GapStockInPlay object to save
+            candidate: GapCandidate object to save
         """
         with self.db.get_session() as session:
             base_candidate = session.exec(
-                select(Candidate).where(Candidate.ticker == candidate.ticker)
+                select(CandidateTable).where(
+                    CandidateTable.ticker == candidate.ticker.symbol
+                )
             ).first()
 
             if not base_candidate:
-                base_candidate = Candidate(
-                    ticker=candidate.ticker,
-                    scan_date=candidate.scan_date,
-                    status=candidate.status,
-                    strategy_name=self.STRATEGY_NAME,
-                )
+                base_candidate = map_candidate_to_table(candidate)
+                base_candidate.strategy_name = self.STRATEGY_NAME
                 session.add(base_candidate)
             else:
-                base_candidate.scan_date = candidate.scan_date
+                base_candidate.scan_date = candidate.scan_date.isoformat()
                 base_candidate.status = candidate.status
+                base_candidate.strategy_name = self.STRATEGY_NAME
 
-            orh_candidate = session.exec(
-                select(ORHCandidate).where(
-                    ORHCandidate.ticker == candidate.ticker
+            existing_orh = session.exec(
+                select(ORHCandidateTable).where(
+                    ORHCandidateTable.ticker == candidate.ticker.symbol
                 )
             ).first()
 
-            if orh_candidate:
-                orh_candidate.gap_percent = candidate.gap_percent
-                orh_candidate.conid = candidate.conid
+            if existing_orh:
+                existing_orh.gap_percent = candidate.orh_data.gap_percent
+                existing_orh.conid = candidate.orh_data.conid
             else:
-                orh_candidate = ORHCandidate(
-                    ticker=candidate.ticker,
-                    gap_percent=candidate.gap_percent,
-                    conid=candidate.conid,
+                existing_orh = map_orh_data_to_table(
+                    candidate.ticker.symbol, candidate.orh_data
                 )
-                session.add(orh_candidate)
+                session.add(existing_orh)
 
             session.commit()
-            logger.debug(f"Saved gap candidate: {candidate.ticker}")
+            logger.debug(f"Saved gap candidate: {candidate.ticker.symbol}")
 
-    def save_news_candidate(self, candidate: NewsStockInPlay) -> None:
+    def save_news_candidate(self, candidate: NewsCandidate) -> None:
         """Save or update a news candidate
 
         Args:
-            candidate: NewsStockInPlay object to save
+            candidate: NewsCandidate object to save
         """
         with self.db.get_session() as session:
             base_candidate = session.exec(
-                select(Candidate).where(Candidate.ticker == candidate.ticker)
+                select(CandidateTable).where(
+                    CandidateTable.ticker == candidate.ticker.symbol
+                )
             ).first()
 
             if not base_candidate:
-                base_candidate = Candidate(
-                    ticker=candidate.ticker,
-                    scan_date=candidate.scan_date,
-                    status=candidate.status,
-                    strategy_name=self.STRATEGY_NAME,
-                )
+                base_candidate = map_candidate_to_table(candidate)
                 session.add(base_candidate)
             else:
-                base_candidate.scan_date = candidate.scan_date
+                base_candidate.scan_date = candidate.scan_date.isoformat()
                 base_candidate.status = candidate.status
 
             orh_candidate = session.exec(
-                select(ORHCandidate).where(
-                    ORHCandidate.ticker == candidate.ticker
+                select(ORHCandidateTable).where(
+                    ORHCandidateTable.ticker == candidate.ticker.symbol
                 )
             ).first()
 
             if orh_candidate:
-                orh_candidate.headline = candidate.headline
-                orh_candidate.announcement_type = candidate.announcement_type
+                orh_candidate.headline = candidate.orh_data.headline
+                orh_candidate.announcement_type = (
+                    candidate.orh_data.announcement_type
+                )
                 orh_candidate.announcement_timestamp = (
-                    candidate.announcement_timestamp
+                    candidate.orh_data.announcement_timestamp.isoformat()
+                    if candidate.orh_data.announcement_timestamp
+                    else None
                 )
             else:
-                orh_candidate = ORHCandidate(
-                    ticker=candidate.ticker,
-                    headline=candidate.headline,
-                    announcement_type=candidate.announcement_type,
-                    announcement_timestamp=candidate.announcement_timestamp,
+                orh_candidate = map_orh_data_to_table(
+                    candidate.ticker.symbol, candidate.orh_data
                 )
                 session.add(orh_candidate)
 
             session.commit()
-            logger.debug(f"Saved news candidate: {candidate.ticker}")
+            logger.debug(f"Saved news candidate: {candidate.ticker.symbol}")
 
-    def get_gap_candidates(self) -> list[GapStockInPlay]:
+    def get_gap_candidates(self) -> list[GapCandidate]:
         """Get all gap candidates with status='watching'
 
         Returns:
-            List of GapStockInPlay objects
+            List of GapCandidate objects
         """
         with self.db.get_session() as session:
             statement = (
-                select(ORHCandidate, Candidate)
-                .join(Candidate)
-                .where(col(ORHCandidate.gap_percent).is_not(None))
-                .where(Candidate.status == "watching")
+                select(ORHCandidateTable, CandidateTable)
+                .join(CandidateTable)
+                .where(col(ORHCandidateTable.gap_percent).is_not(None))
+                .where(CandidateTable.status == "watching")
             )
             results = session.exec(statement).all()
 
             return [
-                GapStockInPlay(
-                    ticker=orh.ticker,
-                    scan_date=candidate.scan_date,
+                GapCandidate(
+                    ticker=Ticker(candidate.ticker),
+                    scan_date=datetime.fromisoformat(candidate.scan_date),
                     status=candidate.status,
+                    strategy_name=candidate.strategy_name,
                     gap_percent=orh.gap_percent or 0.0,
                     conid=orh.conid,
+                    created_at=datetime.fromisoformat(candidate.created_at),
                 )
                 for orh, candidate in results
             ]
 
-    def get_news_candidates(self) -> list[NewsStockInPlay]:
+    def get_news_candidates(self) -> list[NewsCandidate]:
         """Get all news candidates with status='watching'
 
         Returns:
-            List of NewsStockInPlay objects
+            List of NewsCandidate objects
         """
         with self.db.get_session() as session:
             statement = (
-                select(ORHCandidate, Candidate)
-                .join(Candidate)
-                .where(col(ORHCandidate.headline).is_not(None))
-                .where(Candidate.status == "watching")
+                select(ORHCandidateTable, CandidateTable)
+                .join(CandidateTable)
+                .where(col(ORHCandidateTable.headline).is_not(None))
+                .where(CandidateTable.status == "watching")
             )
             results = session.exec(statement).all()
 
             return [
-                NewsStockInPlay(
-                    ticker=orh.ticker,
-                    scan_date=candidate.scan_date,
+                NewsCandidate(
+                    ticker=Ticker(candidate.ticker),
+                    scan_date=datetime.fromisoformat(candidate.scan_date),
                     status=candidate.status,
+                    strategy_name=candidate.strategy_name,
                     headline=orh.headline or "",
                     announcement_type=orh.announcement_type,
-                    announcement_timestamp=orh.announcement_timestamp,
+                    announcement_timestamp=(
+                        datetime.fromisoformat(orh.announcement_timestamp)
+                        if orh.announcement_timestamp
+                        else None
+                    ),
+                    created_at=datetime.fromisoformat(candidate.created_at),
                 )
                 for orh, candidate in results
             ]
 
-    def get_tradeable_candidates(self) -> list[TradeableCandidate]:
+    def get_tradeable_candidates(self) -> list[Candidate]:
         """Get candidates with gap, news, and opening ranges
 
         Returns:
-            List of TradeableCandidate objects ready for trading
+            List of Candidate objects ready for trading
         """
         with self.db.get_session() as session:
             statement = (
-                select(ORHCandidate, Candidate)
-                .join(Candidate)
-                .where(col(ORHCandidate.gap_percent).is_not(None))
-                .where(col(ORHCandidate.headline).is_not(None))
-                .where(col(ORHCandidate.or_high).is_not(None))
-                .where(Candidate.status == "watching")
+                select(ORHCandidateTable, CandidateTable)
+                .join(CandidateTable)
+                .where(col(ORHCandidateTable.gap_percent).is_not(None))
+                .where(col(ORHCandidateTable.headline).is_not(None))
+                .where(col(ORHCandidateTable.or_high).is_not(None))
+                .where(CandidateTable.status == "watching")
             )
             results = session.exec(statement).all()
 
             return [
-                TradeableCandidate(
-                    ticker=orh.ticker,
-                    scan_date=candidate.scan_date,
-                    status=candidate.status,
-                    gap_percent=orh.gap_percent or 0.0,
-                    conid=orh.conid,
-                    headline=orh.headline or "",
-                    or_high=float(orh.or_high or 0.0),
-                    or_low=float(orh.or_low or 0.0),
-                )
+                map_table_to_candidate(candidate, orh)
                 for orh, candidate in results
             ]
 
-    def get_alertable_candidates(self) -> list[TradeableCandidate]:
+    def get_alertable_candidates(self) -> list[Candidate]:
         """Get candidates with gap and news (no range requirement)
 
         Returns:
-            List of TradeableCandidate objects ready for alerting
+            List of Candidate objects ready for alerting
         """
         with self.db.get_session() as session:
             statement = (
-                select(ORHCandidate, Candidate)
-                .join(Candidate)
-                .where(col(ORHCandidate.gap_percent).is_not(None))
-                .where(col(ORHCandidate.headline).is_not(None))
-                .where(Candidate.status == "watching")
+                select(ORHCandidateTable, CandidateTable)
+                .join(CandidateTable)
+                .where(col(ORHCandidateTable.gap_percent).is_not(None))
+                .where(col(ORHCandidateTable.headline).is_not(None))
+                .where(CandidateTable.status == "watching")
             )
             results = session.exec(statement).all()
 
             return [
-                TradeableCandidate(
-                    ticker=orh.ticker,
-                    scan_date=candidate.scan_date,
-                    status=candidate.status,
-                    gap_percent=orh.gap_percent or 0.0,
-                    conid=orh.conid,
-                    headline=orh.headline or "",
-                    or_high=0.0,
-                    or_low=0.0,
-                )
+                map_table_to_candidate(candidate, orh)
                 for orh, candidate in results
             ]
 
-    def get_candidates_needing_ranges(self) -> list[GapStockInPlay]:
+    def get_candidates_needing_ranges(self) -> list[GapCandidate]:
         """Get gap+news candidates without opening ranges
 
         Returns:
-            List of GapStockInPlay objects that need opening range tracking
+            List of GapCandidate objects that need opening range tracking
         """
         with self.db.get_session() as session:
             statement = (
-                select(ORHCandidate, Candidate)
-                .join(Candidate)
-                .where(col(ORHCandidate.gap_percent).is_not(None))
-                .where(col(ORHCandidate.headline).is_not(None))
-                .where(col(ORHCandidate.or_high).is_(None))
-                .where(Candidate.status == "watching")
+                select(ORHCandidateTable, CandidateTable)
+                .join(CandidateTable)
+                .where(col(ORHCandidateTable.gap_percent).is_not(None))
+                .where(col(ORHCandidateTable.headline).is_not(None))
+                .where(col(ORHCandidateTable.or_high).is_(None))
+                .where(CandidateTable.status == "watching")
             )
             results = session.exec(statement).all()
 
             return [
-                GapStockInPlay(
-                    ticker=orh.ticker,
-                    scan_date=candidate.scan_date,
+                GapCandidate(
+                    ticker=Ticker(candidate.ticker),
+                    scan_date=datetime.fromisoformat(candidate.scan_date),
                     status=candidate.status,
+                    strategy_name=candidate.strategy_name,
                     gap_percent=orh.gap_percent or 0.0,
                     conid=orh.conid,
+                    created_at=datetime.fromisoformat(candidate.created_at),
                 )
                 for orh, candidate in results
             ]
@@ -292,7 +280,9 @@ class ORHCandidateRepository:
         """
         with self.db.get_session() as session:
             orh_candidate = session.exec(
-                select(ORHCandidate).where(ORHCandidate.ticker == ticker)
+                select(ORHCandidateTable).where(
+                    ORHCandidateTable.ticker == ticker
+                )
             ).first()
 
             if orh_candidate:
@@ -311,13 +301,15 @@ class ORHCandidateRepository:
             Number of candidates deleted
         """
         with self.db.get_session() as session:
-            orh_deleted = session.exec(delete(ORHCandidate))
+            orh_deleted = session.exec(delete(ORHCandidateTable))
             candidate_deleted = session.exec(
-                delete(Candidate).where(
-                    col(Candidate.strategy_name) == self.STRATEGY_NAME
+                delete(CandidateTable).where(
+                    col(CandidateTable.strategy_name) == self.STRATEGY_NAME
                 )
             )
             session.commit()
             total = orh_deleted.rowcount + candidate_deleted.rowcount
-            logger.info(f"Purged {total} ORH candidates")
+            logger.info(
+                f"Purged {orh_deleted.rowcount} ORH candidates, {candidate_deleted.rowcount} base candidates"
+            )
             return total

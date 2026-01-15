@@ -1,5 +1,6 @@
 """Broker integrations (Interactive Brokers)"""
 
+from skim.domain.models import MarketData, OrderResult
 from skim.infrastructure.brokers.ibkr import IBKRClient
 from skim.infrastructure.brokers.protocols import (
     BrokerConnectionManager,
@@ -7,7 +8,6 @@ from skim.infrastructure.brokers.protocols import (
     MarketDataProvider,
     OrderManager,
 )
-from skim.trading.data.models import MarketData, OrderResult
 
 __all__ = [
     "IBKRClient",

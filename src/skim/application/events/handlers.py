@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from skim.domain.models import GapCandidate, NewsCandidate, Ticker
+from skim.trading.data.repositories.orh_repository import ORHCandidateRepository
+
 from .event_bus import Event, EventType
 
 if TYPE_CHECKING:
     from skim.trading.data.database import Database
-    from skim.trading.data.repositories.orh_repository import (
-        ORHCandidateRepository,
-    )
     from skim.trading.notifications.discord import DiscordNotifier
 
 
@@ -69,11 +69,9 @@ class EventHandlers:
                 conid = candidate_data.get("conid")
 
                 if ticker:
-                    from skim.trading.data.models import GapStockInPlay
-
-                    candidate = GapStockInPlay(
-                        ticker=ticker,
-                        scan_date=event.data.get("scan_date", ""),
+                    candidate = GapCandidate(
+                        ticker=Ticker(ticker),
+                        scan_date=datetime.now(),
                         status="watching",
                         gap_percent=gap_percent,
                         conid=conid,
@@ -113,11 +111,9 @@ class EventHandlers:
                 )
 
                 if ticker:
-                    from skim.trading.data.models import NewsStockInPlay
-
-                    candidate = NewsStockInPlay(
-                        ticker=ticker,
-                        scan_date=event.data.get("scan_date", ""),
+                    candidate = NewsCandidate(
+                        ticker=Ticker(ticker),
+                        scan_date=datetime.now(),
                         status="watching",
                         headline=headline,
                         announcement_type=announcement_type,
@@ -183,7 +179,11 @@ class EventHandlers:
         try:
             positions = self._db.get_open_positions()
             for pos in positions:
-                if pos.ticker == ticker and pos.is_open and pos.id is not None:
+                if (
+                    pos.ticker.symbol == ticker
+                    and pos.is_open
+                    and pos.id is not None
+                ):
                     self._db.close_position(pos.id, exit_price, exit_date)
                     logger.info(
                         f"Closed position for {ticker} at ${exit_price:.2f}"
@@ -222,7 +222,7 @@ class EventHandlers:
             filled_price = 0.0
 
         try:
-            entry_date = datetime.now().isoformat()
+            entry_date = datetime.now()
             position_id = self._db.create_position(
                 ticker=ticker,
                 quantity=quantity,
@@ -256,7 +256,10 @@ class EventHandlers:
 
         if candidate:
             ticker = getattr(candidate, "ticker", "UNKNOWN")
-            logger.info(f"New candidate created: {ticker}")
+            ticker_symbol = (
+                ticker.symbol if hasattr(ticker, "symbol") else ticker
+            )
+            logger.info(f"New candidate created: {ticker_symbol}")
 
     def _send_scan_summary(
         self, scan_type: str, count: int, candidates: list[dict]
@@ -372,7 +375,8 @@ async def handle_candidate_created(event: Event) -> None:
     candidate = event.data.get("candidate")
     if candidate:
         ticker = getattr(candidate, "ticker", "UNKNOWN")
-        logger.info(f"New candidate created: {ticker}")
+        ticker_symbol = ticker.symbol if hasattr(ticker, "symbol") else ticker
+        logger.info(f"New candidate created: {ticker_symbol}")
 
 
 async def handle_opening_range_tracked(event: Event) -> None:
