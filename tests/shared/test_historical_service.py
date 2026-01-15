@@ -4,12 +4,14 @@ from datetime import date
 
 import pytest
 
-from skim.shared.historical import (
+from skim.infrastructure.database.historical import (
     HistoricalDataRepository,
     HistoricalDataService,
     PerformanceFilter,
 )
-from skim.shared.historical.repository import HistoricalDatabase
+from skim.infrastructure.database.historical.repository import (
+    HistoricalDatabase,
+)
 
 
 @pytest.fixture
@@ -41,7 +43,7 @@ def test_service(test_repo):
 @pytest.fixture
 def sample_prices():
     """Create sample price data for testing"""
-    from skim.shared.historical import DailyPrice
+    from skim.infrastructure.database.historical import DailyPrice
 
     return [
         DailyPrice(

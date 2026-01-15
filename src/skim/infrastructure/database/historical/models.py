@@ -1,4 +1,4 @@
-"""Data models for historical price data - SQLModel"""
+"""Data models for historical price data - SQLModel."""
 
 from datetime import date
 from typing import TYPE_CHECKING
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 class DailyPriceBase(SQLModel):
-    """Base model for daily price data"""
+    """Base model for daily price data."""
 
     ticker: str = Field(index=True)
     trade_date: date = Field(index=True)
@@ -22,7 +22,7 @@ class DailyPriceBase(SQLModel):
 
 
 class DailyPrice(DailyPriceBase, table=True):
-    """Historical daily price data for ASX stocks (database table)"""
+    """Historical daily price data for ASX stocks (database table)."""
 
     __tablename__ = "daily_prices"  # type: ignore[assignment]
 
@@ -32,7 +32,7 @@ class DailyPrice(DailyPriceBase, table=True):
 
 
 class HistoricalPerformance(SQLModel):
-    """Historical performance metrics for a stock over a period"""
+    """Historical performance metrics for a stock over a period."""
 
     ticker: str
     period_days: int

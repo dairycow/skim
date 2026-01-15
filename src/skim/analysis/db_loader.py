@@ -5,12 +5,14 @@ from pathlib import Path
 from loguru import logger
 from tqdm import tqdm
 
-from skim.shared.database import get_historical_db_path
-from skim.shared.historical import (
+from skim.infrastructure.database.historical import (
     HistoricalDataRepository,
     HistoricalDataService,
 )
-from skim.shared.historical.repository import HistoricalDatabase
+from skim.infrastructure.database.historical.repository import (
+    HistoricalDatabase,
+)
+from skim.shared.database import get_historical_db_path
 
 
 class DatabaseLoader:

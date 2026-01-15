@@ -1,4 +1,4 @@
-"""Historical data repository for price history queries"""
+"""Historical data repository for price history queries."""
 
 from __future__ import annotations
 
@@ -8,50 +8,37 @@ from typing import cast
 
 from loguru import logger
 from sqlalchemy import asc, desc, select
-from sqlmodel import Session, create_engine, func
+from sqlmodel import func
 
-from skim.shared.historical.models import DailyPrice, HistoricalPerformance
+from skim.infrastructure.database.base import BaseDatabase
+from skim.infrastructure.database.historical.models import (
+    DailyPrice,
+    HistoricalPerformance,
+)
 
 
-class HistoricalDatabase:
-    """SQLite database manager for historical price data"""
+class HistoricalDatabase(BaseDatabase):
+    """SQLite database manager for historical price data."""
 
     def __init__(self, db_path: str):
-        """Initialise database connection and create schema
+        """Initialise database connection and create schema.
 
         Args:
             db_path: Path to SQLite database file or ":memory:" for in-memory DB
         """
-        self.engine = create_engine(
-            f"sqlite:///{db_path}",
-            connect_args={"check_same_thread": False},
-        )
-        self._create_schema()
+        super().__init__(db_path)
         logger.info(f"Historical database initialised: {db_path}")
 
-    def _create_schema(self):
-        """Create database tables if they don't exist"""
+    def _create_schema(self) -> None:
+        """Create database tables if they don't exist."""
         DailyPrice.metadata.create_all(self.engine)
-
-    def get_session(self) -> Session:
-        """Get a new database session
-
-        Returns:
-            Session: SQLModel session
-        """
-        return Session(self.engine)
-
-    def close(self) -> None:
-        """Dispose of database engine"""
-        if self.engine:
-            self.engine.dispose()
 
 
 class HistoricalDataRepository:
-    """Repository for historical price data queries"""
+    """Repository for historical price data queries."""
 
     def __init__(self, db: HistoricalDatabase):
-        """Initialise historical data repository
+        """Initialise historical data repository.
 
         Args:
             db: HistoricalDatabase instance for database operations
@@ -59,7 +46,7 @@ class HistoricalDataRepository:
         self.db = db
 
     def get_latest_date(self) -> datetime_date | None:
-        """Get the most recent date in the database
+        """Get the most recent date in the database.
 
         Returns:
             Latest date or None if database is empty
@@ -73,7 +60,7 @@ class HistoricalDataRepository:
             return cast(datetime_date | None, result[0]) if result else None
 
     def get_earliest_date(self) -> datetime_date | None:
-        """Get the earliest date in the database
+        """Get the earliest date in the database.
 
         Returns:
             Earliest date or None if database is empty
@@ -87,7 +74,7 @@ class HistoricalDataRepository:
             return cast(datetime_date | None, result[0]) if result else None
 
     def get_tickers_with_data(self) -> list[str]:
-        """Get all tickers that have data in the database
+        """Get all tickers that have data in the database.
 
         Returns:
             List of ticker symbols
@@ -107,7 +94,7 @@ class HistoricalDataRepository:
     def get_price_on_date(
         self, ticker: str, target_date: datetime_date
     ) -> DailyPrice | None:
-        """Get price data for a specific ticker on a specific date
+        """Get price data for a specific ticker on a specific date.
 
         Args:
             ticker: Stock ticker symbol
@@ -128,7 +115,7 @@ class HistoricalDataRepository:
     def get_prices_in_range(
         self, ticker: str, start_date: datetime_date, end_date: datetime_date
     ) -> list[DailyPrice]:
-        """Get price data for a ticker within a date range
+        """Get price data for a ticker within a date range.
 
         Args:
             ticker: Stock ticker symbol
@@ -157,7 +144,7 @@ class HistoricalDataRepository:
     def get_performance(
         self, ticker: str, days: int, end_date: datetime_date | None = None
     ) -> HistoricalPerformance | None:
-        """Calculate historical performance over a period
+        """Calculate historical performance over a period.
 
         Args:
             ticker: Stock ticker symbol
@@ -223,7 +210,7 @@ class HistoricalDataRepository:
     def get_3month_performance(
         self, ticker: str, end_date: datetime_date | None = None
     ) -> HistoricalPerformance | None:
-        """Get 3-month (approximately 90 days) performance
+        """Get 3-month (approximately 90 days) performance.
 
         Args:
             ticker: Stock ticker symbol
@@ -237,7 +224,7 @@ class HistoricalDataRepository:
     def get_6month_performance(
         self, ticker: str, end_date: datetime_date | None = None
     ) -> HistoricalPerformance | None:
-        """Get 6-month (approximately 180 days) performance
+        """Get 6-month (approximately 180 days) performance.
 
         Args:
             ticker: Stock ticker symbol
@@ -249,7 +236,7 @@ class HistoricalDataRepository:
         return self.get_performance(ticker, 180, end_date)
 
     def bulk_insert_prices(self, prices: list[DailyPrice]) -> int:
-        """Bulk insert daily price records
+        """Bulk insert daily price records.
 
         Args:
             prices: List of DailyPrice objects to insert
@@ -282,7 +269,7 @@ class HistoricalDataRepository:
             return len(prices)
 
     def delete_ticker_data(self, ticker: str) -> int:
-        """Delete all data for a specific ticker
+        """Delete all data for a specific ticker.
 
         Args:
             ticker: Stock ticker symbol
@@ -307,7 +294,7 @@ class HistoricalDataRepository:
             return count
 
     def get_tickers_count(self) -> int:
-        """Get total number of unique tickers
+        """Get total number of unique tickers.
 
         Returns:
             Number of unique tickers
@@ -319,7 +306,7 @@ class HistoricalDataRepository:
             return len(result)
 
     def get_total_records(self) -> int:
-        """Get total number of price records
+        """Get total number of price records.
 
         Returns:
             Total number of records

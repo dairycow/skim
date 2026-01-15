@@ -1,5 +1,8 @@
 """Trading services"""
 
-from skim.shared.historical import HistoricalDataService, PerformanceFilter
+from skim.infrastructure.database.historical import (
+    HistoricalDataService,
+    PerformanceFilter,
+)
 
 __all__ = ["HistoricalDataService", "PerformanceFilter"]

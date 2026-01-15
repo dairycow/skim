@@ -1,10 +1,13 @@
 """Base database class with common connection logic."""
 
 from pathlib import Path
-from typing import Generator
+from typing import TYPE_CHECKING
 
 from loguru import logger
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import Session, SQLModel, create_engine
+
+if TYPE_CHECKING:
+    pass
 
 
 class BaseDatabase:
