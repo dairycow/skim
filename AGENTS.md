@@ -36,6 +36,33 @@ uv run skim-analyze top 2024 --json
 uv run skim-analyze gaps 2024 --limit 10 --json
 ```
 
+## Development Workflow
+
+### During Development
+- Ruff runs on-save in your editor (auto-fixes imports and formatting)
+- Pyright runs on-type checking in your editor
+- Fix errors as they appear
+
+### Before Committing
+Option 1: Use pre-commit (runs linting only, not tests)
+```bash
+git add .
+git commit -m "message"  # Pre-commit runs automatically
+```
+
+Option 2: Use make commands
+```bash
+make commit MSG="refactor: add feature"  # Lints and commits
+```
+
+### Running Tests
+Run tests manually when needed:
+```bash
+make test                    # Run all tests
+uv run pytest -x            # Run until first failure
+uv run pytest tests/trading  # Run specific tests
+```
+
 ## Style
 
 - 80 chars max, double quotes, 4 spaces
