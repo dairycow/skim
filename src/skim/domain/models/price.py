@@ -14,3 +14,10 @@ class Price:
     @property
     def is_valid(self) -> bool:
         return self.value > 0
+
+    @classmethod
+    def from_persistence(cls, value: float) -> "Price":
+        return cls(value=value, timestamp=datetime.now())
+
+    def to_persistence(self) -> float:
+        return self.value

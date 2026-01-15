@@ -2,7 +2,7 @@
 
 import pytest
 
-from skim.trading.data.models import MarketData
+from skim.domain.models import MarketData
 
 
 @pytest.mark.unit

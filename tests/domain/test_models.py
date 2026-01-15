@@ -1,14 +1,15 @@
 """Tests for domain models"""
 
-import pytest
 from datetime import datetime
 
-from skim.domain.models.ticker import Ticker
-from skim.domain.models.price import Price
-from skim.domain.models.position import Position
+import pytest
+
 from skim.domain.models.candidate import Candidate, GapCandidate, NewsCandidate
-from skim.domain.models.signal import Signal
 from skim.domain.models.event import Event, EventType
+from skim.domain.models.position import Position
+from skim.domain.models.price import Price
+from skim.domain.models.signal import Signal
+from skim.domain.models.ticker import Ticker
 
 
 class TestTicker:
@@ -28,6 +29,23 @@ class TestTicker:
         """Test that empty ticker raises error"""
         with pytest.raises(ValueError):
             Ticker(symbol="")
+
+    def test_ticker_to_persistence(self):
+        """Test ticker serialization to string"""
+        ticker = Ticker(symbol="BHP")
+        assert ticker.to_persistence() == "BHP"
+
+    def test_ticker_from_persistence(self):
+        """Test ticker deserialization from string"""
+        ticker = Ticker.from_persistence("CBA")
+        assert ticker.symbol == "CBA"
+
+    def test_ticker_round_trip(self):
+        """Test ticker serialization round trip"""
+        original = Ticker(symbol="RIO")
+        persisted = original.to_persistence()
+        restored = Ticker.from_persistence(persisted)
+        assert restored == original
 
 
 class TestPrice:
@@ -52,6 +70,24 @@ class TestPrice:
         """Test zero price is invalid"""
         price = Price(value=0.0, timestamp=datetime.now())
         assert price.is_valid is False
+
+    def test_price_to_persistence(self):
+        """Test price serialization to float"""
+        price = Price(value=100.50, timestamp=datetime.now())
+        assert price.to_persistence() == 100.50
+
+    def test_price_from_persistence(self):
+        """Test price deserialization from float"""
+        price = Price.from_persistence(46.75)
+        assert price.value == 46.75
+        assert price.timestamp is not None
+
+    def test_price_round_trip(self):
+        """Test price serialization round trip (value only)"""
+        original = Price(value=123.45, timestamp=datetime.now())
+        persisted = original.to_persistence()
+        restored = Price.from_persistence(persisted)
+        assert restored.value == original.value
 
 
 class TestPosition:

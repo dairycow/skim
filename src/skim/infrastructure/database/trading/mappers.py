@@ -45,7 +45,7 @@ def map_table_to_candidate(
         )
 
     return Candidate(
-        ticker=Ticker(table.ticker),
+        ticker=Ticker.from_persistence(table.ticker),
         scan_date=datetime.fromisoformat(table.scan_date),
         status=table.status,
         strategy_name=table.strategy_name,
@@ -63,12 +63,15 @@ def map_candidate_to_table(candidate: Candidate) -> CandidateTable:
     Returns:
         Candidate database table
     """
-    ticker_symbol = candidate.ticker.symbol
+    strategy_name = candidate.strategy_name
+    if not strategy_name and hasattr(candidate.__class__, "STRATEGY_NAME"):
+        strategy_name = candidate.__class__.STRATEGY_NAME
+
     return CandidateTable(
-        ticker=ticker_symbol,
+        ticker=candidate.ticker.to_persistence(),
         scan_date=candidate.scan_date.isoformat(),
         status=candidate.status,
-        strategy_name=candidate.strategy_name,
+        strategy_name=strategy_name,
         created_at=candidate.created_at.isoformat(),
     )
 
@@ -120,13 +123,13 @@ def map_table_to_position(table: PositionTable) -> Position:
 
     return Position(
         id=table.id,
-        ticker=Ticker(table.ticker),
+        ticker=Ticker.from_persistence(table.ticker),
         quantity=table.quantity,
-        entry_price=Price(value=table.entry_price, timestamp=datetime.now()),
-        stop_loss=Price(value=table.stop_loss, timestamp=datetime.now()),
+        entry_price=Price.from_persistence(table.entry_price),
+        stop_loss=Price.from_persistence(table.stop_loss),
         entry_date=datetime.fromisoformat(table.entry_date),
         status=table.status,
-        exit_price=Price(value=table.exit_price, timestamp=datetime.now())
+        exit_price=Price.from_persistence(table.exit_price)
         if table.exit_price
         else None,
         exit_date=datetime.fromisoformat(table.exit_date)
@@ -144,16 +147,17 @@ def map_position_to_table(position: Position) -> PositionTable:
     Returns:
         Position database table
     """
-    ticker_symbol = position.ticker.symbol
     return PositionTable(
         id=position.id,
-        ticker=ticker_symbol,
+        ticker=position.ticker.to_persistence(),
         quantity=position.quantity,
-        entry_price=position.entry_price.value,
-        stop_loss=position.stop_loss.value,
+        entry_price=position.entry_price.to_persistence(),
+        stop_loss=position.stop_loss.to_persistence(),
         entry_date=position.entry_date.isoformat(),
         status=position.status,
-        exit_price=position.exit_price.value if position.exit_price else None,
+        exit_price=position.exit_price.to_persistence()
+        if position.exit_price
+        else None,
         exit_date=position.exit_date.isoformat()
         if position.exit_date
         else None,

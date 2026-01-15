@@ -1,17 +1,17 @@
 """Unit tests for CoolTrader data downloader module."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import responses
 
 from skim.analysis.data_downloader import (
     CoolTraderAuth,
+    CoolTraderAuthError,
     CoolTraderConfig,
     CoolTraderDownloader,
-    CoolTraderAuthError,
     CoolTraderDownloadError,
     CoolTraderValidationError,
 )

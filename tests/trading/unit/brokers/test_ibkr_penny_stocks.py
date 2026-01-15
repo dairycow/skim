@@ -2,7 +2,7 @@
 
 import pytest
 
-from skim.trading.data.models import MarketData
+from skim.domain.models import MarketData
 from skim.trading.validation.price_parsing import validate_minimum_price
 
 

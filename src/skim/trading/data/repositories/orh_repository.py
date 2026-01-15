@@ -64,12 +64,10 @@ class ORHCandidateRepository:
 
             if not base_candidate:
                 base_candidate = map_candidate_to_table(candidate)
-                base_candidate.strategy_name = self.STRATEGY_NAME
                 session.add(base_candidate)
             else:
                 base_candidate.scan_date = candidate.scan_date.isoformat()
                 base_candidate.status = candidate.status
-                base_candidate.strategy_name = self.STRATEGY_NAME
 
             existing_orh = session.exec(
                 select(ORHCandidateTable).where(

@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from .ticker import Ticker
 from .orh_candidate import ORHCandidateData
+from .ticker import Ticker
 
 _UNSET: Any = object()
 
@@ -26,10 +26,13 @@ class Candidate:
 class GapCandidate(Candidate):
     """Gap scanner candidate"""
 
+    STRATEGY_NAME: str = "orh_breakout"
     gap_percent: float = field(default=_UNSET)
     conid: int | None = field(default=None)
 
     def __post_init__(self):
+        if self.strategy_name == "":
+            self.strategy_name = self.STRATEGY_NAME
         if self.gap_percent is _UNSET:
             raise ValueError("gap_percent is required")
         if self.orh_data is None:
@@ -45,11 +48,14 @@ class GapCandidate(Candidate):
 class NewsCandidate(Candidate):
     """News scanner candidate"""
 
+    STRATEGY_NAME: str = "orh_breakout"
     headline: str = field(default=_UNSET)
     announcement_type: str = field(default="pricesens")
     announcement_timestamp: datetime | None = field(default=None)
 
     def __post_init__(self):
+        if self.strategy_name == "":
+            self.strategy_name = self.STRATEGY_NAME
         if self.headline is _UNSET:
             raise ValueError("headline is required")
         if self.orh_data is None:

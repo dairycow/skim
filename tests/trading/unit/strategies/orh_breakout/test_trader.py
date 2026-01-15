@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from skim.trading.data.models import Position, TradeableCandidate
 from skim.trading.strategies.orh_breakout import TradeEvent, Trader
 
 
@@ -20,15 +19,21 @@ def trader():
 @pytest.mark.asyncio
 async def test_execute_breakouts_places_order_when_price_above_orh(trader):
     trader_instance, market_data, orders, db = trader
-    candidate = TradeableCandidate(
+    from tests.factories import CandidateFactory
+
+    candidate = CandidateFactory.gap_candidate(
         ticker="BHP",
-        or_high=10.0,
-        or_low=9.5,
-        scan_date="2024-01-01",
-        status="watching",
         gap_percent=5.0,
         conid=8644,
-        headline="Results Released",
+    )
+    # Set up ORH data on the candidate
+    from skim.domain.models.orh_candidate import ORHCandidateData
+
+    candidate.orh_data = ORHCandidateData(
+        gap_percent=5.0,
+        conid=8644,
+        or_high=10.0,
+        or_low=9.5,
     )
     market_data.get_market_data.return_value = type(
         "MarketData", (), {"last_price": 10.5}
@@ -49,15 +54,19 @@ async def test_execute_breakouts_places_order_when_price_above_orh(trader):
 @pytest.mark.asyncio
 async def test_execute_breakouts_skips_when_price_not_above_orh(trader):
     trader_instance, market_data, orders, db = trader
-    candidate = TradeableCandidate(
+    from skim.domain.models.orh_candidate import ORHCandidateData
+    from tests.factories import CandidateFactory
+
+    candidate = CandidateFactory.gap_candidate(
         ticker="RIO",
-        or_high=20.0,
-        or_low=19.0,
-        scan_date="2024-01-01",
-        status="watching",
         gap_percent=4.0,
         conid=8645,
-        headline="Trading Halt",
+    )
+    candidate.orh_data = ORHCandidateData(
+        gap_percent=4.0,
+        conid=8645,
+        or_high=20.0,
+        or_low=19.0,
     )
     market_data.get_market_data.return_value = type(
         "MarketData", (), {"last_price": 19.5}
@@ -73,13 +82,13 @@ async def test_execute_breakouts_skips_when_price_not_above_orh(trader):
 @pytest.mark.asyncio
 async def test_execute_stops_closes_position_when_price_below_stop(trader):
     trader_instance, market_data, orders, db = trader
-    position = Position(
+    from tests.factories import PositionFactory
+
+    position = PositionFactory.position(
         ticker="BHP",
         quantity=10,
         entry_price=10.0,
         stop_loss=9.5,
-        entry_date="2024-01-01",
-        status="open",
         id=7,
     )
     market_data.get_market_data.return_value = type(
@@ -100,13 +109,13 @@ async def test_execute_stops_closes_position_when_price_below_stop(trader):
 @pytest.mark.asyncio
 async def test_execute_stops_ignores_when_price_above_stop(trader):
     trader_instance, market_data, orders, db = trader
-    position = Position(
+    from tests.factories import PositionFactory
+
+    position = PositionFactory.position(
         ticker="RIO",
         quantity=5,
         entry_price=20.0,
         stop_loss=19.0,
-        entry_date="2024-01-01",
-        status="open",
         id=3,
     )
     market_data.get_market_data.return_value = type(
