@@ -208,3 +208,40 @@ class Database(BaseDatabase):
                 position.exit_price = exit_price
                 position.exit_date = exit_date
                 session.commit()
+
+    def create(self, position: Position) -> int:
+        """Create position from Position object (protocol compliance)
+
+        Args:
+            position: Position domain object
+
+        Returns:
+            Position ID
+        """
+        return self.create_position(
+            ticker=position.ticker.symbol,
+            quantity=position.quantity,
+            entry_price=position.entry_price,
+            stop_loss=position.stop_loss,
+            entry_date=position.entry_date,
+        )
+
+    def get_open(self) -> list[Position]:
+        """Get all open positions (protocol compliance)
+
+        Returns:
+            List of Position objects with status='open'
+        """
+        return self.get_open_positions()
+
+    def close(
+        self, position_id: int, exit_price: float, exit_date: str
+    ) -> None:
+        """Close position (protocol compliance)
+
+        Args:
+            position_id: Position ID
+            exit_price: Exit price per share
+            exit_date: ISO format datetime string
+        """
+        self.close_position(position_id, exit_price, exit_date)

@@ -106,6 +106,28 @@ class IBKRClientFacade:
             "POST", endpoint, data=data, params=params
         )
 
+    async def request(
+        self,
+        method: str,
+        endpoint: str,
+        data: dict | None = None,
+        params: dict | None = None,
+    ) -> dict:
+        """Make authenticated HTTP request (public interface to _request_client.request)
+
+        Args:
+            method: HTTP method (GET, POST, DELETE)
+            endpoint: API endpoint path
+            data: JSON payload for POST requests
+            params: Query parameters
+
+        Returns:
+            Response JSON as dict
+        """
+        return await self._request_client.request(
+            method, endpoint, data=data, params=params
+        )
+
     @property
     def auth_manager(self) -> IBKRAuthManager:
         """Access auth manager for testing"""

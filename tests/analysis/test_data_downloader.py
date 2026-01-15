@@ -79,11 +79,23 @@ class TestCoolTraderAuth:
         auth = CoolTraderAuth(test_config)
 
         target_date = date(2026, 1, 2)
-        url = auth._get_download_url(target_date)
+        url = auth.get_download_url(target_date)  # type: ignore[reportPrivateUsage]
 
         assert (
             url
             == "https://www.data.cooltrader.com.au/amember/eodfiles/nextday/csv/20260102.csv"
+        )
+
+    def test_get_download_url_different_date(self, test_config):
+        """Test download URL with different date."""
+        auth = CoolTraderAuth(test_config)
+
+        target_date = date(2024, 12, 25)
+        url = auth.get_download_url(target_date)  # type: ignore[reportPrivateUsage]
+
+        assert (
+            url
+            == "https://www.data.cooltrader.com.au/amember/eodfiles/nextday/csv/20241225.csv"
         )
 
     def test_get_download_url_different_date(self, test_config):

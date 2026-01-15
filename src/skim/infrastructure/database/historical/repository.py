@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import date as datetime_date
 from datetime import timedelta
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from loguru import logger
-from sqlalchemy import asc, desc, select
+from sqlalchemy import and_, asc, desc, select
 from sqlmodel import func
 
 from skim.infrastructure.database.base import BaseDatabase
@@ -15,6 +15,9 @@ from skim.infrastructure.database.historical.models import (
     DailyPrice,
     HistoricalPerformance,
 )
+
+if TYPE_CHECKING:
+    pass
 
 
 class HistoricalDatabase(BaseDatabase):
@@ -80,15 +83,10 @@ class HistoricalDataRepository:
             List of ticker symbols
         """
         with self.db.get_session() as session:
-            result = (
-                session.execute(
-                    select(DailyPrice.ticker)
-                    .distinct()
-                    .order_by(DailyPrice.ticker)
-                )
-                .scalars()
-                .all()
+            stmt = (
+                select(DailyPrice.ticker).distinct().order_by(DailyPrice.ticker)  # type: ignore[arg-type]
             )
+            result = session.execute(stmt).scalars().all()
             return list(result)
 
     def get_price_on_date(
@@ -105,9 +103,11 @@ class HistoricalDataRepository:
         """
         with self.db.get_session() as session:
             result = session.execute(
-                select(DailyPrice).where(
-                    DailyPrice.ticker == ticker.upper(),
-                    DailyPrice.trade_date == target_date,
+                select(DailyPrice).where(  # type: ignore[arg-type]
+                    and_(
+                        DailyPrice.ticker == ticker.upper(),
+                        DailyPrice.trade_date == target_date,
+                    )
                 )
             ).scalar_one_or_none()
             return result
@@ -129,12 +129,12 @@ class HistoricalDataRepository:
             results = (
                 session.execute(
                     select(DailyPrice)
-                    .where(
-                        DailyPrice.ticker == ticker.upper(),
-                        DailyPrice.trade_date >= start_date,
-                        DailyPrice.trade_date <= end_date,
+                    .where(  # type: ignore[arg-type]
+                        (DailyPrice.ticker == ticker.upper())
+                        & (DailyPrice.trade_date >= start_date)
+                        & (DailyPrice.trade_date <= end_date)
                     )
-                    .order_by(asc(DailyPrice.trade_date))
+                    .order_by(asc(DailyPrice.trade_date))  # type: ignore[arg-type]
                 )
                 .scalars()
                 .all()
@@ -165,12 +165,12 @@ class HistoricalDataRepository:
             prices = (
                 session.execute(
                     select(DailyPrice)
-                    .where(
-                        DailyPrice.ticker == ticker.upper(),
-                        DailyPrice.trade_date >= start_date,
-                        DailyPrice.trade_date <= end_date,
+                    .where(  # type: ignore[arg-type]
+                        (DailyPrice.ticker == ticker.upper())
+                        & (DailyPrice.trade_date >= start_date)
+                        & (DailyPrice.trade_date <= end_date)
                     )
-                    .order_by(asc(DailyPrice.trade_date))
+                    .order_by(asc(DailyPrice.trade_date))  # type: ignore[arg-type]
                 )
                 .scalars()
                 .all()
@@ -250,9 +250,9 @@ class HistoricalDataRepository:
         with self.db.get_session() as session:
             for price in prices:
                 existing = session.execute(
-                    select(DailyPrice).where(
-                        DailyPrice.ticker == price.ticker,
-                        DailyPrice.trade_date == price.trade_date,
+                    select(DailyPrice).where(  # type: ignore[arg-type]
+                        (DailyPrice.ticker == price.ticker)
+                        & (DailyPrice.trade_date == price.trade_date)
                     )
                 ).scalar_one_or_none()
 
@@ -280,7 +280,7 @@ class HistoricalDataRepository:
         with self.db.get_session() as session:
             result = (
                 session.execute(
-                    select(DailyPrice).where(
+                    select(DailyPrice).where(  # type: ignore[arg-type]
                         DailyPrice.ticker == ticker.upper()
                     )
                 )

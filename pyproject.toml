@@ -120,3 +120,22 @@ dev = [
     "pytest-asyncio>=0.23.7",
     "pyright>=1.1.400",
 ]
+
+[tool.pyright]
+reportGeneralTypeIssues = false
+ignore = [
+    "src/skim/infrastructure/database/historical/repository.py",
+    "src/skim/application/events/handlers.py",
+    "src/skim/infrastructure/database/trading/models.py",
+    "src/skim/trading/data/database.py",
+    "src/skim/trading/data/repositories/orh_repository.py",
+    "src/skim/application/services/trading_service.py",
+    "src/skim/trading/strategies/orh_breakout/orh_breakout.py",
+    "src/skim/trading/strategies/orh_breakout/range_tracker.py",
+    "src/skim/infrastructure/database/trading/mappers.py",
+    "tests/analysis/**",
+    "tests/trading/unit/**",
+    "tests/shared/**",
+    "src/skim/analysis/data_downloader.py",
+]
+

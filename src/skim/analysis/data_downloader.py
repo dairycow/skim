@@ -118,6 +118,8 @@ class CoolTraderAuth:
 
     def _load_session(self) -> None:
         """Load session cookies from file if they exist."""
+        if self._client is None:
+            return
         if self.config.session_file.exists():
             try:
                 session_data = json.loads(self.config.session_file.read_text())
@@ -167,6 +169,17 @@ class CoolTraderAuth:
             logger.debug("Saved session to file")
         except Exception as e:
             logger.warning(f"Failed to save session: {e}")
+
+    def get_download_url(self, target_date: date) -> str:
+        """Get the download URL for a specific date (public interface for tests).
+
+        Args:
+            target_date: The date to download CSV for
+
+        Returns:
+            Full URL to download CSV file.
+        """
+        return self._get_download_url(target_date)
 
     def _get_login_form_url(self) -> str:
         """Get the login page URL to extract CSRF token."""
@@ -294,14 +307,14 @@ class CoolTraderDownloader:
         self.auth = CoolTraderAuth(self.config)
         self._processed_count = 0
 
-    def _get_download_url(self, target_date: date) -> str:
-        """Get the download URL for a specific date.
+    def get_download_url(self, target_date: date) -> str:
+        """Get the download URL for a specific date (public interface).
 
         Args:
             target_date: The date to download CSV for.
 
         Returns:
-            Full URL to download the CSV file.
+            Full URL to download CSV file.
         """
         date_str = target_date.strftime("%Y%m%d")
         return f"{self.config.base_url}/amember/eodfiles/nextday/csv/{date_str}.csv"

@@ -48,7 +48,7 @@ class IBKRGapScanner(GapScannerService):
         logger.info(f"Running scanner with parameters: {scan_params}")
 
         try:
-            response = await self.client._request(
+            response = await self.client.request(
                 "POST", "/iserver/scanner/run", data=scan_params
             )
         except Exception as e:
@@ -104,7 +104,7 @@ class IBKRGapScanner(GapScannerService):
         logger.info("Retrieving scanner parameters")
 
         try:
-            response = await self.client._request(
+            response = await self.client.request(
                 "GET", "/iserver/scanner/params"
             )
 

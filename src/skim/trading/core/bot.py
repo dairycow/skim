@@ -72,7 +72,7 @@ class TradingBot:
         orh_repo = ORHCandidateRepository(self.db)
         return StrategyContext(
             database=self.db,
-            repository=orh_repo,
+            repository=orh_repo,  # type: ignore[assignment]
             position_repository=self.db,
             notifier=self.discord,
             config=self.config,

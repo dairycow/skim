@@ -21,12 +21,12 @@ class CLI:
 
     def __init__(self):
         self.console = Console()
-        self.loader: DataLoader | None = None
-        self.calculator: PerformanceCalculator | None = None
-        self.scanner: GapScanner | None = None
-        self.momentum_scanner: MomentumScanner | None = None
+        self.loader: DataLoader
+        self.calculator: PerformanceCalculator
+        self.scanner: GapScanner
+        self.momentum_scanner: MomentumScanner
         self.scraper = AnnouncementScraper()
-        self.viewer: ChartViewer | None = None
+        self.viewer: ChartViewer
         self.data_loaded = False
 
     def show_welcome(self):

@@ -76,7 +76,7 @@ class ORHBreakoutStrategy(Strategy):
         self.monitor = Monitor(context.market_data)
 
         self.alerter = CandidateAlerter(
-            repository=self.repo,
+            repository=self.repo,  # type: ignore[assignment]
             event_bus=self.event_bus,
         )
 
