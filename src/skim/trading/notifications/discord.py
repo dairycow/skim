@@ -286,3 +286,49 @@ class DiscordNotifier:
             "fields": fields,
             "timestamp": datetime.now().isoformat(),
         }
+
+    def alert(self, message: str) -> None:
+        """Send an alert message (protocol compliance)
+
+        Args:
+            message: Alert message to send
+        """
+        if not self.webhook_url:
+            logger.debug("No Discord webhook URL configured, skipping alert")
+            return
+
+        try:
+            payload = {
+                "embeds": [
+                    {
+                        "title": "Alert",
+                        "description": message,
+                        "color": 0xFFAA00,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                ]
+            }
+            response = requests.post(
+                self.webhook_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10,
+            )
+            response.raise_for_status()
+            logger.info("Discord alert sent successfully")
+        except Exception as e:
+            logger.error(f"Failed to send Discord alert: {e}")
+
+    def notify_trade(self, trade_info: dict) -> None:
+        """Notify of a trade (protocol compliance)
+
+        Args:
+            trade_info: Dictionary with trade details (action, ticker, quantity, price, pnl)
+        """
+        self.send_trade_notification(
+            action=trade_info.get("action", "UNKNOWN"),
+            ticker=trade_info.get("ticker", "UNKNOWN"),
+            quantity=trade_info.get("quantity", 0),
+            price=trade_info.get("price", 0.0),
+            pnl=trade_info.get("pnl"),
+        )

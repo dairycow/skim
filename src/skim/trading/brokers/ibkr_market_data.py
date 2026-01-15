@@ -129,9 +129,7 @@ class IBKRMarketData(MarketDataProvider):
         try:
             endpoint = "/iserver/secdef/search"
             params = {"symbol": ticker}
-            response = await self.client._request(
-                "GET", endpoint, params=params
-            )
+            response = await self.client.request("GET", endpoint, params=params)
 
             logger.debug(f"Contract search response for {ticker}: {response}")
 
@@ -202,9 +200,7 @@ class IBKRMarketData(MarketDataProvider):
             endpoint = "/iserver/marketdata/snapshot"
             params = {"conids": conid, "fields": "31"}
 
-            response = await self.client._request(
-                "GET", endpoint, params=params
-            )
+            response = await self.client.request("GET", endpoint, params=params)
             logger.debug(f"Pre-flight response for {conid}: {response}")
 
             if not (
@@ -237,9 +233,7 @@ class IBKRMarketData(MarketDataProvider):
                 "fields": "31,70,71,84,85,86,87,88,7295,7741,83",
             }
 
-            response = await self.client._request(
-                "GET", endpoint, params=params
-            )
+            response = await self.client.request("GET", endpoint, params=params)
             logger.debug(f"Market data response for {conid}: {response}")
 
             if not isinstance(response, list) or len(response) == 0:

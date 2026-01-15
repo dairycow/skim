@@ -82,7 +82,7 @@ class IBKROrders(OrderManager):
             endpoint = f"/iserver/account/{account_id}/orders"
             orders_payload = {"orders": [order_data]}
 
-            response = await self.client._request(
+            response = await self.client.request(
                 "POST", endpoint, data=orders_payload
             )
             logger.debug(f"Order response: {response}")
@@ -120,7 +120,7 @@ class IBKROrders(OrderManager):
         """Query all open orders"""
         try:
             endpoint = "/iserver/account/orders"
-            response = await self.client._request("GET", endpoint)
+            response = await self.client.request("GET", endpoint)
 
             orders: list[dict] = []
 
@@ -158,7 +158,7 @@ class IBKROrders(OrderManager):
             account_id = self.client.get_account()
             endpoint = f"/iserver/account/{account_id}/order/{order_id}"
 
-            response = await self.client._request("DELETE", endpoint)
+            response = await self.client.request("DELETE", endpoint)
             logger.info(f"Cancel order response: {response}")
 
             if isinstance(response, dict) and (
@@ -180,7 +180,7 @@ class IBKROrders(OrderManager):
         try:
             account_id = self.client.get_account()
             endpoint = f"/portfolio/{account_id}/positions/0"
-            response = await self.client._request("GET", endpoint)
+            response = await self.client.request("GET", endpoint)
 
             positions: list[Position] = []
 
@@ -243,7 +243,7 @@ class IBKROrders(OrderManager):
         try:
             account_id = self.client.get_account()
             endpoint = f"/portfolio/{account_id}/summary"
-            response = await self.client._request("GET", endpoint)
+            response = await self.client.request("GET", endpoint)
 
             balance = {}
 
@@ -307,7 +307,7 @@ class IBKROrders(OrderManager):
             confirm_endpoint = f"/iserver/reply/{reply_id}"
             confirm_data = {"confirmed": True}
 
-            response = await self.client._request(
+            response = await self.client.request(
                 "POST", confirm_endpoint, data=confirm_data
             )
             logger.debug(f"Confirmation response: {response}")

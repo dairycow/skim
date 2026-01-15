@@ -9,7 +9,7 @@ from skim.trading.notifications.discord import DiscordNotifier
 class NotificationHandler:
     """Handles all Discord notifications via events"""
 
-    def __init__(self, notifier: DiscordNotifier):
+    def __init__(self, notifier: "DiscordNotifier"):
         """Initialize notification handler
 
         Args:

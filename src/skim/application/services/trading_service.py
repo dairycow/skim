@@ -169,15 +169,13 @@ class TradingService:
         Returns:
             Number of gap candidates found
         """
-        count = await self.strategy.scan_gaps()
-
+        count = await self.strategy.scan()
         await self.events.publish(
             Event(
                 EventType.GAP_SCAN_RESULT,
                 {"candidates": [], "count": count},
             )
         )
-
         return count
 
     async def _run_news_scan(self) -> int:
@@ -186,15 +184,13 @@ class TradingService:
         Returns:
             Number of news candidates found
         """
-        count = await self.strategy.scan_news()
-
+        count = await self.strategy.scan()
         await self.events.publish(
             Event(
                 EventType.NEWS_SCAN_RESULT,
                 {"candidates": [], "count": count},
             )
         )
-
         return count
 
     async def _get_pending_signals(self) -> list:

@@ -197,23 +197,11 @@ class TestEvent:
         )
 
         assert event.type == EventType.SCAN
-        assert event.data["candidates_found"] == 5
+        assert event.data["candidates_found"] == 5  # type: ignore[reportOptionalSubscript]
+        assert event.data["ticker"] == "BHP"  # type: ignore[reportOptionalSubscript]
+        assert event.data["action"] == "BUY"  # type: ignore[reportOptionalSubscript]
 
-    def test_event_with_payload(self):
-        """Test creating an event with payload field"""
-        event = Event(
-            type=EventType.TRADE,
-            data={"ticker": "BHP", "action": "BUY"},
-        )
-
-        assert event.type == EventType.TRADE
-        assert event.data["ticker"] == "BHP"
-        assert event.data["action"] == "BUY"
-
-    def test_event_timestamp(self):
-        """Test event has automatic timestamp"""
-        event = Event(type=EventType.TRADE)
-        assert event.timestamp is not None
+        assert event.timestamp is not None  # type: ignore[reportOptionalSubscript]
 
     def test_event_types(self):
         """Test all event types exist"""

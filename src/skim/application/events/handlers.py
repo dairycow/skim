@@ -55,8 +55,9 @@ class EventHandlers:
             event: Event containing gap scan results with 'candidates' list
         """
         logger.info("Handling gap scan result event")
-        candidates = event.data.get("candidates", [])
-        count = event.data.get("count", len(candidates))
+        data = event.data or {}
+        candidates = data.get("candidates", [])
+        count = data.get("count", len(candidates))
 
         if not candidates:
             logger.info("No gap candidates to process")
@@ -95,8 +96,9 @@ class EventHandlers:
             event: Event containing news scan results with 'candidates' list
         """
         logger.info("Handling news scan result event")
-        candidates = event.data.get("candidates", [])
-        count = event.data.get("count", len(candidates))
+        data = event.data or {}
+        candidates = data.get("candidates", [])
+        count = data.get("count", len(candidates))
 
         if not candidates:
             logger.info("No news candidates to process")
@@ -135,7 +137,8 @@ class EventHandlers:
             event: Event containing opening range data with 'ranges' list
         """
         logger.info("Handling opening range tracked event")
-        ranges = event.data.get("ranges", [])
+        data = event.data or {}
+        ranges = data.get("ranges", [])
 
         if not ranges:
             logger.info("No opening ranges to process")
@@ -166,7 +169,8 @@ class EventHandlers:
             event: Event containing stop hit information with 'position'
         """
         logger.info("Handling stop hit event")
-        position_data = event.data.get("position")
+        data = event.data or {}
+        position_data = data.get("position")
 
         if not position_data:
             logger.warning("Stop hit event with no position data")
@@ -207,7 +211,8 @@ class EventHandlers:
             event: Event containing trade execution details with 'trade' and 'signal'
         """
         logger.info("Handling trade executed event")
-        trade = event.data.get("trade")
+        data = event.data or {}
+        trade = data.get("trade")
 
         if not trade:
             logger.warning("Trade executed event with no trade data")
@@ -252,12 +257,13 @@ class EventHandlers:
             event: Event containing new candidate information with 'candidate'
         """
         logger.info("Handling candidate created event")
-        candidate = event.data.get("candidate")
+        data = event.data or {}
+        candidate = data.get("candidate")
 
         if candidate:
             ticker = getattr(candidate, "ticker", "UNKNOWN")
             ticker_symbol = (
-                ticker.symbol if hasattr(ticker, "symbol") else ticker
+                ticker.symbol if hasattr(ticker, "symbol") else ticker  # type: ignore[reportOptionalMemberAccess]
             )
             logger.info(f"New candidate created: {ticker_symbol}")
 
@@ -325,9 +331,9 @@ async def handle_gap_scan_result(event: Event) -> None:
     Args:
         event: Event containing gap scan results
     """
-    logger.info("Handling gap scan result event (standalone)")
-    candidates = event.data.get("candidates", [])
-    logger.info(f"Received {len(candidates)} gap candidates from scan")
+        logger.info("Handling gap scan result event (standalone)")
+        candidates = event.data.get("candidates", [])  # type: ignore[reportOptionalMemberAccess]
+        logger.info(f"Received {len(candidates)} gap candidates from scan")
 
 
 async def handle_news_scan_result(event: Event) -> None:

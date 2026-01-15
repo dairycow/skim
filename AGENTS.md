@@ -79,7 +79,6 @@ src/skim/
 ├── infrastructure/   # External integrations (IBKR, database)
 ├── trading/          # Bot orchestrator, brokers
 ├── analysis/         # Research CLI
-└── shared/           # Historical data
 ```
 
 ## Adding Strategies
