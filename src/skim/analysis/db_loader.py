@@ -9,10 +9,10 @@ from skim.infrastructure.database.historical import (
     HistoricalDataRepository,
     HistoricalDataService,
 )
+from skim.infrastructure.database.historical.paths import get_historical_db_path
 from skim.infrastructure.database.historical.repository import (
     HistoricalDatabase,
 )
-from skim.shared.database import get_historical_db_path
 
 
 class DatabaseLoader:

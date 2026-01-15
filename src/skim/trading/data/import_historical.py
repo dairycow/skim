@@ -28,10 +28,10 @@ from skim.infrastructure.database.historical import (
     DailyPrice,
     HistoricalDataRepository,
 )
+from skim.infrastructure.database.historical.paths import get_historical_db_path
 from skim.infrastructure.database.historical.repository import (
     HistoricalDatabase,
 )
-from skim.shared.database import get_historical_db_path
 
 
 def parse_csv_date(date_str: str) -> datetime:

@@ -1,4 +1,4 @@
-"""Shared database configuration and path utilities for Skim modules"""
+"""Database path utilities for historical data."""
 
 from pathlib import Path
 
@@ -23,7 +23,7 @@ def get_historical_db_path() -> Path:
     if production_path.parent.exists():
         return production_path
 
-    project_root = Path(__file__).parent.parent.parent
+    project_root = Path(__file__).parent.parent.parent.parent
     local_path = project_root / "data" / "skim_historical.db"
 
     local_path.parent.mkdir(parents=True, exist_ok=True)

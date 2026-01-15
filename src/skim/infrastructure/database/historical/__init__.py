@@ -8,6 +8,7 @@ from skim.infrastructure.database.historical.models import (
     DailyPrice,
     HistoricalPerformance,
 )
+from skim.infrastructure.database.historical.paths import get_historical_db_path
 from skim.infrastructure.database.historical.repository import (
     HistoricalDataRepository,
 )
@@ -22,4 +23,5 @@ __all__ = [
     "HistoricalDataRepository",
     "HistoricalDataService",
     "PerformanceFilter",
+    "get_historical_db_path",
 ]

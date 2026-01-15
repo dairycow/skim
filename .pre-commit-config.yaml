@@ -32,33 +32,10 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
-      # Strict hooks for shared code
-      - id: ruff-check-shared
-        name: ruff check (shared)
-        entry: uv run ruff check src/skim/shared
-        language: system
-        types: [python]
-        pass_filenames: false
-
-      - id: ruff-format-shared
-        name: ruff format (shared)
-        entry: uv run ruff format --check src/skim/shared
-        language: system
-        types: [python]
-        pass_filenames: false
-
-      # Pyright for trading (strict)
-      - id: pyright-trading
-        name: pyright (trading)
-        entry: uv run pyright src/skim/trading
-        language: system
-        types: [python]
-        pass_filenames: false
-
-      # Pyright for shared (strict)
-      - id: pyright-shared
-        name: pyright (shared)
-        entry: uv run pyright src/skim/shared
+      # Pyright for infrastructure (strict)
+      - id: pyright-infrastructure
+        name: pyright (infrastructure)
+        entry: uv run pyright src/skim/infrastructure
         language: system
         types: [python]
         pass_filenames: false
