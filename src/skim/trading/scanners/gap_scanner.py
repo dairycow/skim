@@ -25,7 +25,17 @@ class GapScanner:
         self.scanner = scanner_service
         self.gap_threshold = gap_threshold
 
-    async def find_gap_candidates(self) -> list[GapCandidate]:
+    @property
+    def name(self) -> str:
+        """Scanner identifier"""
+        return "gap"
+
+    @property
+    def priority(self) -> int:
+        """Priority for execution order"""
+        return 10
+
+    async def scan(self) -> list[GapCandidate]:
         """Find stocks with gaps > threshold
 
         Returns:

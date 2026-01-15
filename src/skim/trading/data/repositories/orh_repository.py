@@ -292,6 +292,30 @@ class ORHCandidateRepository:
                     f"Saved opening range for {ticker}: ORH=${or_high:.2f}, ORL=${or_low:.2f}"
                 )
 
+    def save(self, candidate: GapCandidate | NewsCandidate) -> None:
+        """Save or update a candidate (protocol compliance)
+
+        Args:
+            candidate: Candidate object to save
+        """
+        self.save_candidate(candidate)
+
+    def get_tradeable(self) -> list[Candidate]:
+        """Get candidates with gap, news, and opening ranges (protocol compliance)
+
+        Returns:
+            List of Candidate objects ready for trading
+        """
+        return self.get_tradeable_candidates()
+
+    def get_alertable(self) -> list[Candidate]:
+        """Get candidates with gap and news (protocol compliance)
+
+        Returns:
+            List of Candidate objects ready for alerting
+        """
+        return self.get_alertable_candidates()
+
     def purge(self) -> int:
         """Purge all ORH candidates
 

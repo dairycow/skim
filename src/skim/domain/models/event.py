@@ -18,6 +18,8 @@ class EventType(Enum):
         - SIGNAL_EMITTED: Trading signal generated
         - TRADE_EXECUTED: Trade order filled
         - CANDIDATE_CREATED: New candidate identified
+        - CANDIDATES_SCANNED: Scanners completed (new)
+        - CANDIDATES_ALERTED: Alert notification sent (new)
 
     Strategy Events (for event-driven strategies):
         - SCAN: Scan phase triggered
@@ -38,6 +40,8 @@ class EventType(Enum):
     SIGNAL_EMITTED = "signal"
     TRADE_EXECUTED = "trade_executed"
     CANDIDATE_CREATED = "candidate_created"
+    CANDIDATES_SCANNED = "candidates_scanned"
+    CANDIDATES_ALERTED = "candidates_alerted"
 
     SCAN = "scan"
     TRADE = "trade"
