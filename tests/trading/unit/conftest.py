@@ -3,14 +3,6 @@
 import pytest
 
 from skim.trading.data.database import Database
-from skim.trading.data.models import (
-    GapStockInPlay,
-    MarketData,
-    NewsStockInPlay,
-    OpeningRange,
-    Position,
-    TradeableCandidate,
-)
 
 
 @pytest.fixture
@@ -21,89 +13,56 @@ def test_db():
     db.close()
 
 
-@pytest.fixture(scope="session")
-def sample_gap_candidate() -> GapStockInPlay:
-    """Sample gap-only candidate for testing
+@pytest.fixture
+def sample_gap_candidate():
+    """Sample gap-only candidate for testing"""
+    from datetime import datetime
+    from skim.domain.models import GapCandidate, Ticker
 
-    Session scope: Immutable dataclass, safe to share across all tests.
-    """
-    return GapStockInPlay(
-        ticker="RIO",
-        scan_date="2025-11-03",
+    return GapCandidate(
+        ticker=Ticker("RIO"),
+        scan_date=datetime(2025, 11, 3),
         status="watching",
         gap_percent=4.2,
         conid=8645,
     )
 
 
-@pytest.fixture(scope="session")
-def sample_news_candidate() -> NewsStockInPlay:
-    """Sample news-only candidate for testing
+@pytest.fixture
+def sample_news_candidate():
+    """Sample news-only candidate for testing"""
+    from datetime import datetime
+    from skim.domain.models import NewsCandidate, Ticker
 
-    Session scope: Immutable dataclass, safe to share across all tests.
-    """
-    return NewsStockInPlay(
-        ticker="CBA",
-        scan_date="2025-11-03",
+    return NewsCandidate(
+        ticker=Ticker("CBA"),
+        scan_date=datetime(2025, 11, 3),
         status="watching",
         headline="Trading Halt",
     )
 
 
-@pytest.fixture(scope="session")
-def sample_opening_range() -> OpeningRange:
-    """Sample opening range for testing
+@pytest.fixture
+def sample_position():
+    """Sample open position for testing"""
+    from datetime import datetime
+    from skim.domain.models import Position, Ticker, Price
 
-    Session scope: Immutable dataclass, safe to share across all tests.
-    """
-    return OpeningRange(
-        ticker="BHP",
-        or_high=47.80,
-        or_low=45.90,
-        sample_date="2025-11-03T10:05:00",
-    )
-
-
-@pytest.fixture(scope="session")
-def sample_tradeable_candidate() -> TradeableCandidate:
-    """Sample tradeable candidate for testing
-
-    Session scope: Immutable dataclass, safe to share across all tests.
-    """
-    return TradeableCandidate(
-        ticker="BHP",
-        scan_date="2025-11-03",
-        status="watching",
-        gap_percent=5.0,
-        conid=8644,
-        headline="Results Released",
-        or_high=47.80,
-        or_low=45.90,
-    )
-
-
-@pytest.fixture(scope="session")
-def sample_position() -> Position:
-    """Sample open position for testing
-
-    Session scope: Immutable dataclass, safe to share across all tests.
-    """
     return Position(
-        ticker="BHP",
+        ticker=Ticker("BHP"),
         quantity=100,
-        entry_price=46.50,
-        stop_loss=43.00,
-        entry_date="2025-11-03T10:15:00",
+        entry_price=Price(value=46.50, timestamp=datetime.now()),
+        stop_loss=Price(value=43.00, timestamp=datetime.now()),
+        entry_date=datetime(2025, 11, 3, 10, 15),
         status="open",
     )
 
 
-@pytest.fixture(scope="session")
-def sample_market_data() -> MarketData:
-    """Sample market data for testing
+@pytest.fixture
+def sample_market_data():
+    """Sample market data for testing"""
+    from skim.domain.models import MarketData
 
-    Session scope: Immutable dataclass, safe to share across all tests.
-    """
     return MarketData(
         ticker="BHP",
         conid="8644",

@@ -2,11 +2,10 @@
 
 import pytest
 
+from datetime import datetime
+
+from skim.domain.models import GapCandidate, NewsCandidate, Ticker
 from skim.trading.data.database import Database
-from skim.trading.data.models import (
-    GapStockInPlay,
-    NewsStockInPlay,
-)
 from skim.trading.data.repositories.orh_repository import ORHCandidateRepository
 
 
@@ -27,9 +26,9 @@ def orh_repo(db):
 @pytest.fixture
 def sample_gap_candidate():
     """Sample gap candidate for testing"""
-    return GapStockInPlay(
-        ticker="BHP",
-        scan_date="2025-11-03",
+    return GapCandidate(
+        ticker=Ticker("BHP"),
+        scan_date=datetime(2025, 11, 3),
         status="watching",
         gap_percent=5.0,
         conid=8644,
@@ -39,9 +38,9 @@ def sample_gap_candidate():
 @pytest.fixture
 def sample_news_candidate():
     """Sample news candidate for testing"""
-    return NewsStockInPlay(
-        ticker="BHP",
-        scan_date="2025-11-03",
+    return NewsCandidate(
+        ticker=Ticker("BHP"),
+        scan_date=datetime(2025, 11, 3),
         status="watching",
         headline="Results Released",
     )
@@ -54,11 +53,10 @@ def test_save_and_get_gap_candidate(orh_repo, sample_gap_candidate):
     retrieved = orh_repo.get_gap_candidates()
 
     assert len(retrieved) == 1
-    assert retrieved[0].ticker == sample_gap_candidate.ticker
-    assert retrieved[0].scan_date == sample_gap_candidate.scan_date
-    assert retrieved[0].status == sample_gap_candidate.status
+    assert retrieved[0].ticker.symbol == sample_gap_candidate.ticker.symbol
     assert retrieved[0].gap_percent == sample_gap_candidate.gap_percent
     assert retrieved[0].conid == sample_gap_candidate.conid
+    assert retrieved[0].status == "watching"
 
 
 def test_save_and_get_news_candidate(orh_repo, sample_news_candidate):
@@ -68,10 +66,9 @@ def test_save_and_get_news_candidate(orh_repo, sample_news_candidate):
     retrieved = orh_repo.get_news_candidates()
 
     assert len(retrieved) == 1
-    assert retrieved[0].ticker == sample_news_candidate.ticker
-    assert retrieved[0].scan_date == sample_news_candidate.scan_date
-    assert retrieved[0].status == sample_news_candidate.status
+    assert retrieved[0].ticker.symbol == sample_news_candidate.ticker.symbol
     assert retrieved[0].headline == sample_news_candidate.headline
+    assert retrieved[0].status == "watching"
 
 
 def test_save_and_get_gap_news_candidate(
@@ -86,7 +83,7 @@ def test_save_and_get_gap_news_candidate(
 
     assert len(gap_candidates) == 1
     assert len(news_candidates) == 1
-    assert gap_candidates[0].ticker == news_candidates[0].ticker
+    assert gap_candidates[0].ticker.symbol == news_candidates[0].ticker.symbol
 
 
 def test_save_opening_range(
@@ -101,9 +98,9 @@ def test_save_opening_range(
     tradeable = orh_repo.get_tradeable_candidates()
 
     assert len(tradeable) == 1
-    assert tradeable[0].ticker == "BHP"
-    assert tradeable[0].or_high == 47.80
-    assert tradeable[0].or_low == 45.90
+    assert tradeable[0].ticker.symbol == "BHP"
+    assert tradeable[0].orh_data.or_high == 47.80
+    assert tradeable[0].orh_data.or_low == 45.90
 
 
 def test_get_tradeable_candidates_requires_all_data(
@@ -132,11 +129,11 @@ def test_get_alertable_candidates_no_range_required(
     alertable = orh_repo.get_alertable_candidates()
 
     assert len(alertable) == 1
-    assert alertable[0].ticker == "BHP"
-    assert alertable[0].gap_percent == 5.0
-    assert alertable[0].headline == "Results Released"
-    assert alertable[0].or_high == 0.0
-    assert alertable[0].or_low == 0.0
+    assert alertable[0].ticker.symbol == "BHP"
+    assert alertable[0].orh_data.gap_percent == 5.0
+    assert alertable[0].orh_data.headline == "Results Released"
+    assert alertable[0].orh_data.or_high == 0.0
+    assert alertable[0].orh_data.or_low == 0.0
 
 
 def test_get_alertable_candidates_requires_gap_and_news(
@@ -164,7 +161,7 @@ def test_get_candidates_needing_ranges(
     needing = orh_repo.get_candidates_needing_ranges()
 
     assert len(needing) == 1
-    assert needing[0].ticker == "BHP"
+    assert needing[0].ticker.symbol == "BHP"
 
     orh_repo.save_opening_range("BHP", 47.80, 45.90)
 
@@ -174,8 +171,22 @@ def test_get_candidates_needing_ranges(
 
 def test_purge(orh_repo, sample_gap_candidate, sample_news_candidate):
     """Purge removes all ORH candidates"""
-    orh_repo.save_gap_candidate(sample_gap_candidate)
-    orh_repo.save_news_candidate(sample_news_candidate)
+    # Use different tickers to ensure 2 separate candidates
+    gap_candidate = GapCandidate(
+        ticker=Ticker("BHP"),
+        scan_date=datetime(2025, 11, 3),
+        status="watching",
+        gap_percent=5.0,
+        conid=8644,
+    )
+    news_candidate = NewsCandidate(
+        ticker=Ticker("RIO"),
+        scan_date=datetime(2025, 11, 3),
+        status="watching",
+        headline="Results Released",
+    )
+    orh_repo.save_gap_candidate(gap_candidate)
+    orh_repo.save_news_candidate(news_candidate)
 
     assert len(orh_repo.get_gap_candidates()) == 1
     assert len(orh_repo.get_news_candidates()) == 1

@@ -3,13 +3,18 @@
 Inherits from BaseDatabase for common connection logic.
 """
 
-from datetime import date
+from datetime import date, datetime
 
 from loguru import logger
 from sqlmodel import col, delete, select
 
+from skim.domain.models import Position
 from skim.infrastructure.database.base import BaseDatabase
-from skim.trading.data.models import Candidate, Position
+from skim.infrastructure.database.trading.mappers import (
+    map_position_to_table,
+    map_table_to_position,
+)
+from skim.infrastructure.database.trading.models import CandidateTable
 
 
 class Database(BaseDatabase):
@@ -27,7 +32,7 @@ class Database(BaseDatabase):
         """
         with self.get_session() as session:
             candidate = session.exec(
-                select(Candidate).where(Candidate.ticker == ticker)
+                select(CandidateTable).where(CandidateTable.ticker == ticker)
             ).first()
 
             if candidate:
@@ -49,26 +54,55 @@ class Database(BaseDatabase):
         Returns:
             Number of rows deleted.
         """
+        from skim.infrastructure.database.trading.models import (
+            ORHCandidateTable,
+        )
+
         with self.get_session() as session:
             conditions = []
             if strategy_name:
-                conditions.append(col(Candidate.strategy_name) == strategy_name)
-            if only_before_utc_date:
                 conditions.append(
-                    Candidate.scan_date < only_before_utc_date.isoformat()
+                    col(CandidateTable.strategy_name) == strategy_name
                 )
+            if only_before_utc_date:
+                date_str = (
+                    only_before_utc_date.isoformat()
+                    if isinstance(only_before_utc_date, datetime)
+                    else only_before_utc_date.isoformat()
+                )
+                conditions.append(CandidateTable.scan_date < date_str)
 
             if conditions:
-                stmt = delete(Candidate).where(*conditions)
-                logger.info(
-                    f"Purged candidates before {only_before_utc_date.isoformat() if only_before_utc_date else 'all'}"
+                stmt = delete(CandidateTable).where(*conditions)
+                date_str = (
+                    only_before_utc_date.isoformat()
+                    if only_before_utc_date
+                    else "all"
                 )
+                logger.info(f"Purged candidates before {date_str}")
             else:
-                stmt = delete(Candidate)
+                stmt = delete(CandidateTable)
                 logger.info("Purged all candidates")
 
             result = session.exec(stmt)
             session.commit()
+
+            # Also delete ORH candidates for orh_breakout strategy
+            if strategy_name == "orh_breakout" or (
+                not strategy_name and not only_before_utc_date
+            ):
+                if only_before_utc_date:
+                    orh_stmt = delete(ORHCandidateTable).where(
+                        col(ORHCandidateTable.ticker).in_(
+                            select(CandidateTable.ticker).where(*conditions)
+                        )
+                    )
+                else:
+                    orh_stmt = delete(ORHCandidateTable)
+                orh_result = session.exec(orh_stmt)
+                session.commit()
+                return result.rowcount + orh_result.rowcount
+
             return result.rowcount
 
     def create_position(
@@ -77,8 +111,8 @@ class Database(BaseDatabase):
         quantity: int,
         entry_price: float,
         stop_loss: float,
-        entry_date: str,
-    ) -> int:
+        entry_date: datetime,
+    ) -> Position:
         """Create a new position
 
         Args:
@@ -86,24 +120,28 @@ class Database(BaseDatabase):
             quantity: Number of shares
             entry_price: Entry price per share
             stop_loss: Stop loss price per share
-            entry_date: ISO format datetime string
+            entry_date: Entry date
 
         Returns:
-            Position ID
+            Position object (domain type)
         """
+        from skim.domain.models import Price, Ticker
+
+        from skim.infrastructure.database.trading.models import PositionTable
+
         with self.get_session() as session:
-            position = Position(
+            position_table = PositionTable(
                 ticker=ticker,
                 quantity=quantity,
                 entry_price=entry_price,
                 stop_loss=stop_loss,
-                entry_date=entry_date,
+                entry_date=entry_date.isoformat(),
                 status="open",
             )
-            session.add(position)
+            session.add(position_table)
             session.commit()
-            session.refresh(position)
-            return position.id if position.id is not None else 0
+            session.refresh(position_table)
+            return map_table_to_position(position_table)
 
     def get_position(self, position_id: int) -> Position | None:
         """Get position by ID
@@ -114,10 +152,13 @@ class Database(BaseDatabase):
         Returns:
             Position object or None if not found
         """
+        from skim.infrastructure.database.trading.models import PositionTable
+
         with self.get_session() as session:
-            return session.exec(
-                select(Position).where(Position.id == position_id)
+            table = session.exec(
+                select(PositionTable).where(PositionTable.id == position_id)
             ).first()
+            return map_table_to_position(table) if table else None
 
     def get_open_positions(self) -> list[Position]:
         """Get all open positions
@@ -125,11 +166,13 @@ class Database(BaseDatabase):
         Returns:
             List of Position objects with status='open'
         """
+        from skim.infrastructure.database.trading.models import PositionTable
+
         with self.get_session() as session:
             results = session.exec(
-                select(Position).where(Position.status == "open")
+                select(PositionTable).where(PositionTable.status == "open")
             ).all()
-            return list(results)
+            return [map_table_to_position(table) for table in results]
 
     def count_open_positions(self) -> int:
         """Count open positions
@@ -137,9 +180,11 @@ class Database(BaseDatabase):
         Returns:
             Number of positions with status='open'
         """
+        from skim.infrastructure.database.trading.models import PositionTable
+
         with self.get_session() as session:
             open_positions = session.exec(
-                select(Position).where(Position.status == "open")
+                select(PositionTable).where(PositionTable.status == "open")
             ).all()
             return len(open_positions)
 
@@ -153,9 +198,11 @@ class Database(BaseDatabase):
             exit_price: Exit price per share
             exit_date: ISO format datetime string
         """
+        from skim.infrastructure.database.trading.models import PositionTable
+
         with self.get_session() as session:
             position = session.exec(
-                select(Position).where(Position.id == position_id)
+                select(PositionTable).where(PositionTable.id == position_id)
             ).first()
 
             if position:
