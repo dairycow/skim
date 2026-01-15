@@ -120,6 +120,11 @@ class IBKRConnectionManager:
         try:
             self._auth_manager.generate_lst()
 
+            logger.info("Initializing HTTP client...")
+            self._request_client._http_client = (
+                self._request_client._build_http_client(timeout=timeout)
+            )
+
             logger.info("Initializing brokerage session...")
             init_data = {"publish": True, "compete": True}
             init_response = await self._request_client.request(
@@ -196,6 +201,10 @@ class IBKRConnectionManager:
     async def disconnect(self) -> None:
         """Disconnect from IBKR and cleanup resources"""
         logger.info("Disconnecting from IBKR...")
+
+        if self._request_client._http_client is not None:
+            await self._request_client._http_client.aclose()
+            self._request_client._http_client = None
 
         self._stop_tickle_thread()
 
