@@ -24,9 +24,14 @@ from pathlib import Path
 
 from loguru import logger
 
+from skim.infrastructure.database.historical import (
+    DailyPrice,
+    HistoricalDataRepository,
+)
+from skim.infrastructure.database.historical.repository import (
+    HistoricalDatabase,
+)
 from skim.shared.database import get_historical_db_path
-from skim.shared.historical import DailyPrice, HistoricalDataRepository
-from skim.shared.historical.repository import HistoricalDatabase
 
 
 def parse_csv_date(date_str: str) -> datetime:

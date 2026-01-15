@@ -4,8 +4,13 @@ from datetime import date
 
 import pytest
 
-from skim.shared.historical import DailyPrice, HistoricalDataRepository
-from skim.shared.historical.repository import HistoricalDatabase
+from skim.infrastructure.database.historical import (
+    DailyPrice,
+    HistoricalDataRepository,
+)
+from skim.infrastructure.database.historical.repository import (
+    HistoricalDatabase,
+)
 
 
 @pytest.fixture

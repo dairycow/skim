@@ -1,6 +1,6 @@
 """Data layer for Skim trading bot"""
 
-from skim.shared.historical import (
+from skim.infrastructure.database.historical import (
     DailyPrice,
     HistoricalDataRepository,
     HistoricalPerformance,

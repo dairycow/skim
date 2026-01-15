@@ -10,7 +10,7 @@ from loguru import logger
 from skim.domain.strategies.base import Strategy
 from skim.domain.strategies.context import StrategyContext
 from skim.domain.strategies.registry import register_strategy
-from skim.shared.historical import PerformanceFilter
+from skim.infrastructure.database.historical import PerformanceFilter
 
 if TYPE_CHECKING:
     pass

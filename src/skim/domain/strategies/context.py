@@ -10,7 +10,7 @@ if TYPE_CHECKING:
         MarketDataProvider,
         OrderManager,
     )
-    from skim.shared.historical import HistoricalDataService
+    from skim.infrastructure.database.historical import HistoricalDataService
     from skim.trading.core.config import Config
     from skim.trading.data.database import Database
     from skim.trading.data.repositories.orh_repository import (

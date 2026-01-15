@@ -6,10 +6,14 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from skim.shared.historical.repository import HistoricalDataRepository
+from skim.infrastructure.database.historical.repository import (
+    HistoricalDataRepository,
+)
 
 if TYPE_CHECKING:
-    from skim.shared.historical.repository import HistoricalDatabase
+    from skim.infrastructure.database.historical.repository import (
+        HistoricalDatabase,
+    )
 
 
 @dataclass
