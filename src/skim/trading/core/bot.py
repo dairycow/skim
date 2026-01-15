@@ -59,6 +59,7 @@ class TradingBot:
         return StrategyContext(
             database=self.db,
             repository=orh_repo,
+            position_repository=self.db,
             notifier=self.discord,
             config=self.config,
             market_data=self.market_data_service,

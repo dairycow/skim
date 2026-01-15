@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from .ticker import Ticker
+from .orh_candidate import ORHCandidateData
 
 _UNSET: Any = object()
 
@@ -18,6 +19,7 @@ class Candidate:
     status: str = field(default="watching")
     strategy_name: str = field(default="")
     created_at: datetime = field(default_factory=datetime.now)
+    orh_data: ORHCandidateData | None = field(default=None)
 
 
 @dataclass
@@ -30,6 +32,13 @@ class GapCandidate(Candidate):
     def __post_init__(self):
         if self.gap_percent is _UNSET:
             raise ValueError("gap_percent is required")
+        if self.orh_data is None:
+            self.orh_data = ORHCandidateData(
+                gap_percent=self.gap_percent, conid=self.conid
+            )
+        else:
+            self.orh_data.gap_percent = self.gap_percent
+            self.orh_data.conid = self.conid
 
 
 @dataclass
@@ -43,3 +52,13 @@ class NewsCandidate(Candidate):
     def __post_init__(self):
         if self.headline is _UNSET:
             raise ValueError("headline is required")
+        if self.orh_data is None:
+            self.orh_data = ORHCandidateData(
+                headline=self.headline,
+                announcement_type=self.announcement_type,
+                announcement_timestamp=self.announcement_timestamp,
+            )
+        else:
+            self.orh_data.headline = self.headline
+            self.orh_data.announcement_type = self.announcement_type
+            self.orh_data.announcement_timestamp = self.announcement_timestamp

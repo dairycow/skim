@@ -6,7 +6,7 @@ that concrete implementations must satisfy.
 
 from typing import Protocol, runtime_checkable
 
-from skim.trading.data.models import MarketData, OrderResult, Position
+from skim.domain.models import MarketData, OrderResult, Position
 from skim.trading.validation.scanners import GapStock
 
 
