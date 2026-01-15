@@ -59,4 +59,4 @@ echo "Now cd into the worktree:"
 echo "cd $WORKTREE_PATH"
 
 # Open in VS Code
-code "$WORKTREE_PATH"
+# code "$WORKTREE_PATH"
