@@ -3,6 +3,11 @@
 
 set -e
 
+if [ -f "/opt/skim/PAUSE_DEPLOY" ]; then
+    echo "Deployment paused - PAUSE_DEPLOY file exists"
+    exit 0
+fi
+
 cd /opt/skim
 
 echo "Deploying main branch..."
