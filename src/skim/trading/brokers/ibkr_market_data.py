@@ -11,9 +11,9 @@ import asyncio
 
 from loguru import logger
 
+from skim.domain.models import MarketData
 from skim.infrastructure.brokers.ibkr import IBKRClient
 from skim.infrastructure.brokers.protocols import MarketDataProvider
-from skim.domain.models import MarketData
 
 from ..validation.price_parsing import (
     clean_ibkr_price,

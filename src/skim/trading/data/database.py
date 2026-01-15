@@ -11,7 +11,6 @@ from sqlmodel import col, delete, select
 from skim.domain.models import Position
 from skim.infrastructure.database.base import BaseDatabase
 from skim.infrastructure.database.trading.mappers import (
-    map_position_to_table,
     map_table_to_position,
 )
 from skim.infrastructure.database.trading.models import CandidateTable
@@ -125,7 +124,6 @@ class Database(BaseDatabase):
         Returns:
             Position object (domain type)
         """
-        from skim.domain.models import Price, Ticker
 
         from skim.infrastructure.database.trading.models import PositionTable
 

@@ -5,7 +5,9 @@ from datetime import datetime
 
 from loguru import logger
 
-from ..data.models import NewsStockInPlay
+from skim.domain.models import NewsCandidate
+from skim.domain.models.ticker import Ticker
+
 from .asx_announcements import ASXAnnouncementScanner
 
 
@@ -16,11 +18,11 @@ class NewsScanner:
         """Initialise news scanner"""
         self.asx_scanner = ASXAnnouncementScanner()
 
-    async def find_news_candidates(self) -> list[NewsStockInPlay]:
+    async def find_news_candidates(self) -> list[NewsCandidate]:
         """Find stocks with price-sensitive announcements
 
         Returns:
-            List of NewsStockInPlay objects
+            List of NewsCandidate objects
         """
         logger.info("Scanning for news-only candidates...")
 
@@ -35,13 +37,13 @@ class NewsScanner:
         logger.info(f"Found {len(announcements)} price-sensitive announcements")
 
         candidates = [
-            NewsStockInPlay(
-                ticker=ann.ticker,
-                scan_date=datetime.now().isoformat(),
+            NewsCandidate(
+                ticker=Ticker(symbol=ann.ticker),
+                scan_date=datetime.now(),
                 status="watching",
                 headline=ann.headline,
                 announcement_type=ann.announcement_type,
-                announcement_timestamp=ann.timestamp.isoformat(),
+                announcement_timestamp=ann.timestamp,
             )
             for ann in announcements
         ]

@@ -16,13 +16,10 @@ def test_db():
 @pytest.fixture
 def sample_gap_candidate():
     """Sample gap-only candidate for testing"""
-    from datetime import datetime
-    from skim.domain.models import GapCandidate, Ticker
+    from tests.factories import CandidateFactory
 
-    return GapCandidate(
-        ticker=Ticker("RIO"),
-        scan_date=datetime(2025, 11, 3),
-        status="watching",
+    return CandidateFactory.gap_candidate(
+        ticker="RIO",
         gap_percent=4.2,
         conid=8645,
     )
@@ -31,13 +28,10 @@ def sample_gap_candidate():
 @pytest.fixture
 def sample_news_candidate():
     """Sample news-only candidate for testing"""
-    from datetime import datetime
-    from skim.domain.models import NewsCandidate, Ticker
+    from tests.factories import CandidateFactory
 
-    return NewsCandidate(
-        ticker=Ticker("CBA"),
-        scan_date=datetime(2025, 11, 3),
-        status="watching",
+    return CandidateFactory.news_candidate(
+        ticker="CBA",
         headline="Trading Halt",
     )
 
@@ -45,38 +39,24 @@ def sample_news_candidate():
 @pytest.fixture
 def sample_position():
     """Sample open position for testing"""
-    from datetime import datetime
-    from skim.domain.models import Position, Ticker, Price
+    from tests.factories import PositionFactory
 
-    return Position(
-        ticker=Ticker("BHP"),
+    return PositionFactory.position(
+        ticker="BHP",
         quantity=100,
-        entry_price=Price(value=46.50, timestamp=datetime.now()),
-        stop_loss=Price(value=43.00, timestamp=datetime.now()),
-        entry_date=datetime(2025, 11, 3, 10, 15),
-        status="open",
+        entry_price=46.50,
+        stop_loss=43.00,
     )
 
 
 @pytest.fixture
 def sample_market_data():
     """Sample market data for testing"""
-    from skim.domain.models import MarketData
+    from tests.factories import MarketDataFactory
 
-    return MarketData(
+    return MarketDataFactory.market_data(
         ticker="BHP",
         conid="8644",
-        last_price=46.05,
-        high=47.00,
-        low=45.50,
-        bid=46.00,
-        ask=46.10,
-        bid_size=100,
-        ask_size=200,
-        volume=1_000_000,
-        open=46.50,
-        prior_close=45.80,
-        change_percent=0.54,
     )
 
 

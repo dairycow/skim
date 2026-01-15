@@ -1,8 +1,8 @@
 """Unit tests for ORHCandidateRepository"""
 
-import pytest
-
 from datetime import datetime
+
+import pytest
 
 from skim.domain.models import GapCandidate, NewsCandidate, Ticker
 from skim.trading.data.database import Database
@@ -196,3 +196,48 @@ def test_purge(orh_repo, sample_gap_candidate, sample_news_candidate):
     assert deleted >= 2
     assert len(orh_repo.get_gap_candidates()) == 0
     assert len(orh_repo.get_news_candidates()) == 0
+
+
+def test_gap_candidate_has_strategy_name():
+    """GapCandidate has correct strategy name"""
+    candidate = GapCandidate(
+        ticker=Ticker("BHP"),
+        scan_date=datetime(2025, 11, 3),
+        gap_percent=5.0,
+        conid=8644,
+    )
+    assert candidate.strategy_name == "orh_breakout"
+
+
+def test_news_candidate_has_strategy_name():
+    """NewsCandidate has correct strategy name"""
+    candidate = NewsCandidate(
+        ticker=Ticker("CBA"),
+        scan_date=datetime(2025, 11, 3),
+        headline="Results",
+    )
+    assert candidate.strategy_name == "orh_breakout"
+
+
+def test_strategy_name_persisted_to_db(orh_repo, sample_gap_candidate):
+    """Strategy name is correctly persisted to database"""
+    orh_repo.save_gap_candidate(sample_gap_candidate)
+
+    retrieved = orh_repo.get_gap_candidates()
+    assert len(retrieved) == 1
+    assert retrieved[0].strategy_name == "orh_breakout"
+
+
+def test_purge_respects_strategy_name(orh_repo, sample_gap_candidate):
+    """Purge only deletes candidates with matching strategy name"""
+    orh_repo.save_gap_candidate(sample_gap_candidate)
+
+    # Verify candidate exists
+    assert len(orh_repo.get_gap_candidates()) == 1
+
+    # Purge by strategy name
+    deleted = orh_repo.purge()
+    assert deleted >= 1
+
+    # Verify all ORH candidates deleted
+    assert len(orh_repo.get_gap_candidates()) == 0

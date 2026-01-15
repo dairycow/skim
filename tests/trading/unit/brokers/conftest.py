@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from skim.trading.data.models import MarketData, OrderResult
+from skim.domain.models import MarketData, OrderResult
 
 
 @pytest.fixture

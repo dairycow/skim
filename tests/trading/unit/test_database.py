@@ -5,7 +5,6 @@ from datetime import date, datetime
 import pytest
 from sqlmodel import select
 
-from skim.domain.models import GapCandidate, Ticker
 from skim.trading.data.database import Database
 
 
@@ -22,15 +21,12 @@ def test_update_candidate_status(db):
     from skim.trading.data.repositories.orh_repository import (
         ORHCandidateRepository,
     )
+    from tests.factories import CandidateFactory
 
     orh_repo = ORHCandidateRepository(db)
 
-    gap_candidate = GapCandidate(
-        ticker=Ticker("BHP"),
+    gap_candidate = CandidateFactory.gap_candidate(
         scan_date=datetime.now(),
-        status="watching",
-        gap_percent=5.0,
-        conid=8644,
     )
     orh_repo.save_gap_candidate(gap_candidate)
 
@@ -55,26 +51,23 @@ def test_purge_candidates_all(db):
     from skim.trading.data.repositories.orh_repository import (
         ORHCandidateRepository,
     )
+    from tests.factories import CandidateFactory
 
     orh_repo = ORHCandidateRepository(db)
 
     # Use different tickers to ensure 2 separate candidates
     orh_repo.save_gap_candidate(
-        GapCandidate(
-            ticker=Ticker("BHP"),
+        CandidateFactory.gap_candidate(
+            ticker="BHP",
             scan_date=datetime(2024, 1, 1, 23),
-            status="watching",
-            gap_percent=5.0,
-            conid=8644,
         )
     )
     orh_repo.save_gap_candidate(
-        GapCandidate(
-            ticker=Ticker("RIO"),
+        CandidateFactory.gap_candidate(
+            ticker="RIO",
             scan_date=datetime(2024, 1, 1, 23),
-            status="entered",
             gap_percent=4.0,
-            conid=8645,
+            status="entered",
         )
     )
 
@@ -96,6 +89,7 @@ def test_purge_candidates_filters_by_scan_date(db):
     from skim.trading.data.repositories.orh_repository import (
         ORHCandidateRepository,
     )
+    from tests.factories import CandidateFactory
 
     orh_repo = ORHCandidateRepository(db)
 
@@ -103,19 +97,15 @@ def test_purge_candidates_filters_by_scan_date(db):
     january_second = datetime(2024, 1, 2, 23)
 
     orh_repo.save_gap_candidate(
-        GapCandidate(
-            ticker=Ticker("BHP"),
+        CandidateFactory.gap_candidate(
+            ticker="BHP",
             scan_date=january_first,
-            status="watching",
-            gap_percent=5.0,
-            conid=8644,
         )
     )
     orh_repo.save_gap_candidate(
-        GapCandidate(
-            ticker=Ticker("CBA"),
+        CandidateFactory.gap_candidate(
+            ticker="CBA",
             scan_date=january_second,
-            status="watching",
             gap_percent=3.5,
             conid=8646,
         )

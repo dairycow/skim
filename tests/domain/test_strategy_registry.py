@@ -1,15 +1,15 @@
 """Tests for strategy registry"""
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
+from skim.domain.strategies.base import Strategy
 from skim.domain.strategies.context import StrategyContext
 from skim.domain.strategies.registry import (
     StrategyRegistry,
     registry,
-    register_strategy,
 )
-from skim.domain.strategies.base import Strategy
 
 
 class MockStrategy(Strategy):

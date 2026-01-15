@@ -1,10 +1,13 @@
 """Unit tests for the monitor module using the async market data provider."""
 
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
-from skim.trading.data.models import Position
+from skim.domain.models import Position
+from skim.domain.models.price import Price
+from skim.domain.models.ticker import Ticker
 from skim.trading.monitor import Monitor
 
 
@@ -44,11 +47,11 @@ async def test_check_stops_flags_positions_below_stop(monitor):
     monitor_instance, market_data = monitor
     positions = [
         Position(
-            ticker="BHP",
+            ticker=Ticker(symbol="BHP"),
             quantity=10,
-            entry_price=11.0,
-            stop_loss=10.0,
-            entry_date="2024-01-01",
+            entry_price=Price(value=11.0, timestamp=datetime(2024, 1, 1)),
+            stop_loss=Price(value=10.0, timestamp=datetime(2024, 1, 1)),
+            entry_date=datetime(2024, 1, 1),
             status="open",
             id=1,
         )
@@ -59,7 +62,7 @@ async def test_check_stops_flags_positions_below_stop(monitor):
 
     result = await monitor_instance.check_stops(positions)
 
-    assert [p.ticker for p in result] == ["BHP"]
+    assert [p.ticker.symbol for p in result] == ["BHP"]
     market_data.get_market_data.assert_awaited_once_with("BHP")
 
 
@@ -68,11 +71,11 @@ async def test_check_stops_ignores_positions_above_stop(monitor):
     monitor_instance, market_data = monitor
     positions = [
         Position(
-            ticker="RIO",
+            ticker=Ticker(symbol="RIO"),
             quantity=5,
-            entry_price=100.0,
-            stop_loss=95.0,
-            entry_date="2024-01-01",
+            entry_price=Price(value=100.0, timestamp=datetime(2024, 1, 1)),
+            stop_loss=Price(value=95.0, timestamp=datetime(2024, 1, 1)),
+            entry_date=datetime(2024, 1, 1),
             status="open",
             id=2,
         )

@@ -15,3 +15,10 @@ class Ticker:
 
     def __str__(self) -> str:
         return self.symbol
+
+    @classmethod
+    def from_persistence(cls, value: str) -> "Ticker":
+        return cls(symbol=value)
+
+    def to_persistence(self) -> str:
+        return self.symbol
