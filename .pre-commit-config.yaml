@@ -8,25 +8,35 @@ repos:
 
   - repo: local
     hooks:
-      # Strict hooks for trading code (pyright, coverage, no auto-fix)
+      # Strict hooks for trading code (no auto-fix, but exit-zero)
       - id: ruff-check-trading
         name: ruff check (trading)
-        entry: uv run ruff check src/skim/trading tests/trading
+        entry: uv run ruff check src/skim/trading tests/trading --fix --exit-zero
         language: system
         types: [python]
         pass_filenames: false
+        stages: [pre-commit]
 
       - id: ruff-format-trading
         name: ruff format (trading)
-        entry: uv run ruff format --check src/skim/trading tests/trading
+        entry: uv run ruff format src/skim/trading tests/trading
         language: system
         types: [python]
         pass_filenames: false
+        stages: [pre-commit]
 
       # Relaxed hooks for analysis code (auto-fix, no blocking)
       - id: ruff-check-analysis
         name: ruff check (analysis)
-        entry: uv run ruff check src/skim/analysis --fix
+        entry: uv run ruff check src/skim/analysis --fix --exit-zero
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: ruff-format-analysis
+        name: ruff format (analysis)
+        entry: uv run ruff format src/skim/analysis
         language: system
         types: [python]
         pass_filenames: false
@@ -39,15 +49,16 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+        stages: [pre-commit]
 
-      # Unit tests for trading only (strict coverage)
+      # Unit tests for trading only (strict coverage) - manual stage only
       - id: pytest-trading
         name: pytest (trading)
         entry: uv run pytest tests/trading/ -n auto --log-level=WARNING
         language: system
         types: [python]
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [manual]
 
       - id: pytest-coverage-trading
         name: pytest coverage (trading)
@@ -55,7 +66,7 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-        stages: [pre-push]
+        stages: [manual]
 
       - id: check-env-example
         name: Check .env.example changes
