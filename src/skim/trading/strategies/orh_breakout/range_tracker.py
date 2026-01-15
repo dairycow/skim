@@ -12,7 +12,7 @@ from datetime import UTC, datetime, time, timedelta
 
 from loguru import logger
 
-from skim.trading.brokers.protocols import MarketDataProvider
+from skim.infrastructure.brokers.protocols import MarketDataProvider
 from skim.trading.data.repositories.orh_repository import ORHCandidateRepository
 
 

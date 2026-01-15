@@ -3,39 +3,11 @@
 import asyncio
 from collections.abc import Callable
 from datetime import datetime
-from enum import Enum
+from typing import Any
 
 from loguru import logger
 
-
-class EventType(Enum):
-    """Event types for the trading system"""
-
-    MARKET_DATA = "market_data"
-    GAP_SCAN_RESULT = "gap_scan"
-    NEWS_SCAN_RESULT = "news_scan"
-    OPENING_RANGE_TRACKED = "or_tracked"
-    STOP_HIT = "stop_hit"
-    SIGNAL_EMITTED = "signal"
-    TRADE_EXECUTED = "trade_executed"
-    CANDIDATE_CREATED = "candidate_created"
-
-
-class Event:
-    """Event for event-driven architecture"""
-
-    def __init__(
-        self,
-        type: EventType,
-        data: dict,
-        timestamp: datetime | None = None,
-    ) -> None:
-        self.type = type
-        self.data = data
-        self.timestamp = timestamp or datetime.now()
-
-    def __repr__(self) -> str:
-        return f"Event(type={self.type.value}, timestamp={self.timestamp.isoformat()})"
+from skim.domain.models.event import Event, EventType
 
 
 class EventBus:
@@ -92,6 +64,15 @@ class EventBus:
         """
         await self._event_queue.put(event)
         logger.debug(f"Published event: {event}")
+
+    def publish_sync(self, event: Event) -> None:
+        """Publish event synchronously (for testing)
+
+        Args:
+            event: Event to publish
+        """
+        self._event_queue.put_nowait(event)
+        logger.debug(f"Published event (sync): {event}")
 
     async def start(self) -> None:
         """Start event processing loop
@@ -175,3 +156,21 @@ class EventBus:
                     handler(event)
             except Exception as e:
                 logger.error(f"Handler failed: {e}", exc_info=True)
+
+
+def create_event(
+    type: EventType,
+    data: dict[str, Any] | None = None,
+    timestamp: datetime | None = None,
+) -> Event:
+    """Factory function to create an Event
+
+    Args:
+        type: Event type
+        data: Optional event data
+        timestamp: Optional timestamp
+
+    Returns:
+        New Event instance
+    """
+    return Event(type=type, data=data, timestamp=timestamp)

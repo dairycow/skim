@@ -11,6 +11,7 @@ from skim.application.events.handlers import (
 )
 
 if TYPE_CHECKING:
+    from skim.domain.strategies.base import Strategy
     from skim.trading.brokers.ibkr_market_data import IBKRMarketData
     from skim.trading.brokers.ibkr_orders import IBKROrders
     from skim.trading.core.config import Config
@@ -19,7 +20,6 @@ if TYPE_CHECKING:
         ORHCandidateRepository,
     )
     from skim.trading.notifications.discord import DiscordNotifier
-    from skim.trading.strategies.base import Strategy
 
 
 class TradingService:

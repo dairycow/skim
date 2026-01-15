@@ -9,7 +9,7 @@ from skim.domain.strategies.registry import (
     registry,
     register_strategy,
 )
-from skim.domain.strategies.base import Strategy, Event, EventType
+from skim.domain.strategies.base import Strategy
 
 
 class MockStrategy(Strategy):

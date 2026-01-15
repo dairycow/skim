@@ -12,7 +12,10 @@ from skim.trading.data.database import Database
 from skim.trading.data.models import Position, TradeableCandidate
 
 if TYPE_CHECKING:
-    from skim.trading.brokers.protocols import MarketDataProvider, OrderManager
+    from skim.infrastructure.brokers.protocols import (
+        MarketDataProvider,
+        OrderManager,
+    )
 
 
 @dataclass

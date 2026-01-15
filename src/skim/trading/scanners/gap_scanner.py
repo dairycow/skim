@@ -4,8 +4,8 @@ from datetime import datetime
 
 from loguru import logger
 
-from ..brokers.protocols import GapScannerService
-from ..data.models import GapStockInPlay
+from skim.infrastructure.brokers.protocols import GapScannerService
+from skim.trading.data.models import GapStockInPlay
 
 
 class GapScanner:
