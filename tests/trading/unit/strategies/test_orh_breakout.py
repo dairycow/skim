@@ -135,10 +135,11 @@ class TestORHBreakoutStrategyTrade:
         """trade() should apply filter chain."""
         candidates = [Mock(ticker=Mock(symbol="BHP"))]
 
-        with patch.object(
-            mock_strategy.repo, "get_tradeable", return_value=candidates
-        ), patch.object(
-            mock_strategy.filter_chain, "apply", return_value=[]
+        with (
+            patch.object(
+                mock_strategy.repo, "get_tradeable", return_value=candidates
+            ),
+            patch.object(mock_strategy.filter_chain, "apply", return_value=[]),
         ):
             count = await mock_strategy.trade()
 
@@ -153,11 +154,14 @@ class TestORHBreakoutStrategyManage:
         """manage() should check stops and execute exits."""
         positions = [Mock(ticker=Mock(symbol="BHP"), quantity=100)]
 
-        with patch.object(
-            mock_strategy.db, "get_open_positions", return_value=positions
-        ), patch.object(
-            mock_strategy.monitor, "check_stops", new_callable=AsyncMock
-        ) as mock_check:
+        with (
+            patch.object(
+                mock_strategy.db, "get_open_positions", return_value=positions
+            ),
+            patch.object(
+                mock_strategy.monitor, "check_stops", new_callable=AsyncMock
+            ) as mock_check,
+        ):
             mock_check.return_value = positions
 
             with patch.object(
