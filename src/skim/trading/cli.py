@@ -36,12 +36,14 @@ def main() -> int:
 
     async def run():
         try:
+            await bot.start()
             exit_code = await dispatcher.dispatch(sys.argv)
             return exit_code
         finally:
             if bot.ib_client.is_connected():
                 logger.info("Shutting down IBKR connection...")
                 await bot.ib_client.disconnect()
+            await bot.stop()
 
     try:
         return asyncio.run(run())
